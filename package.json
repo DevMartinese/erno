@@ -1,0 +1,40 @@
+{
+  "name": "erno",
+  "version": "0.1.0",
+  "description": "A tiny engine for Rubik's cubes rendered to SVG",
+  "type": "module",
+  "main": "./dist/erno.umd.cjs",
+  "module": "./dist/erno.js",
+  "exports": {
+    ".": {
+      "import": "./dist/erno.js",
+      "require": "./dist/erno.umd.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src/erno.js"
+  ],
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "build:site": "vite build --config vite.site.config.js",
+    "preview": "vite preview --config vite.site.config.js",
+    "test": "node tests/erno.test.js"
+  },
+  "keywords": [
+    "rubik",
+    "cube",
+    "svg",
+    "3d",
+    "isometric",
+    "puzzle",
+    "speedcubing",
+    "visualization"
+  ],
+  "author": "DevMartinese",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^8.0.1"
+  }
+}
