@@ -541,7 +541,11 @@ a {
    The browser's own chrome — bevel, rounded corner, gradient arrow — is
    the last borrowed depth on the page, so it is stripped and the mark
    drawn flat: a solid ink triangle. */
-.control-label:has(.control-select) {
+/* Matched by context, not by class: only two of the eleven selects on this
+   page carry .control-select, and the other nine kept the browser's chrome
+   because of it. Every one of them sits inside a .control-label, so that is
+   what the rule keys on. */
+.control-label:has(select) {
   gap: 0;
   border: var(--rule) solid var(--ink);
   background: var(--ink);
@@ -553,7 +557,7 @@ a {
   overflow: hidden;
 }
 
-.control-select {
+.control-label select {
   /* sized to its content: in a control bar a select that grows to fill
      dwarfs the buttons beside it */
   flex: 0 1 auto;
@@ -578,8 +582,8 @@ a {
   background-repeat: no-repeat;
 }
 
-.control-select:hover,
-.control-select:focus {
+.control-label select:hover,
+.control-label select:focus {
   background-color: var(--yellow);
   outline: none;
 }
