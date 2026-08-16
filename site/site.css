@@ -532,9 +532,27 @@ a {
   font-weight: 400;
 }
 
-/* The browser's own select chrome — its bevel, its rounded corner, its
-   gradient arrow — is the one piece of borrowed depth left on the page.
-   Strip it and draw the mark ourselves: a solid ink triangle, flat. */
+/* A select is one unit, not a control with a caption floating beside it.
+   The label already wraps the select in the markup, so the label becomes
+   the ink plane and the select the paper plane inside it — two planes
+   butting with no gap, which is the same joint the plates use. Loose
+   captions read as noise once several controls sit in a row.
+
+   The browser's own chrome — bevel, rounded corner, gradient arrow — is
+   the last borrowed depth on the page, so it is stripped and the mark
+   drawn flat: a solid ink triangle. */
+.control-label:has(.control-select) {
+  gap: 0;
+  border: var(--rule) solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 0 0 0 0.7em;
+  overflow: hidden;
+}
+
 .control-select {
   /* sized to its content: in a control bar a select that grows to fill
      dwarfs the buttons beside it */
@@ -542,8 +560,10 @@ a {
   min-width: 0;
   appearance: none;
   -webkit-appearance: none;
-  border: var(--rule) solid var(--ink);
+  border: 0;
+  border-left: var(--rule) solid var(--ink);
   border-radius: 0;
+  margin-left: 0.7em;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--mono);
@@ -563,6 +583,7 @@ a {
   background-color: var(--yellow);
   outline: none;
 }
+
 
 .control-value {
   min-width: 2.2em;
