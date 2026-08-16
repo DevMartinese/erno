@@ -527,20 +527,41 @@ a {
 /* ─── Shared control styles ─── */
 .control-label {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  align-items: center;
   font-weight: 400;
 }
 
+/* The browser's own select chrome — its bevel, its rounded corner, its
+   gradient arrow — is the one piece of borrowed depth left on the page.
+   Strip it and draw the mark ourselves: a solid ink triangle, flat. */
 .control-select {
-  flex: 1;
+  /* sized to its content: in a control bar a select that grows to fill
+     dwarfs the buttons beside it */
+  flex: 0 1 auto;
   min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: inherit;
-  text-decoration: underline;
+  appearance: none;
+  -webkit-appearance: none;
+  border: var(--rule) solid var(--ink);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 0.52em 2em 0.52em 0.7em;
   cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: right 0.78em top 54%, right 0.42em top 54%;
+  background-size: 0.4em 0.4em, 0.4em 0.4em;
+  background-repeat: no-repeat;
+}
+
+.control-select:hover,
+.control-select:focus {
+  background-color: var(--yellow);
+  outline: none;
 }
 
 .control-value {
@@ -555,19 +576,22 @@ a {
   flex-wrap: wrap;
   font-size: 0.8rem;
   justify-content: center;
-  margin: 0 3vw;
-  gap: 1.5rem;
+  align-items: center;
+  margin: 1.2rem 0 0;
+  gap: 0.5rem;
   &:has(.control-label:only-child) {
     margin: 0 7vw;
   }
 }
 
 .demo-controls .control-label {
-  padding: 1rem 0;
+  padding: 0.3rem 0;
   flex: 1 1 calc(50% - 1.5rem);
   box-sizing: border-box;
+  /* a label holding a select or a swatch sits at its natural width — left
+     to grow it pushes the buttons apart and the bar stops reading as a row */
   &:has(button, input[type="color"], select) {
-    flex: 1 1 20%;
+    flex: 0 0 auto;
   }
   &:only-child {
     flex: 1 1 100%;
@@ -606,8 +630,8 @@ a {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1px;
-  background: var(--text);
+  height: var(--rule);
+  background: var(--ink);
 }
 
 /* Notch ticks — on the track line, poking up */
@@ -762,31 +786,41 @@ nav a:hover {
   text-decoration: underline;
 }
 
+/* A control is a plane, not a chip. Solid ink on paper, squared off, with
+   the full rule as its edge — the same vocabulary the plates are built
+   from. Pressing inverts it, the way a stamp prints. */
 button {
   font-family: var(--sans);
   font-weight: 900;
   font-stretch: 118%;
   letter-spacing: -0.02em;
-  font-size: 0.85rem;
-  padding: 0.75em 1.5em;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--line);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 0.52em 1.2em;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--rule) solid var(--ink);
   border-radius: 0;
   cursor: pointer;
-  transform: translateY(-20%);
 }
 
 button:hover {
-  border-color: var(--text);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+button:active {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--on-red);
 }
 
 .settings-panel {
   position: fixed;
   top: 1.2rem;
   right: 1.2rem;
-  background: var(--bg);
-  border: 1px solid var(--line);
+  background: var(--paper);
+  border: var(--rule) solid var(--ink);
   z-index: 100;
   font-size: 0.8rem;
   overflow: hidden;
@@ -807,6 +841,8 @@ button:hover {
   letter-spacing: -0.02em;
   font-size: 0.8rem;
   padding: 0.6rem 0.8rem;
+  background: var(--ink);
+  color: var(--paper);
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -1194,10 +1230,11 @@ input[type="color"]::-webkit-color-swatch {
   font: inherit;
   font-family: var(--mono);
   font-size: 0.78rem;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid var(--line);
-  padding: 0.35em 0.5em;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--rule) solid var(--ink);
+  line-height: 1.5;
+  padding: 0.52em 0.7em;
   min-width: 0;
   width: 100%;
 }
