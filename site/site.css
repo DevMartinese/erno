@@ -264,52 +264,77 @@ article {
   margin-bottom: 0.4rem;
 }
 
-/* Four arrangements, cycling. Same parts, placed differently — the plate
-   is composed each time rather than stamped from one template. */
-.section-row:nth-of-type(4n + 1) .section-demo {
-  grid-column: 1 / 6;
+/* Arrangements are chosen by weight, not by position — see composePlates()
+   in site.js, which measures each plate's prose, code and controls. Width
+   is set here; the SIDE is a separate axis, so the composition alternates
+   without position deciding the proportions.
+
+   A light plate takes the NARROWER text column on purpose: the same words
+   wrapped into more lines fill the plane, where a wide column leaves a
+   strip of text above a hole. Its demo is capped shorter too, so the whole
+   plate is simply a shallower band. */
+.plate--light .section-text {
+  grid-column: span 5;
 }
-.section-row:nth-of-type(4n + 1) .section-text {
-  grid-column: 6 / 13;
+.plate--light .section-demo {
+  grid-column: span 7;
+}
+.plate--light .demo-canvas {
+  max-height: 17rem;
 }
 
-.section-row:nth-of-type(4n + 2) .section-demo {
-  grid-column: 9 / 13;
-  border-right: none;
+.plate--even .section-text,
+.plate--even .section-demo {
+  grid-column: span 6;
+}
+.plate--even .demo-canvas {
+  max-height: 21rem;
+}
+
+/* Heavy plates get the wide text column and a taller demo to match it, so
+   neither plane towers over the other. */
+.plate--heavy .section-text {
+  grid-column: span 7;
+}
+.plate--heavy .section-demo {
+  grid-column: span 5;
+}
+.plate--heavy .demo-canvas {
+  max-height: 25rem;
+}
+
+/* The side. Straight puts the demo first, flipped puts the text first —
+   the border follows whichever plane sits on the left. */
+.plate--straight .section-demo {
+  order: 0;
+  border-right: var(--rule) solid var(--ink);
+  border-left: none;
+}
+.plate--straight .section-text {
+  order: 1;
+}
+.plate--flip .section-demo {
+  order: 1;
   border-left: var(--rule) solid var(--ink);
+  border-right: none;
 }
-.section-row:nth-of-type(4n + 2) .section-text {
-  grid-column: 1 / 9;
+.plate--flip .section-text {
+  order: 0;
 }
+
+/* Headings cycle the planes independently of both axes, so colour reads as
+   a beat through the page rather than a label for a size. */
 .section-row:nth-of-type(4n + 2) .section-text h2 {
   background: var(--red);
   color: var(--on-red);
 }
-
-.section-row:nth-of-type(4n + 3) .section-demo {
-  grid-column: 1 / 6;
-}
-.section-row:nth-of-type(4n + 3) .section-text {
-  grid-column: 6 / 13;
-}
 .section-row:nth-of-type(4n + 3) .section-text h2 {
   background: var(--blue);
   color: var(--on-blue);
-  font-size: 2rem;
-}
-
-.section-row:nth-of-type(4n + 4) .section-demo {
-  grid-column: 7 / 13;
-  border-right: none;
-  border-left: var(--rule) solid var(--ink);
-}
-.section-row:nth-of-type(4n + 4) .section-text {
-  grid-column: 1 / 7;
 }
 .section-row:nth-of-type(4n + 4) .section-text h2 {
   background: var(--yellow);
   color: var(--on-yellow);
-  font-size: 2rem;
 }
 
 /* A full-width plate: the heading still rides its plane, the body keeps

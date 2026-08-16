@@ -526,5 +526,52 @@ setupDemo("demo-renderstate", (v, ctx) => {
   });
 });
 
+/**
+ * Compose each plate to its own contents.
+ *
+ * The four arrangements used to cycle by position, which meant the split
+ * between text and demo was decided before anyone knew what was going in
+ * it. Across these eighteen plates the prose runs from 159 to 773
+ * characters — a 4.9× spread — and the demos carry between one and ten
+ * controls, so pairing width to position put the shortest text in the
+ * widest column and left a hole under it.
+ *
+ * Weight is measured instead, and the arrangement follows. Note that a
+ * LIGHT plate gets the NARROWER text column, not a wider one: narrow
+ * wraps the same words into more lines, so the text fills its plane
+ * instead of sitting as a strip above a void. The side still alternates
+ * by position, so the composition keeps its rhythm without letting
+ * position decide the proportions.
+ */
+function composePlates() {
+  const plates = document.querySelectorAll(".section-row");
+  plates.forEach((plate, i) => {
+    const text = plate.querySelector(".section-text");
+    const demo = plate.querySelector(".section-demo");
+    if (!text) return;
+    // all prose, not just <p> — the longest plate on the page keeps half its
+    // text in a list, and counting paragraphs alone filed it as the lightest
+    const bare = text.cloneNode(true);
+    bare.querySelectorAll("pre, h2").forEach((n) => n.remove());
+    const prose = bare.textContent.replace(/\s+/g, " ").trim().length;
+    const codeLines = Array.from(text.querySelectorAll("pre")).reduce(
+      (n, pre) => n + pre.textContent.trim().split("\n").length,
+      0,
+    );
+    const controls = demo ? demo.querySelectorAll("[data-bind]").length : 0;
+    // code and controls cost vertical room too, so they count toward weight
+    const weight = prose + codeLines * 42 + controls * 12;
+    // Cuts sit on this page's own terciles (measured: weights run 285–944),
+    // so the three arrangements are used in equal share rather than one
+    // swallowing the page.
+    plate.classList.add(
+      weight > 650 ? "plate--heavy" : weight > 470 ? "plate--even" : "plate--light",
+    );
+    plate.classList.add(i % 2 ? "plate--flip" : "plate--straight");
+  });
+}
+
+composePlates();
+
 // ─── Hero ────────────────────────────
 initHero(document.getElementById("hero"));
