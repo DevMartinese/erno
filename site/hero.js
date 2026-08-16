@@ -412,18 +412,25 @@ export function initHero(container) {
         crown: true,
         R: 2.6,
       });
-    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-    for (const b of blocks) {
-      const su = b.x * ex[0] + b.z * ez[0];
-      const sv = b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1];
-      u0 = Math.min(u0, su - b.R); u1 = Math.max(u1, su + b.R);
-      v0 = Math.min(v0, sv - b.R); v1 = Math.max(v1, sv + b.R);
-    }
+    const uOf = (b) => b.x * ex[0] + b.z * ez[0];
+    const vOf = (b) => b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1];
 
-    // fit the work to the hero band — monumental, near full-bleed
-    const k = Math.max(14, Math.min((W * 0.97) / (u1 - u0), (H * 0.94) / (v1 - v0), 72));
-    const cx = W / 2 - ((u0 + u1) / 2) * k;
-    const cy = H * 0.485 - ((v0 + v1) / 2) * k;
+    /** Screen bounds of a set of blocks, and the fit that frames them. */
+    const frame = (set) => {
+      let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+      for (const b of set) {
+        const su = uOf(b), sv = vOf(b);
+        u0 = Math.min(u0, su - b.R); u1 = Math.max(u1, su + b.R);
+        v0 = Math.min(v0, sv - b.R); v1 = Math.max(v1, sv + b.R);
+      }
+      // monumental, near full-bleed
+      const k = Math.max(14, Math.min((W * 0.97) / (u1 - u0), (H * 0.94) / (v1 - v0), 72));
+      return {
+        u0, u1, v0, v1, k,
+        cx: W / 2 - ((u0 + u1) / 2) * k,
+        cy: H * 0.485 - ((v0 + v1) / 2) * k,
+      };
+    };
 
     // every so often the work is built from original Rubik's-colored,
     // scrambled cubes — the icon itself as raw material
@@ -452,6 +459,29 @@ export function initHero(container) {
         };
     }
 
+    // Carve the title zone FIRST, then reframe. The fit has to be measured
+    // on the blocks that actually survive: sizing the frame around the whole
+    // composition and only then dropping the ones over the masthead leaves
+    // the survivors sitting off-centre, with the carved side reading as dead
+    // space. A provisional fit is needed to test the zone in screen space,
+    // so the frame is simply taken twice.
+    const draft = frame(blocks);
+    const kept = reserved
+      ? blocks.filter((b) => {
+          const sx = draft.cx + uOf(b) * draft.k;
+          const sy = draft.cy + vOf(b) * draft.k;
+          const rp = b.R * draft.k;
+          return !(
+            sx + rp > reserved.x0 &&
+            sx - rp < reserved.x1 &&
+            sy + rp > reserved.y0 &&
+            sy - rp < reserved.y1
+          );
+        })
+      : blocks;
+    if (!kept.length) return;
+    const { u0, u1, v0, v1, k, cx, cy } = frame(kept);
+
     // Build order: outward from the middle of the composition, so the work
     // grows from its centre toward the edges. Measured on screen rather than
     // in the world, so the ripple spreads evenly in the picture whatever the
@@ -459,21 +489,13 @@ export function initHero(container) {
     // bottom-up and lands a pyraminx roof right after the cell it caps.
     const midU = (u0 + u1) / 2;
     const midV = (v0 + v1) / 2;
-    for (const b of blocks)
-      b.spread = Math.hypot(
-        b.x * ex[0] + b.z * ez[0] - midU,
-        b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1] - midV,
-      );
-    blocks.sort((a, b) => a.spread - b.spread || a.y - b.y);
+    for (const b of kept)
+      b.spread = Math.hypot(uOf(b) - midU, vOf(b) - midV);
+    kept.sort((a, b) => a.spread - b.spread || a.y - b.y);
 
     const AXIS_MOVES = [["R", "L"], ["U", "D"], ["F", "B"]];
     const items = [];
-    for (const blk of blocks) {
-      const sx = cx + (blk.x * ex[0] + blk.z * ez[0]) * k;
-      const sy = cy + (blk.x * ex[1] + blk.z * ez[1] + blk.y * eyUp[1]) * k;
-      const rp = blk.R * k;
-      if (reserved && sx + rp > reserved.x0 && sx - rp < reserved.x1 && sy + rp > reserved.y0 && sy - rp < reserved.y1)
-        continue;
+    for (const blk of kept) {
       const type = blk.crown ? "pyra" : blk.fused ? "cube" : pickType(cast);
       const letters = LETTERS[type];
       const colors =
@@ -563,24 +585,12 @@ export function initHero(container) {
         it.el.style.zIndex = zi + 1;
       });
 
-    // one soft ground shadow under the mass
-    const shadows = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    shadows.setAttribute("width", W);
-    shadows.setAttribute("height", H);
-    shadows.style.cssText =
-      "position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 1.4s ease;";
-    const gx = cx + ((u0 + u1) / 2) * k;
-    const gy = cy + v1 * k + 8;
-    const grx = ((u1 - u0) / 2) * k * 0.82;
-    shadows.innerHTML =
-      `<defs><radialGradient id="hero-sh"><stop offset="0%" stop-color="rgba(0,0,0,0.12)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>` +
-      `<ellipse cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" rx="${grx.toFixed(1)}" ry="${(grx * 0.16).toFixed(1)}" fill="url(#hero-sh)"/>`;
-    container.appendChild(shadows);
-    requestAnimationFrame(() => (shadows.style.opacity = "1"));
+    // No ground shadow. A soft radial gradient is the one thing on this
+    // page pretending to depth, and picture-architecture "absorbs all into
+    // a flat plane" — the work sits ON the paper, it does not hover above it.
 
     scene = {
       items,
-      shadows,
       buildSpan,
       holdMs: rand(4500, 7500),
       dissolveMs: 1600,
@@ -634,7 +644,6 @@ export function initHero(container) {
       if (rel > s.holdMs && !INSTANT) {
         s.phase = "dissolve";
         s.phaseStart = now;
-        s.shadows.style.opacity = "0";
       }
     } else if (s.phase === "dissolve") {
       // dissolve in reverse: later-built blocks leave first
@@ -663,7 +672,6 @@ export function initHero(container) {
     if (scene && scene.phase !== "dissolve") {
       scene.phase = "dissolve";
       scene.phaseStart = performance.now();
-      scene.shadows.style.opacity = "0";
     }
   });
   let resizeTimer = 0;

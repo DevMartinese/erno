@@ -152,11 +152,13 @@ body {
 }
 
 /* The plates tile the page edge to edge. A flat plane has no margin to
-   float in, so the surface runs to the frame and the rules do the dividing. */
+   float in, so the surface runs to the frame and the rules do the dividing.
+   No rule on the article itself: it is pulled up over the hero by the
+   hero's negative margin, so a top border would draw a line straight
+   across the sculpture. Every plate carries its own. */
 article {
   max-width: none;
   padding: 0 0 12vh;
-  border-top: var(--rule) solid var(--ink);
 }
 
 .intro-text small {
