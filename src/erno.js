@@ -1,11 +1,17 @@
 /**
  * erno.js — a tiny engine for Rubik's cubes rendered to SVG.
  *
- * Sibling of heerich.js (voxels → SVG), sharing its philosophy: a single-file
- * core, zero dependencies, declarative API, and crisp SVG output with
+ * Sibling of heerich.js (voxels → SVG), sharing its philosophy: a small
+ * dependency-free core, declarative API, and crisp SVG output with
  * per-sticker data attributes for styling and interactivity.
  *
  * Named after Ernő Rubik.
+ *
+ * This file holds the N×N×N facelet cube — the specialized, solver-friendly
+ * representation — and is the package entry. The generic piece engine and
+ * the classic variants (Skewb, Pyraminx, Mirror, Void) live in twisty.js
+ * and puzzles.js, mirroring heerich's core + shapes.js structure, and are
+ * re-exported here.
  *
  * Model conventions (internal):
  * - Cube spans [0, 2N] per axis in "doubled" integer coordinates so every
@@ -14,60 +20,30 @@
  * - State is a flat facelet array in URFDLB face order (Kociemba layout);
  *   each move is a precomputed permutation of facelet indices, derived once
  *   from exact 3D quarter-turn rotations and cached.
- * - Render space converts to screen conventions (y down, z away) and reuses
- *   heerich's camera math: oblique, orthographic, isometric, perspective.
+ * - Render space converts to screen conventions (y down, z away) and uses
+ *   the shared camera/projection pipeline in render.js.
  */
 
-const FACES = ["U", "R", "F", "D", "L", "B"];
+import {
+  makeProjector,
+  buildSvgAttributes,
+  projectPolygon,
+  pointsAttr,
+  boundsViewBox,
+  sphereViewBox,
+  openSvgTag,
+} from "./render.js";
+import {
+  FACES,
+  CUBE_COLORS,
+  FACE_AXIS,
+  SPIN_SIGN,
+  parseCubeMove,
+  tokenize,
+  inverseSequence,
+} from "./twisty.js";
 
-const DEFAULT_COLORS = {
-  U: "#ffffff",
-  R: "#b71234",
-  F: "#009b48",
-  D: "#ffd500",
-  L: "#ff5800",
-  B: "#0046ad",
-};
-
-// face letter → [axis (0=x,1=y,2=z), dir (+1 = R/U/F sense), highEnd]
-const FACE_AXIS = {
-  R: [0, 1, true],
-  L: [0, -1, false],
-  U: [1, 1, true],
-  D: [1, -1, false],
-  F: [2, 1, true],
-  B: [2, -1, false],
-};
-
-// slice letter → [axis, dir] (M follows L, E follows D, S follows F)
-const SLICE_AXIS = { M: [0, -1], E: [1, -1], S: [2, 1] };
-
-// rotation letter → [axis, dir] (x follows R, y follows U, z follows F)
-const ROT_AXIS = { x: [0, 1], y: [1, 1], z: [2, 1] };
-
-// Sign of the continuous rotation angle per axis such that
-// angle = SPIN_SIGN[axis] * (π/2) matches one positive discrete quarter turn.
-const SPIN_SIGN = [-1, 1, -1];
-
-const MOVE_RE = /^(\d+)?([RUFDLBrufdlbMESxyz])(w?)(\d*)('?)$/;
-
-const t4 = (v) => Math.round(v * 1e4) / 1e4;
-
-/** Convert a camelCase style object to an SVG attribute string. */
-const _kebabCache = {};
-function buildSvgAttributes(styleObj) {
-  const merged = { strokeLinejoin: "round", ...styleObj };
-  let attrStr = "";
-  for (const key in merged) {
-    const value = merged[key];
-    if (value === undefined || value === null) continue;
-    const kebabKey =
-      _kebabCache[key] ||
-      (_kebabCache[key] = key.replace(/([A-Z])/g, "-$1").toLowerCase());
-    attrStr += ` ${kebabKey}="${value}"`;
-  }
-  return attrStr;
-}
+const DEFAULT_COLORS = CUBE_COLORS;
 
 /**
  * Apply one positive discrete quarter turn (R/U/F sense) about `axis` to a
@@ -284,38 +260,7 @@ export class Erno {
    * rotations (x y z).
    */
   parseMove(token) {
-    const m = MOVE_RE.exec(token);
-    if (!m) throw new Error(`erno: bad move '${token}'`);
-    const [, prefix, rawLetter, w, countStr, prime] = m;
-    const N = this.size;
-    const count = countStr ? parseInt(countStr, 10) : 1;
-    const sign = prime ? -1 : 1;
-
-    if (ROT_AXIS[rawLetter]) {
-      if (prefix || w)
-        throw new Error(`erno: rotations take no prefix/w: '${token}'`);
-      const [axis, dir] = ROT_AXIS[rawLetter];
-      return { axis, lo: 0, hi: N - 1, quarters: dir * count * sign };
-    }
-    if (SLICE_AXIS[rawLetter]) {
-      if (prefix || w)
-        throw new Error(`erno: slices take no prefix/w: '${token}'`);
-      if (N % 2 === 0)
-        throw new Error(`erno: '${rawLetter}' needs an odd cube (size ${N})`);
-      const [axis, dir] = SLICE_AXIS[rawLetter];
-      const mid = (N - 1) / 2;
-      return { axis, lo: mid, hi: mid, quarters: dir * count * sign };
-    }
-
-    const upper = rawLetter.toUpperCase();
-    const wide = w === "w" || rawLetter !== upper || !!prefix;
-    const n = prefix ? parseInt(prefix, 10) : wide ? 2 : 1;
-    if (n < 1 || n > N)
-      throw new Error(`erno: layer count ${n} out of range for size ${N}`);
-    const [axis, dir, highEnd] = FACE_AXIS[upper];
-    const lo = highEnd ? N - n : 0;
-    const hi = highEnd ? N - 1 : n - 1;
-    return { axis, lo, hi, quarters: dir * count * sign };
+    return parseCubeMove(token, this.size);
   }
 
   /**
@@ -323,8 +268,7 @@ export class Erno {
    * @returns {Erno} this (chainable)
    */
   move(sequence) {
-    const tokens = String(sequence).trim().split(/[\s,]+/).filter(Boolean);
-    for (const token of tokens) {
+    for (const token of tokenize(sequence)) {
       this._apply(this.parseMove(token));
       this.history.push(token);
     }
@@ -409,16 +353,7 @@ export class Erno {
 
   /** Invert a move sequence: Erno.inverse("R U2 f'") → "f U2 R'". */
   static inverse(sequence) {
-    return String(sequence)
-      .trim()
-      .split(/[\s,]+/)
-      .filter(Boolean)
-      .reverse()
-      .map((tok) => {
-        if (/2'?$/.test(tok)) return tok.replace(/2'?$/, "2");
-        return tok.endsWith("'") ? tok.slice(0, -1) : tok + "'";
-      })
-      .join(" ");
+    return inverseSequence(sequence);
   }
 
   // ── Styling ──────────────────────────────────────────────────────────────
@@ -454,57 +389,7 @@ export class Erno {
   }
 
   _makeProjector() {
-    const { type } = this.camera;
-    const tile = this.tile;
-    const N = this.size;
-
-    if (type === "oblique") {
-      const angle = ((this.camera.angle ?? 45) * Math.PI) / 180;
-      const depth = this.camera.depth ?? 0.5;
-      const dox = Math.cos(angle) * tile * depth;
-      const doy = -Math.sin(angle) * tile * depth;
-      return {
-        point: (x, y, z) => [x * tile + z * dox, y * tile + z * doy],
-        depth: (x, y, z) => z - (x * dox) / tile - (y * doy) / tile,
-      };
-    }
-
-    if (type === "perspective") {
-      const [cx, cy] = this.camera.position || [N * 1.7, -N * 0.7];
-      const d = this.camera.distance ?? N * 3.5;
-      return {
-        point: (x, y, z) => {
-          const t = d / (z + d);
-          return [(cx + (x - cx) * t) * tile, (cy + (y - cy) * t) * tile];
-        },
-        depth: (x, y, z) => {
-          const dx = x - cx,
-            dy = y - cy,
-            dz = z + d;
-          return dx * dx + dy * dy + dz * dz;
-        },
-      };
-    }
-
-    // orthographic / isometric
-    const angle = ((this.camera.angle ?? 30) * Math.PI) / 180;
-    const pitch =
-      type === "isometric"
-        ? Math.atan(1 / Math.SQRT2)
-        : ((this.camera.pitch ?? 30) * Math.PI) / 180;
-    // negated pan sign vs heerich so positive angle orbits toward the R face
-    const cosT = Math.cos(angle),
-      sinT = -Math.sin(angle);
-    const cosP = Math.cos(pitch),
-      sinP = Math.sin(pitch);
-    return {
-      point: (x, y, z) => {
-        const x1 = x * cosT - z * sinT;
-        const y1 = y * cosP - (x * sinT + z * cosT) * sinP;
-        return [(x1 + N) * tile, (y1 + N) * tile];
-      },
-      depth: (x, y, z) => y * sinP + (x * sinT + z * cosT) * cosP,
-    };
+    return makeProjector(this.camera, this.tile, this.size);
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────
@@ -516,7 +401,6 @@ export class Erno {
    */
   getFaces(turn) {
     const N = this.size;
-    const n2 = 2 * N;
     const proj = this._makeProjector();
     let spin = null;
     if (turn && turn.progress) {
@@ -545,32 +429,8 @@ export class Erno {
 
     const faces = [];
     const pushQuad = (corners, meta) => {
-      const pts = new Array(8);
-      let cx = 0,
-        cy = 0,
-        cz = 0;
-      for (let k = 0; k < 4; k++) {
-        const [rx, ry, rz] = toRender(corners[k]);
-        cx += rx;
-        cy += ry;
-        cz += rz;
-        const [px, py] = proj.point(rx, ry, rz);
-        pts[k * 2] = t4(px);
-        pts[k * 2 + 1] = t4(py);
-      }
-      // Backface cull: outward-wound quads project with negative shoelace
-      // area when they face the camera (screen y points down).
-      const area =
-        (pts[0] * pts[3] - pts[2] * pts[1]) +
-        (pts[2] * pts[5] - pts[4] * pts[3]) +
-        (pts[4] * pts[7] - pts[6] * pts[5]) +
-        (pts[6] * pts[1] - pts[0] * pts[7]);
-      if (area >= 0) return;
-      faces.push({
-        ...meta,
-        points: pts,
-        depth: proj.depth(cx / 4, cy / 4, cz / 4),
-      });
+      const projected = projectPolygon(corners.map(toRender), proj);
+      if (projected) faces.push({ ...meta, ...projected });
     };
 
     const inset = Math.max(0, Math.min(0.45, this.stickerInset));
@@ -677,42 +537,33 @@ export class Erno {
     if (options.viewBox) {
       vb = options.viewBox;
     } else if (options.fitSphere) {
-      vb = this._sphereViewBox(pad);
+      const N = this.size;
+      vb = sphereViewBox(
+        this._makeProjector(),
+        N / 2,
+        N / 2,
+        N / 2,
+        (Math.sqrt(3) / 2) * N,
+        pad,
+      );
     } else {
-      let minX = Infinity,
-        minY = Infinity,
-        maxX = -Infinity,
-        maxY = -Infinity;
-      for (const face of faces)
-        for (let k = 0; k < 8; k += 2) {
-          const x = face.points[k],
-            y = face.points[k + 1];
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-        }
-      if (faces.length === 0) (minX = 0), (minY = 0), (maxX = 100), (maxY = 100);
-      vb = [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2];
+      vb = boundsViewBox(faces, pad);
     }
 
-    const parts = [
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${t4(vb[0])} ${t4(vb[1])} ${t4(vb[2])} ${t4(vb[3])}" style="width:100%; height:100%;">`,
-    ];
+    const parts = [openSvgTag(vb)];
     if (options.prepend) parts.push(options.prepend);
 
     for (const face of faces) {
-      const p = face.points;
-      const pointsAttr = `${p[0]},${p[1]} ${p[2]},${p[3]} ${p[4]},${p[5]} ${p[6]},${p[7]}`;
+      const pa = pointsAttr(face.points);
       if (face.part === "core") {
         parts.push(
-          `<polygon points="${pointsAttr}" fill="${this.plastic}" stroke="${this.plastic}" stroke-width="0.5" data-part="core" />`,
+          `<polygon points="${pa}" fill="${this.plastic}" stroke="${this.plastic}" stroke-width="0.5" data-part="core" />`,
         );
         continue;
       }
       if (face.part === "plastic") {
         parts.push(
-          `<polygon points="${pointsAttr}" fill="${this.plastic}" stroke="${this.plastic}" stroke-width="0.5" data-part="plastic" data-face="${face.face}" data-row="${face.row}" data-col="${face.col}" />`,
+          `<polygon points="${pa}" fill="${this.plastic}" stroke="${this.plastic}" stroke-width="0.5" data-part="plastic" data-face="${face.face}" data-row="${face.row}" data-col="${face.col}" />`,
         );
         continue;
       }
@@ -728,47 +579,13 @@ export class Erno {
         if (custom) style = { ...style, ...custom };
       }
       parts.push(
-        `<polygon points="${pointsAttr}"${buildSvgAttributes(style)} data-part="sticker" data-face="${face.face}" data-row="${face.row}" data-col="${face.col}" data-color="${face.letter}" />`,
+        `<polygon points="${pa}"${buildSvgAttributes(style)} data-part="sticker" data-face="${face.face}" data-row="${face.row}" data-col="${face.col}" data-color="${face.letter}" />`,
       );
     }
 
     if (options.append) parts.push(options.append);
     parts.push("</svg>");
     return parts.join("");
-  }
-
-  /**
-   * ViewBox covering the cube's circumsphere — every mid-turn position stays
-   * inside it, so animations don't make the SVG jump.
-   */
-  _sphereViewBox(pad) {
-    const N = this.size;
-    const proj = this._makeProjector();
-    const cx = N / 2,
-      cy = N / 2,
-      cz = N / 2;
-    const radius = (Math.sqrt(3) / 2) * N;
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    const SAMPLES = 96;
-    const golden = Math.PI * (3 - Math.sqrt(5));
-    for (let k = 0; k < SAMPLES; k++) {
-      const y = 1 - (2 * k) / (SAMPLES - 1);
-      const r = Math.sqrt(Math.max(0, 1 - y * y));
-      const theta = golden * k;
-      const [px, py] = proj.point(
-        cx + radius * r * Math.cos(theta),
-        cy + radius * y,
-        cz + radius * r * Math.sin(theta),
-      );
-      if (px < minX) minX = px;
-      if (py < minY) minY = py;
-      if (px > maxX) maxX = px;
-      if (py > maxY) maxY = py;
-    }
-    return [minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2];
   }
 
   /**
@@ -785,3 +602,35 @@ export class Erno {
     return cube.toSVG(options);
   }
 }
+
+// The generic piece engine and the classic variants share this entry point.
+export { Twisty } from "./twisty.js";
+export {
+  Skewb,
+  Pyraminx,
+  Mirror,
+  Void,
+  Tetris,
+  Cuboid,
+  Domino,
+  Tower,
+  Floppy,
+  Fisher,
+  Windmill,
+  Axis,
+  Ghost,
+  Dino,
+  Compy,
+  MasterSkewb,
+  Helicopter,
+  Penrose,
+  Twist,
+  MasterPyraminx,
+  Pyramorphix,
+  Mastermorphix,
+  SkewbDiamond,
+  Megaminx,
+  Kilominx,
+  SCHEMES,
+} from "./puzzles.js";
+export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

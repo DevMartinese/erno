@@ -1,7 +1,7 @@
 {
   "name": "erno",
   "version": "0.1.0",
-  "description": "A tiny engine for Rubik's cubes rendered to SVG",
+  "description": "A tiny engine for twisty puzzles rendered to SVG — N×N cubes, Skewb, Pyraminx, Mirror and Void",
   "type": "module",
   "main": "./dist/erno.umd.cjs",
   "module": "./dist/erno.js",
@@ -13,14 +13,14 @@
   },
   "files": [
     "dist",
-    "src/erno.js"
+    "src"
   ],
   "scripts": {
-    "dev": "vite --host",
+    "dev": "vite site --host",
     "build": "vite build",
-    "build:site": "vite build --config vite.site.config.js",
-    "preview": "vite preview --config vite.site.config.js",
-    "test": "node tests/erno.test.js"
+    "build:site": "vite build --config site/vite.config.js",
+    "preview": "vite preview site",
+    "test": "node tests/erno.test.js && node tests/twisty.test.js"
   },
   "keywords": [
     "rubik",
@@ -30,7 +30,12 @@
     "isometric",
     "puzzle",
     "speedcubing",
-    "visualization"
+    "visualization",
+    "skewb",
+    "pyraminx",
+    "mirror-cube",
+    "void-cube",
+    "twisty-puzzle"
   ],
   "author": "DevMartinese",
   "license": "MIT",

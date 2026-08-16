@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>erno — puzzle gallery</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; }
+      h1 { font-size: 20px; }
+      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 1400px; }
+      figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; }
+      figcaption { font-size: 12px; color: #737373; text-align: center; margin-top: 4px; font-family: ui-monospace, monospace; }
+      .cell { aspect-ratio: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>erno — puzzle gallery (visual test page)</h1>
+    <div class="grid" id="grid"></div>
+    <script type="module">
+      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, SCHEMES } from "../src/erno.js";
+
+      const grid = document.getElementById("grid");
+      const show = (label, svg) => {
+        const fig = document.createElement("figure");
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.innerHTML = svg;
+        const cap = document.createElement("figcaption");
+        cap.textContent = label;
+        fig.append(cell, cap);
+        grid.appendChild(fig);
+      };
+
+      show("3×3 solved", new Erno().toSVG({ fitSphere: true }));
+      show("skewb solved", new Skewb().toSVG({ fitSphere: true }));
+      show("pyraminx solved", new Pyraminx().toSVG({ fitSphere: true }));
+      show("void solved", new Void().toSVG({ fitSphere: true }));
+
+      show("skewb R U' L B", new Skewb().move("R U' L B").toSVG({ fitSphere: true }));
+      show("pyraminx U L' R b", new Pyraminx().move("U L' R b").toSVG({ fitSphere: true }));
+      show("mirror solved", new Mirror().toSVG({ fitSphere: true }));
+      show("mirror R U2 F' D", new Mirror().move("R U2 F' D").toSVG({ fitSphere: true }));
+
+      show("skewb mid-turn R 50%", new Skewb().toSVG({ fitSphere: true, turn: { move: "R", progress: 0.5 } }));
+      show("pyraminx mid-turn U 50%", new Pyraminx().toSVG({ fitSphere: true, turn: { move: "U", progress: 0.5 } }));
+      show("void scrambled", (() => { const v = new Void(); v.move("R U' F2 L D' B U2 R' M E'"); return v.toSVG({ fitSphere: true }); })());
+      show("void mid-turn M 50%", new Void().toSVG({ fitSphere: true, turn: { move: "M", progress: 0.5 } }));
+
+      show("mirror gold", new Mirror({ colors: SCHEMES.gold }).move("R U' F").toSVG({ fitSphere: true }));
+      show("void japanese (x2)", new Void({ colors: SCHEMES.japanese }).move("x2").toSVG({ fitSphere: true }));
+      show("skewb perspective", new Skewb({ camera: { type: "perspective", position: [8, -3], distance: 18 } }).toSVG({ fitSphere: true }));
+      show("pyraminx oblique", new Pyraminx({ camera: { type: "oblique", angle: 45 } }).toSVG({ fitSphere: true }));
+
+      show("tetris solved (F/U/R)", new Tetris().toSVG({ fitSphere: true }));
+      show("tetris back (B/D/L)", new Tetris().move("x2 y").toSVG({ fitSphere: true }));
+      show("tetris scrambled", new Tetris().move("R U' F2 D L' B U2 R'").toSVG({ fitSphere: true }));
+      show("tetris mid-turn U 50%", new Tetris().toSVG({ fitSphere: true, turn: { move: "U", progress: 0.5 } }));
+
+      show("domino 3×2×3 scrambled", new Domino().move("U R2 D' F2 U2 L2 U B2").toSVG({ fitSphere: true }));
+      show("tower 2×3×2 scrambled", new Tower().move("U' R2 U2 F2 D R2 B2").toSVG({ fitSphere: true }));
+      show("floppy 3×1×3 R2 F2 L2", new Floppy().move("R2 F2 L2").toSVG({ fitSphere: true }));
+      show("cuboid 3×4×3 mid-turn U 40%", new Cuboid({ size: [3, 4, 3] }).toSVG({ fitSphere: true, turn: { move: "U", progress: 0.4 } }));
+
+      show("fisher solved", new Fisher().toSVG({ fitSphere: true }));
+      show("fisher R (shape-shift)", new Fisher().move("R").toSVG({ fitSphere: true }));
+      show("windmill scrambled", new Windmill().move("U R' F2 D L' U2 B").toSVG({ fitSphere: true }));
+      show("twist scrambled", new Twist().move("R U' F2 D L'").toSVG({ fitSphere: true }));
+
+      show("penrose solved", new Penrose().toSVG({ fitSphere: true }));
+      show("penrose scrambled", new Penrose().move("R U' F2 D L' B U2").toSVG({ fitSphere: true }));
+      show("dino mid-turn URF 50%", new Dino().toSVG({ fitSphere: true, turn: { move: "URF", progress: 0.5 } }));
+      show("helicopter scrambled", new Helicopter().move("UF UR FR DB BL UB").toSVG({ fitSphere: true }));
+
+      show("ghost solved", new Ghost().toSVG({ fitSphere: true }));
+      show("ghost scrambled", new Ghost().move("R U' F2 D L'").toSVG({ fitSphere: true }));
+      show("axis R U", new Axis().move("R U").toSVG({ fitSphere: true }));
+      show("master skewb scrambled", (() => { const p = new MasterSkewb(); p.move("URF UBL' DFR UFL DBR'"); return p.toSVG({ fitSphere: true }); })());
+
+      show("compy URF DBL'", new Compy().move("URF DBL'").toSVG({ fitSphere: true }));
+      show("master pyraminx scrambled", (() => { const p = new MasterPyraminx(); p.move("U Lw' R B' Uw l"); return p.toSVG({ fitSphere: true }); })());
+      show("pyramorphix R U'", new Pyramorphix().move("R U'").toSVG({ fitSphere: true }));
+      show("mastermorphix R U", new Mastermorphix().move("R U").toSVG({ fitSphere: true }));
+
+      show("skewb diamond solved", new SkewbDiamond().toSVG({ fitSphere: true }));
+      show("skewb diamond U R'", new SkewbDiamond().move("U R'").toSVG({ fitSphere: true }));
+      show("megaminx solved", new Megaminx().toSVG({ fitSphere: true }));
+      show("megaminx scrambled", (() => { const p = new Megaminx(); p.move("A C' F B' J E"); return p.toSVG({ fitSphere: true }); })());
+      show("megaminx mid-turn A 50%", new Megaminx().toSVG({ fitSphere: true, turn: { move: "A", progress: 0.5 } }));
+      show("kilominx solved", new Kilominx().toSVG({ fitSphere: true }));
+      show("kilominx D' H", new Kilominx().move("D' H").toSVG({ fitSphere: true }));
+    </script>
+  </body>
+</html>

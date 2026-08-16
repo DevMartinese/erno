@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>erno — Rubik's cubes to SVG</title>
+    <style>
+      :root {
+        --ink: #0a0a0a;
+        --paper: #ffffff;
+        --line: #e5e5e5;
+        --muted: #737373;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        color: var(--ink);
+        background: var(--paper);
+        padding: 48px 24px 96px;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+      header {
+        margin-bottom: 48px;
+      }
+      h1 {
+        font-size: 56px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+      }
+      header p {
+        margin-top: 8px;
+        color: var(--muted);
+        max-width: 640px;
+      }
+      header a {
+        color: inherit;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 48px;
+        align-items: start;
+      }
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+      #stage {
+        aspect-ratio: 1;
+        max-width: 560px;
+      }
+      #stage svg polygon[data-part="sticker"] {
+        cursor: pointer;
+      }
+      .panel section {
+        border-top: 1px solid var(--line);
+        padding: 16px 0 24px;
+      }
+      .panel h2 {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .moves {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 4px;
+      }
+      button,
+      select,
+      input[type="text"] {
+        font: inherit;
+        color: inherit;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 6px 10px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--ink);
+      }
+      button:active {
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .moves button {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        padding: 6px 0;
+        text-align: center;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .row + .row {
+        margin-top: 8px;
+      }
+      input[type="text"] {
+        flex: 1;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        min-width: 0;
+      }
+      input[type="range"] {
+        flex: 1;
+        accent-color: var(--ink);
+      }
+      label {
+        font-size: 14px;
+        color: var(--muted);
+        min-width: 52px;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      #history {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 14px;
+        color: var(--muted);
+        margin-top: 16px;
+        min-height: 1.5em;
+        max-width: 560px;
+        word-spacing: 0.25em;
+        overflow-wrap: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>erno</h1>
+        <p>
+          A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb,
+          Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners — moves, scrambles, layer animation and
+          per-sticker styling. No WebGL, no canvas, just
+          <code>&lt;svg&gt;</code>. Sibling of
+          <a href="https://github.com/meodai/heerich">heerich</a>.
+        </p>
+      </header>
+
+      <div class="layout">
+        <div>
+          <div id="stage"></div>
+          <div id="history"></div>
+        </div>
+
+        <div class="panel">
+          <section>
+            <h2>Algorithm</h2>
+            <div class="row">
+              <input
+                type="text"
+                id="alg"
+                value="R U R' U'"
+                spellcheck="false"
+                aria-label="Move sequence"
+              />
+              <button id="play">Play</button>
+            </div>
+            <div class="row">
+              <button id="scramble">Scramble</button>
+              <button id="reset">Reset</button>
+            </div>
+          </section>
+
+          <section>
+            <h2>Moves</h2>
+            <div class="moves" id="moveButtons"></div>
+            <p class="hint">Shift-click for the inverse (R&thinsp;&rarr;&thinsp;R&#8242;).</p>
+          </section>
+
+          <section>
+            <h2>Puzzle</h2>
+            <div class="row">
+              <label for="puzzle">Puzzle</label>
+              <select id="puzzle">
+                <option value="2">2×2</option>
+                <option value="3" selected>3×3</option>
+                <option value="4">4×4</option>
+                <option value="5">5×5</option>
+                <option value="6">6×6</option>
+                <option value="skewb">Skewb</option>
+                <option value="pyraminx">Pyraminx</option>
+                <option value="mirror">Mirror</option>
+                <option value="void">Void</option>
+                <option value="tetris">Tetris</option>
+                <option value="domino">Domino 3×2×3</option>
+                <option value="tower">Tower 2×3×2</option>
+                <option value="floppy">Floppy 3×1×3</option>
+                <option value="fisher">Fisher</option>
+                <option value="windmill">Windmill</option>
+                <option value="twist">Twist</option>
+                <option value="penrose">Penrose</option>
+                <option value="dino">Dino</option>
+                <option value="helicopter">Helicopter</option>
+                <option value="compy">Compy</option>
+                <option value="masterskewb">Master Skewb</option>
+                <option value="axis">Axis</option>
+                <option value="ghost">Ghost</option>
+                <option value="masterpyraminx">Master Pyraminx</option>
+                <option value="pyramorphix">Pyramorphix</option>
+                <option value="mastermorphix">Mastermorphix</option>
+                <option value="skewbdiamond">Skewb Diamond</option>
+                <option value="megaminx">Megaminx</option>
+                <option value="kilominx">Kilominx</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="camera">Camera</label>
+              <select id="camera">
+                <option value="isometric" selected>isometric</option>
+                <option value="orthographic">orthographic</option>
+                <option value="oblique">oblique</option>
+                <option value="perspective">perspective</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="angle">Angle</label>
+              <input type="range" id="angle" min="-90" max="90" value="30" />
+            </div>
+            <div class="row">
+              <label for="preset">Style</label>
+              <select id="preset"></select>
+            </div>
+            <div class="row">
+              <label for="scheme">Colors</label>
+              <select id="scheme">
+                <option value="" selected>default</option>
+                <option value="classic">classic</option>
+                <option value="japanese">japanese</option>
+                <option value="silver">silver</option>
+                <option value="gold">gold</option>
+                <option value="random">random ✦</option>
+              </select>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, SCHEMES } from "../src/erno.js";
+
+      const stage = document.getElementById("stage");
+      const historyEl = document.getElementById("history");
+      const $ = (id) => document.getElementById(id);
+
+      let cube;
+      let animating = false;
+      let generation = 0; // bumped on rebuild so stale animations abort
+
+      const PRESETS = {
+        classic: (c) => {
+          c.stickerInset = 0.12;
+          c.style(null);
+        },
+        stickerless: (c) => {
+          c.stickerInset = 0;
+          c.style({ stroke: "#0d0d0d", strokeWidth: 2 });
+        },
+        cross: (c) => {
+          // gray out everything except centers and the D-cross positions
+          c.stickerInset = 0.12;
+          c.style(({ face, row, col }) => {
+            const mid = Math.floor(c.size / 2);
+            const isCenter = row === mid && col === mid;
+            const dCross = face === "D" && (row === mid || col === mid);
+            const sideBottom =
+              face !== "U" && face !== "D" && row === c.size - 1 && col === mid;
+            return isCenter || dCross || sideBottom
+              ? null
+              : { fill: "#d4d4d4" };
+          });
+        },
+        grayscale: (c) => {
+          c.stickerInset = 0.12;
+          c.style(({ face, row, col }) => {
+            const pair =
+              (face === "F" && row >= 1 && col === c.size - 1) ||
+              (face === "R" && row >= 1 && col === 0);
+            return pair ? null : { fill: "#d4d4d4" };
+          });
+        },
+      };
+
+      const CUBE_MOVES = ["R", "L", "U", "D", "F", "B", "M", "E", "S", "x", "y", "z"];
+      const PUZZLES = {
+        skewb: {
+          make: (opts) => new Skewb(opts),
+          moves: ["R", "U", "L", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        pyraminx: {
+          make: (opts) => new Pyraminx(opts),
+          moves: ["U", "L", "R", "B", "u", "l", "r", "b"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        mirror: {
+          make: (opts) => new Mirror(opts),
+          moves: CUBE_MOVES,
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        void: {
+          make: (opts) => new Void(opts),
+          moves: CUBE_MOVES,
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        tetris: {
+          make: (opts) => new Tetris(opts),
+          moves: CUBE_MOVES,
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        domino: {
+          make: (opts) => new Domino(opts),
+          moves: ["U", "D", "E", "R2", "L2", "F2", "B2", "M2", "S2", "y"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        tower: {
+          make: (opts) => new Tower(opts),
+          moves: ["U", "D", "R2", "L2", "F2", "B2", "E", "y"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        floppy: {
+          make: (opts) => new Floppy(opts),
+          moves: ["R2", "L2", "F2", "B2", "M2", "S2", "y"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        fisher: {
+          make: (opts) => new Fisher(opts),
+          moves: ["U", "D", "R", "L", "F", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        windmill: {
+          make: (opts) => new Windmill(opts),
+          moves: ["U", "D", "R", "L", "F", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        twist: {
+          make: (opts) => new Twist(opts),
+          moves: CUBE_MOVES,
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        penrose: {
+          make: (opts) => new Penrose(opts),
+          moves: CUBE_MOVES,
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        dino: {
+          make: (opts) => new Dino(opts),
+          moves: ["URF", "UFL", "UBR", "UBL", "DFR", "DFL", "DBR", "DBL"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        helicopter: {
+          make: (opts) => new Helicopter(opts),
+          moves: ["UF", "UR", "UB", "UL", "DF", "DR", "DB", "DL", "FR", "FL", "BR", "BL"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        axis: {
+          make: (opts) => new Axis(opts),
+          moves: ["U", "D", "R", "L", "F", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        ghost: {
+          make: (opts) => new Ghost(opts),
+          moves: ["U", "D", "R", "L", "F", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        compy: {
+          make: (opts) => new Compy(opts),
+          moves: ["URF", "UFL", "UBR", "UBL", "DFR", "DFL", "DBR", "DBL"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        masterskewb: {
+          make: (opts) => new MasterSkewb(opts),
+          moves: ["URF", "UFL", "UBR", "UBL", "DFR", "DFL", "DBR", "DBL"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
+        },
+        masterpyraminx: {
+          make: (opts) => new MasterPyraminx(opts),
+          moves: ["U", "L", "R", "B", "Uw", "Lw", "Rw", "Bw", "u", "l", "r", "b"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        pyramorphix: {
+          make: (opts) => new Pyramorphix(opts),
+          moves: ["U", "D", "R", "L", "F", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        mastermorphix: {
+          make: (opts) => new Mastermorphix(opts),
+          moves: ["U", "D", "R", "L", "F", "B", "M", "E", "S"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        skewbdiamond: {
+          make: (opts) => new SkewbDiamond(opts),
+          moves: ["U", "R", "L", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        // the twelve faces are lettered A–L, so every face is its own move
+        megaminx: {
+          make: (opts) => new Megaminx(opts),
+          moves: [..."ABCDEFGHIJKL"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        kilominx: {
+          make: (opts) => new Kilominx(opts),
+          moves: [..."ABCDEFGHIJKL"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+      };
+
+      function puzzleConfig() {
+        const value = $("puzzle").value;
+        if (PUZZLES[value]) return PUZZLES[value];
+        const size = parseInt(value, 10);
+        return {
+          make: (opts) => new Erno({ ...opts, size }),
+          moves: size % 2 ? CUBE_MOVES : CUBE_MOVES.filter((m) => !"MES".includes(m)),
+          presets: ["classic", "stickerless", "cross", "grayscale"],
+          schemes: true,
+        };
+      }
+
+      function buildCube() {
+        generation++;
+        animating = false;
+        const config = puzzleConfig();
+        const opts = { tile: 40, camera: cameraSpec() };
+        const scheme = $("scheme").value;
+        if (config.schemes && scheme && scheme !== "random")
+          opts.colors = SCHEMES[scheme];
+        cube = config.make(opts);
+        if (scheme === "random")
+          cube.colors = generateScheme(Object.keys(cube.colors));
+        syncControls(config);
+        PRESETS[$("preset").value](cube);
+        render();
+      }
+
+      function syncControls(config) {
+        // move buttons for this puzzle's notation
+        const movesEl = $("moveButtons");
+        movesEl.innerHTML = "";
+        for (const m of config.moves) {
+          const b = document.createElement("button");
+          b.textContent = m;
+          b.addEventListener("click", (e) =>
+            playSequence(e.shiftKey ? m + "'" : m),
+          );
+          movesEl.appendChild(b);
+        }
+        // style presets available for this puzzle
+        const presetEl = $("preset");
+        const keep = config.presets.includes(presetEl.value)
+          ? presetEl.value
+          : config.presets[0];
+        presetEl.innerHTML = "";
+        for (const p of config.presets) {
+          const o = document.createElement("option");
+          o.value = p;
+          o.textContent =
+            p === "cross" ? "tutorial: cross" : p === "grayscale" ? "grayscale + F2L pair" : p;
+          presetEl.appendChild(o);
+        }
+        presetEl.value = keep;
+        $("scheme").disabled = !config.schemes;
+      }
+
+      function cameraSpec() {
+        const type = $("camera").value;
+        const angle = parseFloat($("angle").value);
+        if (type === "perspective") {
+          const value = $("puzzle").value;
+          const n = PUZZLES[value] ? 5 : parseInt(value, 10);
+          return {
+            type,
+            position: [n / 2 + (angle / 30) * n, -n * 0.7],
+            distance: n * 3.5,
+          };
+        }
+        return { type, angle };
+      }
+
+      function render(turn) {
+        stage.innerHTML = cube.toSVG({ fitSphere: true, turn });
+        historyEl.textContent = cube.history.join(" ");
+      }
+
+      const DURATION = 180; // ms per quarter turn
+
+      function animateMoves(tokens, done) {
+        const myGeneration = generation;
+        if (!tokens.length) {
+          animating = false;
+          if (done) done();
+          return;
+        }
+        animating = true;
+        const [token, ...rest] = tokens;
+        const spec = cube.parseMove(token);
+        const quarters =
+          spec.quarters !== undefined
+            ? Math.abs(spec.quarters)
+            : Math.abs(spec.angle) / (Math.PI / 2);
+        const total = DURATION * Math.max(1, quarters);
+        const start = performance.now();
+        function frame(now) {
+          if (generation !== myGeneration) return; // cube was rebuilt
+          const p = Math.min(1, (now - start) / total);
+          const eased = 1 - Math.pow(1 - p, 3);
+          render({ move: token, progress: eased });
+          if (p < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            cube.move(token);
+            render();
+            animateMoves(rest, done);
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+
+      function playSequence(seq) {
+        if (animating) return;
+        const tokens = seq.trim().split(/[\s,]+/).filter(Boolean);
+        try {
+          tokens.forEach((t) => cube.parseMove(t));
+        } catch (err) {
+          historyEl.textContent = err.message;
+          return;
+        }
+        animateMoves(tokens);
+      }
+
+      // ── Controls ─────────────────────────────────────────────────────────
+
+      $("play").addEventListener("click", () => playSequence($("alg").value));
+      $("alg").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") playSequence($("alg").value);
+      });
+      $("scramble").addEventListener("click", () => {
+        if (animating) return;
+        // generate on a scratch instance, then animate on the visible one
+        const seq = puzzleConfig().make({}).scramble();
+        $("alg").value = seq;
+        animateMoves(seq.split(" "));
+      });
+      $("reset").addEventListener("click", () => {
+        if (animating) return;
+        cube.reset();
+        render();
+      });
+      $("puzzle").addEventListener("change", buildCube);
+      $("scheme").addEventListener("change", buildCube);
+      $("preset").addEventListener("change", () => {
+        PRESETS[$("preset").value](cube);
+        render();
+      });
+      $("camera").addEventListener("change", () => {
+        cube.setCamera(cameraSpec());
+        render();
+      });
+      $("angle").addEventListener("input", () => {
+        cube.setCamera(cameraSpec());
+        render();
+      });
+
+      // deep-link support: ?puzzle=skewb|pyraminx|mirror|void|2…6
+      const requested = new URLSearchParams(location.search).get("puzzle");
+      if (requested && [...$("puzzle").options].some((o) => o.value === requested))
+        $("puzzle").value = requested;
+
+      buildCube();
+    </script>
+  </body>
+</html>

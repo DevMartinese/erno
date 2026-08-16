@@ -1,12 +1,16 @@
 # erno.js
 
-A tiny engine for Rubik's cubes rendered to SVG. Apply moves in standard
-notation, scramble, animate layer turns, and style every sticker — no WebGL,
+A tiny engine for twisty puzzles rendered to SVG — twenty-three of them.
+N×N cubes, Skewb & Master Skewb, Pyraminx & Master Pyraminx, Mirror, Void,
+Rubik's Tetris, cuboids (Domino, Tower, Floppy, any nx×ny×nz), shape mods
+(Fisher, Windmill, Axis, Ghost, Twist, Penrose, Pyramorphix, Mastermorphix)
+and corner/edge turners (Compy, Dino, Helicopter) — apply moves in standard
+notation, scramble, animate layer turns, and style every sticker. No WebGL,
 no canvas, just `<svg>`.
 
 Sibling of [heerich.js](https://github.com/meodai/heerich) (voxels → SVG),
-sharing its philosophy: a single-file core, zero dependencies, declarative
-API, and crisp vector output with per-sticker data attributes.
+sharing its philosophy: a small dependency-free core, declarative API, and
+crisp vector output with per-sticker data attributes.
 
 Named after [Ernő Rubik](https://en.wikipedia.org/wiki/Ern%C5%91_Rubik).
 
@@ -93,6 +97,116 @@ build time.
 new Erno({ size: 2 })   // pocket cube
 new Erno({ size: 5 })   // professor's cube — wide turns like 3Rw supported
 ```
+
+## Classic variants
+
+Beyond the N×N cube, erno ships the classic variants, all with the same API
+(`move` / `scramble` / `toSVG` / `style` / `setCamera` / `turn` animation):
+
+```js
+import { Skewb, Pyraminx, Mirror, Void, Tetris } from 'erno'
+
+new Skewb().move("R U' L B")
+new Pyraminx().move("U L' R b")
+new Mirror().move("R U2 F' D")   // shape-shifts like the real thing
+new Void().move("M E' S2")
+new Tetris().scramble()          // solid-colored Tetrimino cubies
+```
+
+They run on a generic piece engine (`Twisty`, also exported): each puzzle is
+defined as a base solid plus cut planes, the engine slices it into pieces,
+and every piece carries an exact integer rotation — scramble + inverse
+restores the solved state bit for bit, with zero float drift.
+
+- **Skewb** — WCA [Fixed Corner Notation](https://www.speedsolving.com/wiki/index.php?title=Skewb_notation):
+  `R U L B` turn 120° clockwise around a corner (`'` for counterclockwise).
+  State is 30 facelets in URFDLB order, 5 per face (corners in reading
+  order, center third).
+- **Pyraminx** — `U L R B` turn a vertex's two layers, lowercase `u l r b`
+  turn just the tips. State is 36 facelets in FLRD face order, reading order
+  per face. Scrambles include random tip moves, WCA style.
+- **Mirror** — a 3×3 mechanism sitting off-center inside the cube: the cut
+  planes sit at the mechanism pivot ± ½ and turns rotate about that pivot,
+  so blocks stay flush at the cuts while the outer surfaces protrude and
+  recess — it shape-shifts exactly like the real puzzle. Full cube notation;
+  `getState()` returns virtual URFDLB facelets identical to the `Erno` 3×3
+  (it is isomorphic), so solvers work unchanged.
+- **Void** — a 3×3 without centers; the engine renders interior plastic
+  walls, so the holes go all the way through. 48 facelets (8 per face).
+- **Tetris** — the official Rubik's × Tetris cube: 26 solid-colored cubies;
+  solved, each face reveals one classic Tetrimino in its Tetris color around
+  that face's center (all but the I, which the real product ships as a
+  display stand), with exactly two white filler cubies. `isSolved()`
+  compares the visible pattern, so same-colored cubies are interchangeable —
+  like the physical puzzle.
+- **Cuboids** — any nx×ny×nz box via `new Cuboid({ size: [3, 4, 3] })`,
+  with presets `Domino` (3×2×3, Ernő Rubik's 1978 pre-cube puzzle), `Tower`
+  (2×3×2) and `Floppy` (3×1×3). The engine enforces the physics: quarter
+  turns only about axes with a square cross section (`R` throws on a
+  Domino, `R2` works), so the box never shape-shifts. Standard cube
+  notation, including slices on odd axes and legal whole-puzzle rotations.
+- **Fisher, Windmill, Axis & Ghost** — a 3×3 mechanism rotated inside the
+  cube shell: Fisher yawed 45°, Windmill 30°, Axis 60° about a corner
+  diagonal, Ghost by a compound odd angle with uniform pale stickers.
+  `U D R L F B` name the mechanism faces. Turns push pieces out at odd
+  angles and the puzzle shape-shifts; stickers facing off-grid directions
+  report `?` in `getState()` until they realign.
+- **Pyramorphix & Mastermorphix** — a 2×2 / 3×3 mechanism inside a
+  tetrahedron: quarter turns are legal but the shell isn't symmetric under
+  them, so both shape-shift wildly. Full cube notation (Mastermorphix
+  includes slices).
+- **Master Pyraminx** — the 4-layer Pyraminx: `u` tips, `U` two layers,
+  `Uw` three. Master Skewb and Compy Cube join the corner-turning family:
+  the cut depth decides the puzzle (shallow Compy caps-and-wings, Dino's
+  edges-only diagonals, Master Skewb's 50 pieces).
+- **Twist** — a 3×3 molded with a continuous 90° twist: top and bottom
+  squares sit axis-aligned with all the twisting in the body, side stickers
+  are kite-shaped tiles. Full cube notation; `U D E` turns keep the
+  silhouette coherent, side turns go wild.
+- **Penrose** — the classic three-color shape mod: pairs of adjacent faces
+  share a color and their shared edge (UB, FL, DR — mutually skew, 3-fold
+  symmetric) is rounded off with a big fillet. Every face keeps its sticker
+  grid; curved tiles wrap the rounded edges. Scrambling makes the surface
+  jagged. Full cube notation.
+- **Dino** — corner-turning: twelve edge pieces, cuts along the face
+  diagonals; moves are corner names (`URF`, `DBL'`…, any letter order).
+- **Helicopter** — edge-turning: 180° flips about twelve edge axes (`UF`,
+  `FR`…); eight corners plus twenty-four single-sticker petals.
+
+Color schemes ship as presets for any cube-faced puzzle:
+
+```js
+import { SCHEMES } from 'erno'
+
+new Void({ colors: SCHEMES.japanese })   // blue down, yellow back
+new Mirror({ colors: SCHEMES.gold })
+// SCHEMES.classic, SCHEMES.japanese, SCHEMES.silver, SCHEMES.gold
+```
+
+Or generate them — a seeded hue walk with eased saturation and lightness
+gives an endless supply of harmonious schemes (concepts borrowed from
+[rampensau](https://github.com/meodai/rampensau),
+[poline](https://github.com/meodai/poline) and
+[dittoTones](https://github.com/meodai/dittoTones)):
+
+```js
+import { generateScheme, schemeFrom, generateRamp } from 'erno'
+
+const scheme = generateScheme([..."URFDLB"], { seed: 42 })
+scheme.name                       // "Vivid Cyan" — every scheme gets a name
+new Erno({ colors: scheme })
+
+schemeFrom('#e63946', [..."URFDLB"]) // whole scheme from one brand color
+
+const ramp = generateRamp(20)        // paint pieces along a gradient…
+new Void().style(({ piece }) => ({ fill: ramp[piece] }))
+// …and scrambling turns it into a mosaic
+```
+
+Piece-based puzzles emit `data-part`, `data-face`, `data-index`,
+`data-color` and `data-piece` on every polygon, and style callbacks receive
+`{ face, index, letter, piece }`. Open `gallery.html` on the dev server for
+a visual test sheet of every puzzle, scrambled and mid-turn.
 
 ## Camera
 
@@ -203,10 +317,16 @@ renderer on top.
 
 ## Development
 
-- `npm run dev` — Vite dev server with the demo page
-- `npm test` — run the test suite (plain Node, no framework)
+- `npm run dev` — Vite dev server with the demo page (`/`) and the visual
+  test gallery (`/gallery.html`)
+- `npm test` — run both test suites (plain Node, no framework)
 - `npm run build` — build the library to `dist/` (UMD + ESM)
 - `npm run build:site` — build the demo page to `dist-site/`
+
+Source layout mirrors heerich: `src/erno.js` (N×N facelet cube, package
+entry), `src/twisty.js` (generic piece engine + notation), `src/puzzles.js`
+(Skewb, Pyraminx, Mirror, Void, color schemes), `src/render.js` (shared
+cameras, culling, depth sort, SVG emission).
 
 ## License
 

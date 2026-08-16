@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>erno.js — Interactive Guide</title>
+    <meta
+      name="description"
+      content="A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb, Pyraminx, Mirror and Void — WCA notation, layer animation, zero dependencies. Named after Ernő Rubik."
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="erno.js" />
+    <meta
+      property="og:description"
+      content="Tiny engine for twisty puzzles rendered to SVG — N×N cubes, Skewb, Pyraminx, Mirror and Void, zero dependencies."
+    />
+    <meta property="og:type" content="website" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Aboreto&family=Work+Sans:wght@300;400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./site.css" />
+  </head>
+  <body>
+    <details class="settings-panel" id="settings-panel" open>
+      <summary class="settings-title">
+        Settings <span class="details-icon-closed">▥</span>
+      </summary>
+      <div class="settings-section-title">Camera</div>
+      <div class="settings-fields">
+        <label class="control-label">
+          <span>Type</span>
+          <select class="control-select" id="cam-proj">
+            <option value="isometric">isometric</option>
+            <option value="orthographic">orthographic</option>
+            <option value="oblique">oblique</option>
+            <option value="perspective">perspective</option>
+          </select>
+        </label>
+        <label class="control-label">
+          <span>Angle</span>
+          <input type="range" id="cam-angle" min="-90" max="90" value="30" />
+          <span class="control-value">30</span>
+        </label>
+        <label class="control-label" id="cam-pitch-label" hidden>
+          <span>Pitch</span>
+          <input type="range" id="cam-pitch" min="5" max="85" value="30" />
+          <span class="control-value">30</span>
+        </label>
+        <label class="control-label" id="cam-dist-label" hidden>
+          <span>Distance</span>
+          <input type="range" id="cam-dist" min="8" max="60" value="18" />
+          <span class="control-value">18</span>
+        </label>
+      </div>
+      <div class="settings-section-title">Stickers</div>
+      <div class="settings-fields">
+        <label class="control-label">
+          <span>Inset</span>
+          <input
+            type="range"
+            id="opt-inset"
+            min="0"
+            max="0.4"
+            value="0.12"
+            step="0.02"
+          />
+          <span class="control-value">0.12</span>
+        </label>
+        <label class="control-label">
+          <span>Plastic</span>
+          <input type="color" id="opt-plastic" value="#0d0d0d" />
+        </label>
+        <label class="control-label">
+          <span>Scheme</span>
+          <select class="control-select" id="opt-scheme">
+            <option value="">default</option>
+            <option value="japanese">japanese</option>
+            <option value="silver">silver</option>
+            <option value="gold">gold</option>
+          </select>
+        </label>
+      </div>
+    </details>
+
+    <div class="hero" id="hero"></div>
+
+    <article>
+      <div class="intro">
+        <div class="intro-text">
+          <h1>
+            erno.js <span class="version"></span>
+            <small>A tiny engine for twisty puzzles rendered to SVG</small>
+          </h1>
+
+          <p>
+            erno.js is a minimalist JavaScript engine that holds the state of a
+            twisty puzzle — an N×N Rubik's cube, a Skewb, a Pyraminx, a Mirror,
+            a Void, a Rubik's Tetris, a cuboid, a shape mod or a corner/edge
+            turner — applies moves in standard WCA notation, and
+            distills every position into pristine SVG. No WebGL, no canvas: the
+            output is semantic, stylable, resolution-independent markup, with
+            data attributes on every sticker.
+          </p>
+
+          <p>
+            The cube core tracks facelets the way solvers do — the state string
+            is solver-ready — while the classic variants run on a generic piece
+            engine: each puzzle is described as a solid plus cut planes, and
+            every piece carries an exact integer rotation, so a scramble and
+            its inverse restore the solved state bit for bit.
+          </p>
+
+          <p>
+            erno is the sibling of
+            <a href="https://github.com/meodai/heerich">heerich.js</a>
+            (voxels → SVG) and shares its philosophy and its render pipeline
+            lineage. It is named after
+            <a href="https://en.wikipedia.org/wiki/Ern%C5%91_Rubik">Ernő Rubik</a>,
+            who in 1974 glued the first prototype together out of wood and
+            paper clips.
+          </p>
+
+          <p>
+            This page is both manual and playground. Every example below is
+            live — use the settings panel to swap cameras and sticker styles
+            across the whole page.
+          </p>
+        </div>
+
+        <nav>
+          <ol>
+            <li><a href="#setup">Creating a cube</a></li>
+            <li><a href="#moves">Moves &amp; notation</a></li>
+            <li><a href="#scramble">Scrambling</a></li>
+            <li><a href="#state">Facelet state</a></li>
+            <li><a href="#sizes">Cubes of any size</a></li>
+            <li><a href="#skewb">Skewb</a></li>
+            <li><a href="#pyraminx">Pyraminx</a></li>
+            <li><a href="#mirror">Mirror cube</a></li>
+            <li><a href="#void">Void cube</a></li>
+            <li><a href="#tetris">Rubik's Tetris</a></li>
+            <li><a href="#cuboids">Cuboids</a></li>
+            <li><a href="#shapemods">Shape mods</a></li>
+            <li><a href="#turners">Corner &amp; edge turners</a></li>
+            <li><a href="#schemes">Color schemes</a></li>
+            <li><a href="#generative">Generative color</a></li>
+            <li><a href="#styles">Functional styles</a></li>
+            <li><a href="#animation">Animating turns</a></li>
+            <li><a href="#renderstate">Stateless rendering</a></li>
+            <li><a href="./playground.html">Playground ↗</a></li>
+            <li><a href="./gallery.html">Gallery ↗</a></li>
+            <li><a href="#support">Credits</a></li>
+          </ol>
+        </nav>
+      </div>
+
+      <!-- ─── 1. Setup (text-only) ──────────────────────── -->
+
+      <div class="section-full">
+        <h2 id="setup">Creating a cube</h2>
+
+        <p>
+          An <code>Erno</code> instance holds the facelet state of an N×N×N
+          cube and knows how to project it into 2D SVG. You initialize one
+          with a size, a tile size in pixels, and an optional camera.
+        </p>
+
+        <pre><code>import { Erno } from 'erno'
+
+const cube = new Erno({
+  size: 3,
+  tile: 40,
+  camera: { type: 'isometric', angle: 30 },
+})
+
+cube.move("R U R' U'")
+document.body.innerHTML = cube.toSVG()</code></pre>
+
+        <p>
+          All parameters are optional — <code>new Erno()</code> is a 3×3 with
+          sensible defaults. The SVG auto-centers on the visible geometry;
+          pass <code>{ fitSphere: true }</code> to size the viewBox to the
+          cube's circumsphere instead, so animations never make it jump.
+        </p>
+      </div>
+
+      <!-- ─── 2. Moves ──────────────────────────────────── -->
+
+      <div class="section-row" id="moves">
+        <div class="section-demo">
+          <div class="demo" id="demo-moves">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label control-label--wide"
+                >Sequence
+                <input
+                  type="text"
+                  data-bind="seq"
+                  value="R U R' U'"
+                  spellcheck="false"
+                />
+              </label>
+              <button data-bind="apply">Apply</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Moves &amp; notation</h2>
+          <p>
+            <code>move()</code> accepts standard WCA notation,
+            whitespace-separated: face turns <code>R L U D F B</code> with
+            <code>'</code> and <code>2</code> suffixes, wide turns
+            (<code>Rw</code>, lowercase <code>r</code>, or <code>3Rw</code> on
+            big cubes), slices <code>M E S</code>, and whole-cube rotations
+            <code>x y z</code>.
+          </p>
+          <pre><code>cube.move("R U R' U'")  // chainable
+cube.move("Rw M2 x'")
+Erno.inverse("R U2 f'") // → "f U2 R'"</code></pre>
+          <p>
+            Internally every move is a permutation of facelet indices, derived
+            once from exact integer 3D rotations and cached — applying a move
+            is a single array shuffle.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 3. Scramble ───────────────────────────────── -->
+
+      <div class="section-row" id="scramble">
+        <div class="section-demo">
+          <div class="demo" id="demo-scramble">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Length
+                <input type="range" min="4" max="40" value="25" data-bind="len" />
+                <span class="control-value">25</span></label
+              >
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+            <p class="demo-readout" data-readout></p>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Scrambling</h2>
+          <p>
+            <code>scramble()</code> applies a random move sequence — avoiding
+            trivially redundant successors — and returns it, so you can show
+            it, store it, or invert it.
+          </p>
+          <pre><code>const seq = cube.scramble()
+cube.move(Erno.inverse(seq))
+cube.isSolved() // true — exactly</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 4. State ──────────────────────────────────── -->
+
+      <div class="section-row" id="state">
+        <div class="section-demo">
+          <div class="demo" id="demo-state">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+            <p class="demo-readout demo-readout--mono" data-readout></p>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Facelet state</h2>
+          <p>
+            State is a facelet string in URFDLB face order, row-major per
+            face, one letter per sticker naming its home face — the same
+            layout common solvers (e.g. Kociemba's) consume, so wiring a
+            solver up is a string away.
+          </p>
+          <pre><code>cube.getState()
+// "UUUUUUUUURRRR…"
+cube.setState(str)</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 5. Sizes ──────────────────────────────────── -->
+
+      <div class="section-row" id="sizes">
+        <div class="section-demo">
+          <div class="demo" id="demo-sizes">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Size
+                <input type="range" min="2" max="6" value="4" data-bind="size" />
+                <span class="control-value">4</span></label
+              >
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Cubes of any size</h2>
+          <p>
+            The same engine renders a 2×2 pocket cube, the 3×3, and any big
+            cube — wide turns like <code>3Rw</code> included. Facelet count
+            grows as 6N², and moves stay a single permutation.
+          </p>
+          <pre><code>new Erno({ size: 2 })
+new Erno({ size: 5 }).move("3Rw U 3Fw'")</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 6. Skewb ──────────────────────────────────── -->
+
+      <div class="section-row" id="skewb">
+        <div class="section-demo">
+          <div class="demo" id="demo-skewb">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:L">L</button>
+              <button data-bind="move:B">B</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Skewb</h2>
+          <p>
+            The corner-turning cube. Moves follow WCA
+            <a href="https://www.speedsolving.com/wiki/index.php?title=Skewb_notation"
+              >Fixed Corner Notation</a
+            >: <code>R U L B</code> each turn half the puzzle 120° clockwise
+            around a corner, <code>'</code> for counterclockwise.
+            Shift-click the buttons for primes.
+          </p>
+          <pre><code>import { Skewb } from 'erno'
+
+new Skewb().move("R U' L B").toSVG()</code></pre>
+          <p>
+            The classic variants all run on a generic piece engine: a solid
+            plus cut planes, sliced into pieces, each carrying an exact
+            integer rotation. Same API as the cube, plus
+            <code>data-piece</code> on every polygon.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 7. Pyraminx ───────────────────────────────── -->
+
+      <div class="section-row" id="pyraminx">
+        <div class="section-demo">
+          <div class="demo" id="demo-pyraminx">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:L">L</button>
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:B">B</button>
+              <button data-bind="move:u">u</button>
+              <button data-bind="move:l">l</button>
+              <button data-bind="move:r">r</button>
+              <button data-bind="move:b">b</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Pyraminx</h2>
+          <p>
+            The tetrahedron. Uppercase <code>U L R B</code> turn a vertex's
+            two layers; lowercase <code>u l r b</code> turn just the trivial
+            tips. Scrambles append random tip moves, WCA style. State is 36
+            facelets in FLRD face order.
+          </p>
+          <pre><code>import { Pyraminx } from 'erno'
+
+new Pyraminx().move("U L' R b")
+new Pyraminx().scramble()
+// "U L R' B u' r"</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 8. Mirror ─────────────────────────────────── -->
+
+      <div class="section-row" id="mirror">
+        <div class="section-demo">
+          <div class="demo" id="demo-mirror">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:F">F</button>
+              <button data-bind="move:D">D</button>
+              <label class="control-label"
+                >Finish
+                <select data-bind="finish">
+                  <option value="silver">silver</option>
+                  <option value="gold">gold</option>
+                </select>
+              </label>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Mirror cube</h2>
+          <p>
+            A 3×3 with uneven cuts and uniform stickers — the blocks
+            shape-shift as you scramble, exactly like the real puzzle. It
+            speaks full cube notation, and because the pieces are tracked on a
+            logical 3×3 grid, <code>getState()</code> still returns virtual
+            URFDLB facelets identical to the plain cube: solvers work
+            unchanged.
+          </p>
+          <pre><code>import { Mirror } from 'erno'
+
+const m = new Mirror()
+m.move("R U2 F' D") // shape-shifts
+m.getState()        // 3×3-compatible</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 9. Void ───────────────────────────────────── -->
+
+      <div class="section-row" id="void">
+        <div class="section-demo">
+          <div class="demo" id="demo-void">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:F">F</button>
+              <button data-bind="move:M">M</button>
+              <button data-bind="move:E">E</button>
+              <button data-bind="move:S">S</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Void cube</h2>
+          <p>
+            A 3×3 without centers. The piece engine renders interior plastic
+            walls, so the holes go all the way through — turn the camera and
+            you can see the background straight down the tunnels. 48 facelets,
+            8 per face; slices still turn the edge ring.
+          </p>
+          <pre><code>import { Void } from 'erno'
+
+new Void().move("M E' S2")</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 9b. Tetris ────────────────────────────────── -->
+
+      <div class="section-row" id="tetris">
+        <div class="section-demo">
+          <div class="demo" id="demo-tetris">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:F">F</button>
+              <button data-bind="move:D">D</button>
+              <button data-bind="move:x">x</button>
+              <button data-bind="move:y">y</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Rubik's Tetris</h2>
+          <p>
+            The official Rubik's × Tetris mashup: a 3×3 whose 26 cubies are
+            solid-colored blocks. Solved, every face reveals one classic
+            Tetrimino in its Tetris color around that face's center — all of
+            them except the I, which doesn't fit a 3×3 face (the real product
+            ships it as the display stand). Two cubies stay white, like the
+            logo tile on the physical puzzle.
+          </p>
+          <pre><code>import { Tetris } from 'erno'
+
+const t = new Tetris()
+t.scramble()
+t.isSolved() // visual check: same-colored
+             // cubies are interchangeable</code></pre>
+          <p>
+            Because the pieces are solid-colored, <code>isSolved()</code>
+            compares the visible pattern, not piece identity — swapping two
+            same-colored cubies still counts as solved, exactly like the real
+            puzzle.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 9c. Cuboids ───────────────────────────────── -->
+
+      <div class="section-row" id="cuboids">
+        <div class="section-demo">
+          <div class="demo" id="demo-cuboids">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Shape
+                <select data-bind="kind">
+                  <option value="domino" selected>Domino 3×2×3</option>
+                  <option value="tower">Tower 2×3×2</option>
+                  <option value="floppy">Floppy 3×1×3</option>
+                  <option value="343">3×4×3</option>
+                </select>
+              </label>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:D">D</button>
+              <button data-bind="move:R2">R2</button>
+              <button data-bind="move:L2">L2</button>
+              <button data-bind="move:F2">F2</button>
+              <button data-bind="move:B2">B2</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Cuboids</h2>
+          <p>
+            Non-cubic boxes, any nx×ny×nz. The engine enforces the physics:
+            quarter turns are only legal about an axis whose cross section is
+            square; everywhere else the shape only returns to itself after a
+            half turn, so <code>R</code> throws and <code>R2</code> works —
+            the box never shape-shifts. The classics ship as presets:
+            <strong>Domino</strong> (3×2×3, Ernő Rubik's 1978 puzzle before
+            the cube), <strong>Tower</strong> (2×3×2) and
+            <strong>Floppy</strong> (3×1×3, nothing but 180° flips).
+          </p>
+          <pre><code>import { Cuboid, Domino,
+         Tower, Floppy } from 'erno'
+
+new Domino().move("U R2 D' F2")
+new Floppy().move("R2 F2 L2")
+new Cuboid({ size: [3, 4, 3] })</code></pre>
+          <p>
+            On the Domino, <code>U</code> and <code>D</code> spin freely
+            while the sides flip — scrambles mix white and yellow on the same
+            face, just like the real thing.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 9d. Shape mods ────────────────────────────── -->
+
+      <div class="section-row" id="shapemods">
+        <div class="section-demo">
+          <div class="demo" id="demo-shapemods">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Mod
+                <select data-bind="kind">
+                  <option value="fisher" selected>Fisher</option>
+                  <option value="windmill">Windmill</option>
+                  <option value="axis">Axis</option>
+                  <option value="ghost">Ghost</option>
+                  <option value="twist">Twist</option>
+                  <option value="penrose">Penrose</option>
+                  <option value="pyramorphix">Pyramorphix</option>
+                  <option value="mastermorphix">Mastermorphix</option>
+                </select>
+              </label>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:D">D</button>
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:L">L</button>
+              <button data-bind="move:F">F</button>
+              <button data-bind="move:B">B</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Shape mods</h2>
+          <p>
+            Cube and 2×2 groups wearing different bodies. The
+            <strong>Fisher</strong> (Tony Fisher, 1985), <strong>Windmill</strong>,
+            <strong>Axis</strong> and <strong>Ghost</strong> cubes are a 3×3
+            mechanism rotated inside the cube shell — the Ghost by a compound
+            odd angle, in monochrome. The <strong>Twist</strong> is molded
+            pre-twisted, the <strong>Penrose</strong> is sculpted into three
+            smooth shells, and the <strong>morphix</strong> pair puts a
+            2×2 / 3×3 mechanism inside a tetrahedron.
+          </p>
+          <pre><code>import { Fisher, Windmill,
+         Twist, Penrose } from 'erno'
+
+new Fisher().move("R U' F")
+new Penrose().scramble()</code></pre>
+          <p>
+            Mid-shape-shift, stickers can face directions that belong to no
+            face of the cube — those positions report <code>?</code> in
+            <code>getState()</code> until they realign.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 9e. Corner & edge turners ─────────────────── -->
+
+      <div class="section-row" id="turners">
+        <div class="section-demo">
+          <div class="demo" id="demo-turners">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Puzzle
+                <select data-bind="kind">
+                  <option value="dino" selected>Dino</option>
+                  <option value="compy">Compy</option>
+                  <option value="masterskewb">Master Skewb</option>
+                  <option value="helicopter">Helicopter</option>
+                </select>
+              </label>
+              <button data-bind="move:URF">URF</button>
+              <button data-bind="move:UBL">UBL</button>
+              <button data-bind="move:DFR">DFR</button>
+              <button data-bind="move:UF">UF</button>
+              <button data-bind="move:UR">UR</button>
+              <button data-bind="move:FR">FR</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Corner &amp; edge turners</h2>
+          <p>
+            The <strong>Dino</strong> cube's cuts trace the face diagonals:
+            twelve edge pieces and nothing else, turned three at a time 120°
+            around a corner — moves are named by their corner
+            (<code>URF</code>, <code>DBL'</code>…). The
+            <strong>Helicopter</strong> turns 180° around its twelve edges
+            (<code>UF</code>, <code>FR</code>…): eight corners and
+            twenty-four single-sticker petals.
+          </p>
+          <pre><code>import { Dino, Helicopter } from 'erno'
+
+new Dino().move("URF UBL' DFR")
+new Helicopter().move("UF FR DB")</code></pre>
+          <p>
+            The corner-name buttons drive the Dino, the edge-name buttons the
+            Helicopter.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 9b. Other solids ──────────────────────────── -->
+
+      <div class="section-row" id="solids">
+        <div class="section-demo">
+          <div class="demo" id="demo-solids">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Puzzle
+                <select data-bind="kind">
+                  <option value="megaminx" selected>Megaminx</option>
+                  <option value="kilominx">Kilominx</option>
+                  <option value="skewbdiamond">Skewb Diamond</option>
+                </select>
+              </label>
+              <button data-bind="move:A">A</button>
+              <button data-bind="move:B">B</button>
+              <button data-bind="move:C">C</button>
+              <button data-bind="move:D">D</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:R">R</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Beyond the cube</h2>
+          <p>
+            The engine carves pieces out of any convex solid, so the base
+            shape is just another part of the definition. The
+            <strong>Megaminx</strong> is a dodecahedron cut by twelve planes,
+            one per face — sixty-two pieces, each face a centre pentagon
+            ringed by five edges and five corners, every turn a fifth of a
+            revolution. Cut deeper and the edges disappear, leaving the
+            twenty corners of the <strong>Kilominx</strong>. The
+            <strong>Skewb Diamond</strong> is the Skewb's dual: the very same
+            four cuts and moves, applied to an octahedron.
+          </p>
+          <pre><code>import { Megaminx, Kilominx, SkewbDiamond } from 'erno'
+
+new Megaminx().move("A C' F")   // faces are lettered A–L
+new SkewbDiamond().move("U R'")</code></pre>
+          <p>
+            A dodecahedron has no up or right, so its twelve faces are simply
+            lettered <code>A</code>–<code>L</code> and each letter turns its
+            own face. The Skewb Diamond keeps the Skewb's
+            <code>U R L B</code>.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 10. Schemes ───────────────────────────────── -->
+
+      <div class="section-row" id="schemes">
+        <div class="section-demo">
+          <div class="demo" id="demo-schemes">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Scheme
+                <select data-bind="scheme">
+                  <option value="classic">classic</option>
+                  <option value="japanese" selected>japanese</option>
+                  <option value="silver">silver</option>
+                  <option value="gold">gold</option>
+                </select>
+              </label>
+              <button data-bind="move:x">x</button>
+              <button data-bind="move:y">y</button>
+              <button data-bind="move:z">z</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Color schemes</h2>
+          <p>
+            Face colors are just an option — <code>SCHEMES</code> ships the
+            Western/WCA classic, the Japanese scheme, and uniform silver and
+            gold. Western and Japanese share white top, green front and red
+            right, so from the default view they look identical; the
+            difference is on the hidden faces — Japanese puts
+            <em>blue opposite white</em> (down) and
+            <em>yellow opposite green</em> (back), where Western has yellow
+            down and blue back. This demo starts rotated (<code>x2</code>) so
+            the bottom and back are in view.
+          </p>
+          <pre><code>import { SCHEMES } from 'erno'
+
+new Erno({ colors: SCHEMES.japanese })
+new Void({ colors: SCHEMES.gold })</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 10b. Generative color ─────────────────────── -->
+
+      <div class="section-row" id="generative">
+        <div class="section-demo">
+          <div class="demo" id="demo-generative">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Mode
+                <select data-bind="kind">
+                  <option value="scheme" selected>scheme (3×3)</option>
+                  <option value="mosaic">ramp mosaic (void)</option>
+                </select>
+              </label>
+              <button data-bind="shuffle">New ✦</button>
+              <label class="control-label"
+                >From
+                <input type="color" data-bind="base" value="#e63946" />
+              </label>
+              <button data-bind="derive">Derive</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+            <p class="demo-readout" data-readout></p>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Generative color</h2>
+          <p>
+            Beyond the presets, schemes can be <em>generated</em>: a hue walk
+            around the wheel with eased saturation and lightness yields an
+            endless supply of harmonious face colors, reproducible by seed.
+            <code>schemeFrom()</code> derives a whole scheme from one color —
+            hand it a brand hex and the cube dresses to match. A generated
+            <em>ramp</em> painted across the pieces turns scrambling into a
+            mosaic maker.
+          </p>
+          <pre><code>import { generateScheme, schemeFrom,
+         generateRamp } from 'erno'
+
+new Erno({ colors:
+  generateScheme("URFDLB".split(""),
+    { seed: 42 }) })
+
+schemeFrom('#e63946', [..."URFDLB"])</code></pre>
+          <p>
+            The ideas come from
+            <a href="https://github.com/meodai/rampensau">rampensau</a> (hue
+            cycling), <a href="https://github.com/meodai/poline">poline</a>
+            (palettes as sampled paths) and
+            <a href="https://github.com/meodai/dittoTones">dittoTones</a>
+            (palettes from one color) — the color-tool universe of heerich's
+            author.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 11. Functional styles ─────────────────────── -->
+
+      <div class="section-row" id="styles">
+        <div class="section-demo">
+          <div class="demo" id="demo-styles">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Preset
+                <select data-bind="preset">
+                  <option value="cross" selected>tutorial: cross</option>
+                  <option value="f2l">grayscale + F2L pair</option>
+                  <option value="letters">letter scheme</option>
+                  <option value="none">plain</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Functional styles</h2>
+          <p>
+            <code>style()</code> takes a static object merged into every
+            sticker, or a callback
+            <code>({ face, row, col, letter }) → style</code> — the vocabulary
+            of tutorial diagrams: gray out everything but the cross, highlight
+            an F2L pair, dim solved layers.
+          </p>
+          <pre><code>cube.style(({ face, row, col }) =>
+  face === 'D' || row === 2
+    ? null                  // keep color
+    : { fill: '#d4d4d4' })  // dim the rest</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 12. Animation ─────────────────────────────── -->
+
+      <div class="section-row" id="animation">
+        <div class="section-demo">
+          <div class="demo" id="demo-animation">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label control-label--wide"
+                >Sequence
+                <input
+                  type="text"
+                  data-bind="seq"
+                  value="R U R' U' R' F R2 U' R' U' R U R' F'"
+                  spellcheck="false"
+                />
+              </label>
+              <label class="control-label"
+                >Speed
+                <input
+                  type="range"
+                  min="60"
+                  max="400"
+                  value="180"
+                  data-bind="dur"
+                />
+                <span class="control-value">180</span></label
+              >
+              <button data-bind="play">Play</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Animating turns</h2>
+          <p>
+            <code>toSVG({ turn: { move, progress } })</code> renders any
+            position mid-turn — the layer rotates continuously and the plastic
+            core is exposed. Drive <code>progress</code> from
+            <code>requestAnimationFrame</code> and you have a player; pair it
+            with <code>fitSphere</code> so the viewBox holds still.
+          </p>
+          <pre><code>cube.toSVG({
+  fitSphere: true,
+  turn: { move: 'R', progress: 0.5 },
+})</code></pre>
+          <p>This demo plays the T-perm. It works on every puzzle.</p>
+        </div>
+      </div>
+
+      <!-- ─── 13. renderState ───────────────────────────── -->
+
+      <div class="section-row" id="renderstate">
+        <div class="section-demo">
+          <div class="demo" id="demo-renderstate">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Position
+                <select data-bind="pos">
+                  <option value="superflip" selected>superflip</option>
+                  <option value="checkerboard">checkerboard</option>
+                  <option value="cubeincube">cube in cube</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Stateless rendering</h2>
+          <p>
+            <code>Erno.renderState()</code> renders a facelet string without
+            keeping an instance — size inferred from the length. Feed it
+            solver output or precomputed positions and render hundreds of
+            algorithm diagrams at build time.
+          </p>
+          <pre><code>Erno.renderState(
+  'UBULURUFU…', // any 6N² facelet string
+  { camera: { type: 'isometric', angle: 30 } }
+)</code></pre>
+        </div>
+      </div>
+
+      <!-- ─── 14. Pages ─────────────────────────────────── -->
+
+      <div class="section-full">
+        <h2 id="pages">Keep going</h2>
+        <p>
+          The <a href="./playground.html">playground</a> is a full interactive
+          simulator — every puzzle, animated moves, scrambles, camera and
+          style presets. The <a href="./gallery.html">gallery</a> is a visual
+          test sheet: every puzzle solved, scrambled and mid-turn, on one
+          page.
+        </p>
+      </div>
+    </article>
+
+    <footer class="site-footer">
+      <div class="footer-text">
+        <h2 id="support">Credits</h2>
+        <p>
+          Created by
+          <a href="https://github.com/DevMartinese">DevMartinese</a> —
+          <a href="https://github.com/DevMartinese/erno">GitHub</a>.
+        </p>
+        <p class="credit">
+          Sibling of <a href="https://github.com/meodai/heerich">heerich.js</a>
+          by David Aerne, whose render pipeline and site structure this
+          project inherits. Named after
+          <a href="https://en.wikipedia.org/wiki/Ern%C5%91_Rubik">Ernő Rubik</a>.
+        </p>
+        <p class="credit">
+          Syntax highlighting by
+          <a href="https://sugar-high.vercel.app/">Sugar High</a>. Typeset in
+          <a href="https://github.com/domija/Aboreto/">Aboreto</a> &amp;
+          <a href="https://weiweihuanghuang.github.io/Work-Sans/">Work Sans</a>.
+        </p>
+      </div>
+    </footer>
+
+    <script type="module" src="./site.js"></script>
+  </body>
+</html>
