@@ -202,7 +202,7 @@ article {
 .section-row .section-demo {
   position: static;
   grid-row: 1;
-  padding: 2rem;
+  padding: 1.5rem;
   border-right: var(--rule) solid var(--ink);
   display: flex;
   flex-direction: column;
@@ -212,18 +212,22 @@ article {
   min-width: 0;
 }
 
-/* A square demo spanning half the page makes a plate taller than the
-   screen. Cap it so the plate stays a band, not a page. */
+/* The demo fills its plane. Capping it to a fixed width left a small
+   square adrift in a half-page cell, which is where all the air came from;
+   the height cap alone keeps a plate a band rather than a page. */
 .section-row .demo-canvas {
-  max-width: 24rem;
-  max-height: 24rem;
+  width: 100%;
+  /* An absolute cap, not a viewport one: a plate should read as a band at
+     any window height, and 52vh only bit on short screens. */
+  max-height: 22rem;
   margin: 0 auto;
 }
 
 .section-row .section-text {
   grid-row: 1;
   min-width: 0;
-  padding: 0 0 3rem;
+  padding: 0 0 1.5rem;
+  align-self: start;
   p {
     margin-left: 0;
     padding: 0 2rem;
@@ -238,8 +242,8 @@ article {
    number sits in it as a printed mark. Which ink it carries is the
    measured pairing, never a guess. */
 .section-row .section-text h2 {
-  padding: 1.4rem 2rem 1.6rem;
-  margin: 0 0 1.5rem;
+  padding: 1.2rem 2rem 1.4rem;
+  margin: 0 0 1.2rem;
   width: auto;
   font-size: 2.6rem;
   border-top: none;
@@ -263,19 +267,19 @@ article {
 /* Four arrangements, cycling. Same parts, placed differently — the plate
    is composed each time rather than stamped from one template. */
 .section-row:nth-of-type(4n + 1) .section-demo {
-  grid-column: 1 / 7;
+  grid-column: 1 / 6;
 }
 .section-row:nth-of-type(4n + 1) .section-text {
-  grid-column: 7 / 13;
+  grid-column: 6 / 13;
 }
 
 .section-row:nth-of-type(4n + 2) .section-demo {
-  grid-column: 8 / 13;
+  grid-column: 9 / 13;
   border-right: none;
   border-left: var(--rule) solid var(--ink);
 }
 .section-row:nth-of-type(4n + 2) .section-text {
-  grid-column: 1 / 8;
+  grid-column: 1 / 9;
 }
 .section-row:nth-of-type(4n + 2) .section-text h2 {
   background: var(--red);
@@ -283,10 +287,10 @@ article {
 }
 
 .section-row:nth-of-type(4n + 3) .section-demo {
-  grid-column: 1 / 8;
+  grid-column: 1 / 6;
 }
 .section-row:nth-of-type(4n + 3) .section-text {
-  grid-column: 8 / 13;
+  grid-column: 6 / 13;
 }
 .section-row:nth-of-type(4n + 3) .section-text h2 {
   background: var(--blue);
@@ -295,12 +299,12 @@ article {
 }
 
 .section-row:nth-of-type(4n + 4) .section-demo {
-  grid-column: 6 / 13;
+  grid-column: 7 / 13;
   border-right: none;
   border-left: var(--rule) solid var(--ink);
 }
 .section-row:nth-of-type(4n + 4) .section-text {
-  grid-column: 1 / 6;
+  grid-column: 1 / 7;
 }
 .section-row:nth-of-type(4n + 4) .section-text h2 {
   background: var(--yellow);
@@ -658,11 +662,11 @@ pre {
   border: 1px dashed var(--line);
   border-width: 0 0 0 1px;
   border-radius: 0;
-  padding: 2rem;
+  padding: 1.2rem 2rem;
   overflow-x: auto;
   font-size: 0.82rem;
   line-height: 1.5;
-  margin: 2rem 0;
+  margin: 1.2rem 0;
   /* Never wider than the plane holding it. This used to run to 120% so the
      code could bleed into the old layout's gutter; plates butt edge to
      edge, so there is no gutter to bleed into — it just pushed the whole
