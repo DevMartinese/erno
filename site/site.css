@@ -205,6 +205,9 @@ article {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* a grid item defaults to min-width:auto and refuses to shrink below its
+     contents, which is how one wide child drags the page sideways */
+  min-width: 0;
 }
 
 /* A square demo spanning half the page makes a plate taller than the
@@ -278,10 +281,10 @@ article {
 }
 
 .section-row:nth-of-type(4n + 3) .section-demo {
-  grid-column: 1 / 9;
+  grid-column: 1 / 8;
 }
 .section-row:nth-of-type(4n + 3) .section-text {
-  grid-column: 9 / 13;
+  grid-column: 8 / 13;
 }
 .section-row:nth-of-type(4n + 3) .section-text h2 {
   background: var(--blue);
@@ -290,12 +293,12 @@ article {
 }
 
 .section-row:nth-of-type(4n + 4) .section-demo {
-  grid-column: 5 / 13;
+  grid-column: 6 / 13;
   border-right: none;
   border-left: var(--rule) solid var(--ink);
 }
 .section-row:nth-of-type(4n + 4) .section-text {
-  grid-column: 1 / 5;
+  grid-column: 1 / 6;
 }
 .section-row:nth-of-type(4n + 4) .section-text h2 {
   background: var(--yellow);
@@ -442,7 +445,7 @@ h2 {
   line-height: 1;
   margin-top: 0;
   margin-bottom: 1.2em;
-  width: 120%;
+  max-width: 100%;
 }
 
 h3 {
@@ -653,12 +656,18 @@ pre {
   border: 1px dashed var(--line);
   border-width: 0 0 0 1px;
   border-radius: 0;
-  padding: 2rem 0 2rem 2rem;
+  padding: 2rem;
   overflow-x: auto;
   font-size: 0.82rem;
   line-height: 1.5;
-  margin: 4rem 0;
-  width: 120%;
+  margin: 2rem 0;
+  /* Never wider than the plane holding it. This used to run to 120% so the
+     code could bleed into the old layout's gutter; plates butt edge to
+     edge, so there is no gutter to bleed into — it just pushed the whole
+     page wide and broke the scroll. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 code {
