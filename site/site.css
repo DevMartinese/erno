@@ -151,9 +151,12 @@ body {
   height: 100%;
 }
 
+/* The plates tile the page edge to edge. A flat plane has no margin to
+   float in, so the surface runs to the frame and the rules do the dividing. */
 article {
-  max-width: 72rem;
-  padding: 8vh 1.5rem 20vh 3rem;
+  max-width: none;
+  padding: 0 0 12vh;
+  border-top: var(--rule) solid var(--ink);
 }
 
 .intro-text small {
@@ -162,34 +165,179 @@ article {
   margin-top: 1rem;
 }
 
-.section-row {
+/* ─────────────────────────────────────────────────────────────────────────
+   PLATES — the guide rebuilt on Kassák's terms.
+
+   The manifesto is structural, not decorative. "Picture-Architecture does
+   not represent … it simply exists", and it "absorbs all into a flat
+   plane". Three consequences, each one condemning what stood here:
+
+   · A demo that merely illustrates the prose beside it is representation.
+     So the puzzle is not a picture of the paragraph — it is a plane of the
+     composition, and the heading rides its own coloured plane.
+   · A flat plane admits no depth, so the sticky column, the gaps and the
+     cards are gone. Planes butt edge to edge and the only separation is a
+     change of colour and a rule.
+   · Construction is architecture, so plates are PLACED on a twelve-column
+     module in four alternating arrangements, not flowed one after another.
+
+   Demos keep a neutral ground: the puzzles are painted from this very
+   palette, so a red plane behind red stickers would swallow them.
+   ───────────────────────────────────────────────────────────────────── */
+article {
+  counter-reset: plate;
+}
+
+.section-row,
+.section-full {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 4rem;
-  align-items: start;
-  margin-top: 8rem;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: stretch;
+  margin-top: 0;
+  border-top: var(--rule) solid var(--ink);
 }
 
 .section-row .section-demo {
-  position: sticky;
-  top: 1.5rem;
+  position: static;
+  grid-row: 1;
+  padding: 2rem;
+  border-right: var(--rule) solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-.section-row .section-text h2 {
-  padding-top: 9rem;
-  border-top: none;
+/* A square demo spanning half the page makes a plate taller than the
+   screen. Cap it so the plate stays a band, not a page. */
+.section-row .demo-canvas {
+  max-width: 24rem;
+  max-height: 24rem;
+  margin: 0 auto;
 }
 
-.section-text {
+.section-row .section-text {
+  grid-row: 1;
   min-width: 0;
+  padding: 0 0 3rem;
   p {
-    margin-left: 4rem;
+    margin-left: 0;
+    padding: 0 2rem;
+  }
+  ul,
+  pre {
+    margin-left: 0;
   }
 }
 
+/* The heading is a plane: it spans its column outright, and the plate
+   number sits in it as a printed mark. Which ink it carries is the
+   measured pairing, never a guess. */
+.section-row .section-text h2 {
+  padding: 1.4rem 2rem 1.6rem;
+  margin: 0 0 1.5rem;
+  width: auto;
+  font-size: 2.6rem;
+  border-top: none;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.section-row .section-text h2::before {
+  counter-increment: plate;
+  content: counter(plate, upper-roman);
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-stretch: 100%;
+  letter-spacing: 0.18em;
+  opacity: 0.65;
+  margin-bottom: 0.4rem;
+}
+
+/* Four arrangements, cycling. Same parts, placed differently — the plate
+   is composed each time rather than stamped from one template. */
+.section-row:nth-of-type(4n + 1) .section-demo {
+  grid-column: 1 / 7;
+}
+.section-row:nth-of-type(4n + 1) .section-text {
+  grid-column: 7 / 13;
+}
+
+.section-row:nth-of-type(4n + 2) .section-demo {
+  grid-column: 8 / 13;
+  border-right: none;
+  border-left: var(--rule) solid var(--ink);
+}
+.section-row:nth-of-type(4n + 2) .section-text {
+  grid-column: 1 / 8;
+}
+.section-row:nth-of-type(4n + 2) .section-text h2 {
+  background: var(--red);
+  color: var(--on-red);
+}
+
+.section-row:nth-of-type(4n + 3) .section-demo {
+  grid-column: 1 / 9;
+}
+.section-row:nth-of-type(4n + 3) .section-text {
+  grid-column: 9 / 13;
+}
+.section-row:nth-of-type(4n + 3) .section-text h2 {
+  background: var(--blue);
+  color: var(--on-blue);
+  font-size: 2rem;
+}
+
+.section-row:nth-of-type(4n + 4) .section-demo {
+  grid-column: 5 / 13;
+  border-right: none;
+  border-left: var(--rule) solid var(--ink);
+}
+.section-row:nth-of-type(4n + 4) .section-text {
+  grid-column: 1 / 5;
+}
+.section-row:nth-of-type(4n + 4) .section-text h2 {
+  background: var(--yellow);
+  color: var(--on-yellow);
+  font-size: 2rem;
+}
+
+/* A full-width plate: the heading still rides its plane, the body keeps
+   the same inset as every other plate so the type column never shifts. */
 .section-full {
-  margin-top: 8rem;
-  max-width: calc(100% / 2.2 * 1.2);
+  padding: 0 0 3rem;
+  max-width: none;
+  > * {
+    grid-column: 1 / 13;
+    padding: 0 2rem;
+  }
+  > h2 {
+    padding: 1.4rem 2rem 1.6rem;
+    margin: 0 0 1.5rem;
+    width: auto;
+    font-size: 2.6rem;
+    background: var(--ink);
+    color: var(--paper);
+  }
+  > h2::before {
+    counter-increment: plate;
+    content: counter(plate, upper-roman);
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 400;
+    font-stretch: 100%;
+    letter-spacing: 0.18em;
+    opacity: 0.65;
+    margin-bottom: 0.4rem;
+  }
+}
+
+/* The masthead is the one plane that keeps a margin — it is the title
+   page, not a plate. */
+.intro {
+  padding: 6rem 2rem 5rem;
 }
 
 @media (max-width: 56rem) {
@@ -1019,8 +1167,9 @@ input[type="color"]::-webkit-color-swatch {
   border-color: var(--text);
 }
 
-/* Move buttons carry case-sensitive tokens (u vs U, Uw): Aboreto is
-   unicase, so use a monospace face that can tell them apart. */
+/* Move buttons carry case-sensitive tokens (u vs U, Uw), so they need a
+   face that tells them apart — the reason the display face is no longer
+   unicase. */
 .demo-controls button {
   font-family: var(--mono);
   font-size: 0.8rem;
