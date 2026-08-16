@@ -6,8 +6,6 @@ import {
   Pyraminx,
   Twist,
   Cuboid,
-  schemeFrom,
-  generateRamp,
 } from "../src/erno.js";
 
 /**
@@ -325,6 +323,41 @@ export function initHero(container) {
     return "cube";
   }
 
+  /**
+   * The scene's whole colour vocabulary, read off the page's own custom
+   * properties so the stylesheet stays the single source of truth: if the
+   * palette is retuned in CSS, the sculptures follow without a code change.
+   * Paper and ink are in the set — in a linocut the paper is a colour too.
+   */
+  function readUnitPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    const of = (name, fallback) =>
+      (cs.getPropertyValue(name) || "").trim() || fallback;
+    return [
+      of("--red", "#cc2823"),
+      of("--blue", "#00489f"),
+      of("--yellow", "#f6ba00"),
+      of("--paper", "#f4efe7"),
+      of("--ink", "#17110c"),
+      of("--red", "#cc2823"),
+    ];
+  }
+
+  /**
+   * Deal the unit colours onto one block's faces. The rotation is driven by
+   * height and index rather than randomness, so a column shifts hue-by-hue
+   * as it rises and neighbours never land on the same deal — variation
+   * without ever leaving the five colours.
+   */
+  function permuteUnit(unit, letters, level, index) {
+    const shift = level * 2 + index;
+    const scheme = {};
+    letters.forEach((L, i) => {
+      scheme[L] = unit[(i + shift) % unit.length];
+    });
+    return scheme;
+  }
+
   // ── scene lifecycle ───────────────────────────────────────────────────
   function buildScene() {
     const W = container.clientWidth;
@@ -396,12 +429,13 @@ export function initHero(container) {
     // scrambled cubes — the icon itself as raw material
     const classic = location.search.includes("classic") || Math.random() < 0.28;
 
-    // one tight color story: a ramp sampled by height level
-    const character = pick(["muted", "deep", "vivid", "pale"]);
+    // The colour story is Vasarely's Plastic Unit: constant forms and a
+    // fixed set of homogeneous colours, varied only by PERMUTATION. Hue
+    // never wanders, so however many blocks a scene holds it still reads
+    // as one composition — and the palette is read straight off the page's
+    // own tokens, so the work and the page are painted from one pot.
     const maxLevel = Math.max(...blocks.map((b) => b.level));
-    const ramp = classic
-      ? null
-      : generateRamp(maxLevel + 2, { character, hueCycles: rand(0.45, 0.7) });
+    const unit = readUnitPalette();
 
     // keep the title legible: carve cells over the h1, heerich-style
     let reserved = null;
@@ -445,7 +479,7 @@ export function initHero(container) {
       const colors =
         classic || !letters
           ? undefined // engine defaults ARE the original scheme
-          : schemeFrom(ramp[blk.level], letters, { hueCycles: 0.3 });
+          : permuteUnit(unit, letters, blk.level, items.length);
       const inst = blk.fused
         ? new Cuboid({ camera, stickerInset: 0.12, colors, size: blk.size })
         : mk[type]({ camera, stickerInset: 0.12, colors });

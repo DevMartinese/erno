@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <title>erno — puzzle gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      body { font-family: system-ui, sans-serif; margin: 24px; }
+      /* Képarchitektúra tokens — kept in step with site.css */
+      :root {
+        --paper: #f4efe7;
+        --ink: #17110c;
+        --red: #cc2823;
+        --blue: #00489f;
+        --yellow: #f6ba00;
+        --sans: "Archivo", system-ui, sans-serif;
+        --mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      body { font-family: var(--sans); margin: 24px; }
       h1 { font-size: 20px; }
       .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 1400px; }
-      figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; }
-      figcaption { font-size: 12px; color: #737373; text-align: center; margin-top: 4px; font-family: ui-monospace, monospace; }
+      figure { margin: 0; border: 1px solid color-mix(in oklab, var(--ink) 12%, var(--paper)); border-radius: 6px; padding: 8px; }
+      figcaption { font-size: 12px; color: color-mix(in oklab, var(--ink) 55%, var(--paper)); text-align: center; margin-top: 4px; font-family: var(--mono); }
       .cell { aspect-ratio: 1; }
     </style>
   </head>

@@ -4,20 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>erno — Rubik's cubes to SVG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      /* Képarchitektúra tokens — kept in step with site.css */
       :root {
-        --ink: #0a0a0a;
-        --paper: #ffffff;
-        --line: #e5e5e5;
-        --muted: #737373;
+        --paper: #f4efe7;
+        --ink: #17110c;
+        --red: #cc2823;
+        --blue: #00489f;
+        --yellow: #f6ba00;
+        --sans: "Archivo", system-ui, sans-serif;
+        --mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      :root {
+        --line: color-mix(in oklab, var(--ink) 12%, var(--paper));
+        --muted: color-mix(in oklab, var(--ink) 55%, var(--paper));
       }
       * {
         box-sizing: border-box;
         margin: 0;
       }
       body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-          system-ui, sans-serif;
+        font-family: var(--sans);
         font-size: 16px;
         line-height: 1.5;
         color: var(--ink);
@@ -33,9 +46,21 @@
       }
       h1 {
         font-size: 56px;
-        font-weight: 700;
-        letter-spacing: -0.02em;
+        font-weight: 900;
+        font-stretch: 125%;
+        letter-spacing: -0.045em;
         line-height: 1.1;
+      }
+      /* same drawn-on double acute as the guide's wordmark */
+      h1 .o-acute {
+        position: relative;
+      }
+      h1 .o-acute::after {
+        content: "˝";
+        position: absolute;
+        left: 0.09em;
+        top: -0.03em;
+        color: var(--red);
       }
       header p {
         margin-top: 8px;
@@ -101,7 +126,7 @@
         color: var(--paper);
       }
       .moves button {
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         padding: 6px 0;
         text-align: center;
       }
@@ -115,7 +140,7 @@
       }
       input[type="text"] {
         flex: 1;
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         min-width: 0;
       }
       input[type="range"] {
@@ -133,7 +158,7 @@
         color: var(--muted);
       }
       #history {
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         font-size: 14px;
         color: var(--muted);
         margin-top: 16px;
@@ -147,7 +172,7 @@
   <body>
     <div class="wrap">
       <header>
-        <h1>erno</h1>
+        <h1>ern<span class="o-acute">o</span></h1>
         <p>
           A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb,
           Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners — moves, scrambles, layer animation and
@@ -275,7 +300,7 @@
         },
         stickerless: (c) => {
           c.stickerInset = 0;
-          c.style({ stroke: "#0d0d0d", strokeWidth: 2 });
+          c.style({ stroke: "var(--ink)", strokeWidth: 2 });
         },
         cross: (c) => {
           // gray out everything except centers and the D-cross positions
@@ -288,7 +313,7 @@
               face !== "U" && face !== "D" && row === c.size - 1 && col === mid;
             return isCenter || dCross || sideBottom
               ? null
-              : { fill: "#d4d4d4" };
+              : { fill: "color-mix(in oklab, var(--ink) 20%, var(--paper))" };
           });
         },
         grayscale: (c) => {
@@ -297,7 +322,7 @@
             const pair =
               (face === "F" && row >= 1 && col === c.size - 1) ||
               (face === "R" && row >= 1 && col === 0);
-            return pair ? null : { fill: "#d4d4d4" };
+            return pair ? null : { fill: "color-mix(in oklab, var(--ink) 20%, var(--paper))" };
           });
         },
       };
