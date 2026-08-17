@@ -32,7 +32,7 @@
     <h1>erno — puzzle gallery (visual test page)</h1>
     <div class="grid" id="grid"></div>
     <script type="module">
-      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, SCHEMES } from "../src/erno.js";
+      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, SCHEMES } from "../src/erno.js";
 
       const grid = document.getElementById("grid");
       const show = (label, svg) => {
@@ -103,6 +103,30 @@
       show("megaminx mid-turn A 50%", new Megaminx().toSVG({ fitSphere: true, turn: { move: "A", progress: 0.5 } }));
       show("kilominx solved", new Kilominx().toSVG({ fitSphere: true }));
       show("kilominx D' H", new Kilominx().move("D' H").toSVG({ fitSphere: true }));
+
+      // Welded puzzles are framed to their own outline: blocking keeps the
+      // silhouette still, and a staircase fills a tenth of its circumsphere.
+      const staircase = () => new Fused({ bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [2, 2, 0] },
+        { size: [3, 3, 3], at: [4, 4, 0] },
+      ] });
+      const bandaged = (rule) => new Cube({ bandage: rule, stickerGroup: true });
+      show("siamese solved", new Siamese().toSVG());
+      show("siamese AL BU2 BR", new Siamese().move("AL BU2 BR").toSVG());
+      show("siamese mid-turn BU 50%", new Siamese().toSVG({ turn: { move: "BU", progress: 0.5 } }));
+      show("siamese 2x1x3", new Siamese({ offset: [1, 2, 0] }).toSVG());
+      show("2x2 on a 3x3", new Fused({ bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+      ] }).toSVG());
+      show("three in a staircase", staircase().toSVG());
+      show("staircase BF2", staircase().move("BF2").toSVG());
+      show("siamese hollowed", new Siamese({ remove: "centers" }).toSVG());
+      show("fused cube (2x2x2 glued)", bandaged(({ slot }) => slot.every((v) => v >= 0) ? "block" : null).toSVG());
+      show("fused cube D L2 B", bandaged(({ slot }) => slot.every((v) => v >= 0) ? "block" : null).move("D L2 B").toSVG());
+      show("bandaged column", bandaged(({ slot }) => slot[0] === 1 && slot[2] === 1 ? "col" : null).toSVG());
+      show("bandaged pair", new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]], stickerGroup: true }).toSVG());
     </script>
   </body>
 </html>

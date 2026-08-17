@@ -286,6 +286,12 @@
                 <option value="skewbdiamond">Skewb Diamond</option>
                 <option value="megaminx">Megaminx</option>
                 <option value="kilominx">Kilominx</option>
+                <option value="siamese">Siamese cube</option>
+                <option value="siamese2">Siamese 2×1×3</option>
+                <option value="corner2x2">2×2 on a 3×3</option>
+                <option value="staircase">Three in a staircase</option>
+                <option value="fusedcube">Fused Cube (bandaged)</option>
+                <option value="bandagedcolumn">Bandaged column</option>
                 <option value="custom">— Build your own —</option>
               </select>
             </div>
@@ -323,7 +329,7 @@
     </div>
 
     <script type="module">
-      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
 
       const stage = document.getElementById("stage");
       const historyEl = document.getElementById("history");
@@ -514,6 +520,72 @@
           presets: ["classic", "stickerless"],
           schemes: false,
         },
+        // Welded puzzles. Their notation prefixes each face with its body's
+        // letter, and half the tokens are blocked from any given position —
+        // the buttons for those simply do nothing, which is the puzzle.
+        siamese: {
+          make: (opts) => new Siamese(opts),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        siamese2: {
+          make: (opts) => new Siamese({ ...opts, offset: [1, 2, 0] }),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        corner2x2: {
+          make: (opts) =>
+            new Fused({
+              ...opts,
+              bodies: [
+                { size: [3, 3, 3], at: [0, 0, 0] },
+                { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+              ],
+            }),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        staircase: {
+          make: (opts) =>
+            new Fused({
+              ...opts,
+              bodies: [
+                { size: [3, 3, 3], at: [0, 0, 0] },
+                { size: [3, 3, 3], at: [2, 2, 0] },
+                { size: [3, 3, 3], at: [4, 4, 0] },
+              ],
+            }),
+          moves: ["AD", "AL", "BF", "BB", "CU", "CR"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        // Bandaged 3×3s: an ordinary cube whose glued cubies wear one tile
+        // per face, and whose glue is what kills the missing turns.
+        fusedcube: {
+          make: (opts) =>
+            new Cube({
+              ...opts,
+              bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "block" : null),
+              stickerGroup: true,
+            }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        bandagedcolumn: {
+          make: (opts) =>
+            new Cube({
+              ...opts,
+              bandage: ({ slot }) => (slot[0] === 1 && slot[2] === 1 ? "col" : null),
+              stickerGroup: true,
+            }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
       };
 
       /** Read the builder panel into a spec, and derive its move tokens. */
@@ -609,7 +681,11 @@
       }
 
       function render(turn) {
-        stage.innerHTML = cube.toSVG({ fitSphere: true, turn });
+        // A welded puzzle is a poor sphere — the staircase fills a tenth of
+        // one — and it does not need it: blocking keeps its silhouette
+        // still, so its own outline is a frame that cannot jump.
+        const fitSphere = PUZZLES[$("puzzle").value]?.fit !== false;
+        stage.innerHTML = cube.toSVG({ fitSphere, turn });
         historyEl.textContent = cube.history.join(" ");
       }
 
