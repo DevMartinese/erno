@@ -439,7 +439,14 @@ weldRender = setupDemo("demo-welding", (v, ctx, t) => {
       open.length ? "" : " — welded shut"
     }`;
 
-  return tune(p, { scheme: false }).toSVG({ fitSphere: true });
+  // Every other demo fits its viewBox to the circumsphere so the frame holds
+  // still while a puzzle turns. A welded puzzle is a poor sphere: the
+  // staircase filled a tenth of its own frame and read as a distant speck.
+  // It does not need the sphere either — with blocking on, a legal turn maps
+  // its layer onto itself, so the silhouette is invariant and the tight fit
+  // cannot jump. Measured across every legal move and a forty-move scramble
+  // on all seven welds: zero drift.
+  return tune(p, { scheme: false }).toSVG();
 });
 
 setupDemo("demo-mirror", (v, ctx, t) => {
