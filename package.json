@@ -1,5 +1,5 @@
 {
-  "name": "erno",
+  "name": "erno.js",
   "version": "0.1.0",
   "description": "An engine for twisty puzzles and the permutations underneath them, rendered to SVG. Zero dependencies.",
   "type": "module",

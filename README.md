@@ -17,11 +17,11 @@ Named after [Ernő Rubik](https://en.wikipedia.org/wiki/Ern%C5%91_Rubik).
 ## Install
 
 ```bash
-npm install erno
+npm install erno.js
 ```
 
 ```js
-import { Erno } from 'erno'
+import { Erno } from 'erno.js'
 ```
 
 Or use the UMD build via a `<script>` tag, and the global `Erno` is available.
@@ -29,7 +29,7 @@ Or use the UMD build via a `<script>` tag, and the global `Erno` is available.
 ## Quick Start
 
 ```js
-import { Erno } from 'erno'
+import { Erno } from 'erno.js'
 
 const cube = new Erno({
   size: 3,
@@ -147,7 +147,7 @@ Beyond the N×N cube, erno ships the classic variants, all with the same API
 (`move` / `scramble` / `toSVG` / `style` / `setCamera` / `turn` animation):
 
 ```js
-import { Skewb, Pyraminx, Mirror, Void, Tetris, Megaminx } from 'erno'
+import { Skewb, Pyraminx, Mirror, Void, Tetris, Megaminx } from 'erno.js'
 
 new Skewb().move("R U' L B")
 new Pyraminx().move("U L' R b")
@@ -231,7 +231,7 @@ restores the solved state bit for bit, with zero float drift.
 Color schemes ship as presets for any cube-faced puzzle:
 
 ```js
-import { SCHEMES } from 'erno'
+import { SCHEMES } from 'erno.js'
 
 new Void({ colors: SCHEMES.japanese })   // blue down, yellow back
 new Mirror({ colors: SCHEMES.gold })
@@ -245,7 +245,7 @@ gives an endless supply of harmonious schemes (concepts borrowed from
 [dittoTones](https://github.com/meodai/dittoTones)):
 
 ```js
-import { generateScheme, schemeFrom, generateRamp } from 'erno'
+import { generateScheme, schemeFrom, generateRamp } from 'erno.js'
 
 const scheme = generateScheme([..."URFDLB"], { seed: 42 })
 scheme.name                       // "Vivid Cyan", every scheme is named
@@ -269,7 +269,7 @@ and lightness predict how a palette feels far better than hue does.
 The conversions are exported for use on their own:
 
 ```js
-import { oklchToHex, hexToOklch, TETRIS_PALETTE } from 'erno'
+import { oklchToHex, hexToOklch, TETRIS_PALETTE } from 'erno.js'
 
 oklchToHex(0.55, 0.20, 28)           // '#cc2823', gamut-mapped
 hexToOklch('#cc2823')                // [L, C, H]
@@ -302,7 +302,7 @@ grid, and still inverts exactly.
 and unlike a style callback it becomes part of the puzzle's state:
 
 ```js
-import { Cube, Skewb, Cuboid, Mirror, tetrisPaint } from 'erno'
+import { Cube, Skewb, Cuboid, Mirror, tetrisPaint } from 'erno.js'
 
 // the Tetris cube is a plain 3×3 wearing a paint; this renders
 // identically to `new Tetris()`
@@ -370,7 +370,7 @@ draws the interior walls they leave behind, so the holes go all the way
 through.
 
 ```js
-import { Cube, Megaminx } from 'erno'
+import { Cube, Megaminx } from 'erno.js'
 
 new Cube({ remove: 'centers' })            // this IS the Void cube
 new Cube({ size: 5, remove: 'centers' })   // and there is no 5×5 Void on sale
@@ -392,7 +392,7 @@ the SVG is drawn, so it can squash a Megaminx or stretch a weld without
 touching a mechanism.
 
 ```js
-import { Cube, Megaminx, squash } from 'erno'
+import { Cube, Megaminx, squash } from 'erno.js'
 
 new Cube({ deform: squash(0.6) })
 new Megaminx({ deform: squash(0.6) })
@@ -419,7 +419,7 @@ Sudokube and the spots on Ernő's own Domino are the same mechanisms
 underneath, printed differently, so they ship as decoration, not as classes.
 
 ```js
-import { Cube, Domino, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT } from 'erno'
+import { Cube, Domino, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT } from 'erno.js'
 
 new Cube(DICE_CUBE)        // every cubie is a die; opposite faces sum to 7
 new Cube(SUDOKU_CUBE)      // 1–9 on every face
@@ -460,7 +460,7 @@ buried stickers go, the shared cubies become single pieces, and what is left
 is the shape you would get by gluing two cubes together.
 
 ```js
-import { Siamese, Fused } from 'erno'
+import { Siamese, Fused } from 'erno.js'
 
 new Siamese()                          // the classic: two 3×3s sharing a 1×1×3 bar
 new Siamese({ offset: [1, 2, 0] })     // sharing a 2×1×3 block instead
@@ -523,7 +523,7 @@ Fusion welds bodies; bandaging welds cubies inside one. It is the other way a
 twisty puzzle gets its blocked turns, and it runs through the same law.
 
 ```js
-import { Cube } from 'erno'
+import { Cube } from 'erno.js'
 
 // the Fused Cube: a 2×2×2 block set into a 3×3
 new Cube({ bandage: ({ slot }) => slot.every(v => v >= 0) ? 'block' : null })
