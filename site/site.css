@@ -900,16 +900,36 @@ a {
   }
 }
 
-/* ─── Custom range slider ─── */
+/* ─────────────────────────────────────────────────────────────────────────
+   QUANTITY AS A ROW OF CELLS
+
+   This was the last control still drawn as a LINE — a ruler with a knob — in
+   a page made of planes. It is now a strip of cells, filled up to the value.
+
+   The form is not borrowed. A run of identical cells IS the subject: a layer
+   of a cuboid seen edge on. It is also Vasarely's Plastic Unit as he stated
+   it — "regularly arranged and numbered homogeneous colours and constant
+   forms" — which is the same system already dealing the hero its colour.
+
+   And it is honest about the data. A ruler claims a continuum; several of
+   these controls do not have one. A cube's size is seven whole values, so
+   the strip shows seven cells. Where the steps really are fine — an angle in
+   degrees — the strip subdivides as far as it can read and no further.
+
+   The native input stays underneath at full size and full opacity zero, so
+   dragging, arrow keys, focus and screen readers are the browser's, not
+   ours. Only the picture changed.
+   ───────────────────────────────────────────────────────────────────── */
 .range-wrap {
   position: relative;
   width: 7rem;
   max-width: 100%;
-  height: 1.4rem;
+  height: var(--space-2);
   margin-left: var(--space-1);
   margin-right: var(--space-1);
   cursor: pointer;
-  margin-top: -1ex;
+  border: var(--rule) solid var(--ink);
+  background: var(--paper);
 }
 
 .range-wrap input[type="range"] {
@@ -923,87 +943,41 @@ a {
   z-index: 2;
 }
 
-/* Track line — sits at the bottom */
-.range-wrap::before {
-  content: "";
+.range-cells {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: var(--rule);
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1px;
   background: var(--ink);
-}
-
-/* Notch ticks — on the track line, poking up */
-.range-wrap::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 0.25rem;
-  background: repeating-linear-gradient(
-    to right,
-    var(--text) 0px,
-    var(--text) 1px,
-    transparent 1px,
-    transparent 8px
-  );
-  background-size: 8px 100%;
   pointer-events: none;
 }
 
-/* Ball thumb — circle above the track */
-.range-thumb {
-  position: absolute;
-  bottom: 0.45rem;
-  left: calc(var(--val, 0.5) * 100%);
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--bg);
-  border: 1px solid var(--text);
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 1;
-  transition: transform 0.15s ease 0.05s;
-
-  &::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 100%;
-    width: 1px;
-    height: 0.3rem;
-    background: var(--text);
-    transform: translateX(-50%);
-    transition: transform 0.1s cubic-bezier(0.3, 0.7, 0, 1);
-  }
+.range-cells i {
+  background: var(--paper);
 }
 
-.range-wrap:hover .range-thumb,
-.range-wrap:active .range-thumb {
-  transform: translateX(-50%) rotate(45deg);
-  &::after {
-    transform: translateX(-50%) scaleY(0);
-  }
+/* A filled cell is ink. The strip reads left to right like a layer count,
+   and the last filled cell is the value — no separate knob to look for. */
+.range-cells i[data-on] {
+  background: var(--ink);
+  /* Keep the filled cells legible AS cells. Left to butt they merge into one
+     solid bar, which is a progress bar again — and the whole point is the
+     constant repeated form, not the length of a fill. */
+  box-shadow: inset -1px 0 var(--paper);
 }
 
-/* End caps — taller notches at start and end */
-.range-cap-left,
-.range-cap-right {
-  position: absolute;
-  bottom: 0;
-  width: 1px;
-  height: 0.4rem;
-  background: var(--text);
-  pointer-events: none;
+/* The native input is invisible, so its own focus ring would be too. The
+   strip wears it. */
+.range-wrap:has(input:focus-visible) {
+  outline: 3px solid var(--red);
+  outline-offset: 2px;
 }
 
-.range-cap-left {
-  left: 0;
-}
-.range-cap-right {
-  right: 0;
+.range-wrap:hover .range-cells i[data-on]:last-of-type,
+.range-wrap:focus-within .range-cells i[data-on]:last-of-type {
+  background: var(--red);
 }
 
 pre {

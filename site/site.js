@@ -52,30 +52,37 @@ document.querySelector("h1 .version").textContent = version;
 function enhanceRange(input) {
   const wrap = document.createElement("div");
   wrap.className = "range-wrap";
-
-  const thumb = document.createElement("span");
-  thumb.className = "range-thumb";
-
-  const capL = document.createElement("span");
-  capL.className = "range-cap-left";
-  const capR = document.createElement("span");
-  capR.className = "range-cap-right";
-
   input.parentNode.insertBefore(wrap, input);
   wrap.appendChild(input);
-  wrap.appendChild(thumb);
-  wrap.appendChild(capL);
-  wrap.appendChild(capR);
+
+  // One cell per real step, which is what makes the strip honest: a cube's
+  // size has seven values and shows seven cells. Where the steps are finer
+  // than the eye — an angle in whole degrees — the strip stops subdividing
+  // at a count that still reads as cells rather than as a hairline fill.
+  const min = parseFloat(input.min) || 0;
+  const max = parseFloat(input.max) || 100;
+  const step = parseFloat(input.step) || 1;
+  const steps = Math.round((max - min) / step) + 1;
+  const count = Math.max(2, Math.min(24, steps));
+
+  const cells = document.createElement("div");
+  cells.className = "range-cells";
+  cells.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < count; i++) cells.appendChild(document.createElement("i"));
+  wrap.appendChild(cells);
 
   const valueSpan = wrap
     .closest(".control-label")
     .querySelector(".control-value");
 
   function syncVal() {
-    const min = parseFloat(input.min) || 0;
-    const max = parseFloat(input.max) || 100;
     const val = parseFloat(input.value) || 0;
-    wrap.style.setProperty("--val", (val - min) / (max - min));
+    const t = (val - min) / (max - min || 1);
+    const on = Math.max(1, Math.round(t * count));
+    [...cells.children].forEach((c, i) => {
+      if (i < on) c.setAttribute("data-on", "");
+      else c.removeAttribute("data-on");
+    });
     if (valueSpan) valueSpan.textContent = input.value;
   }
 
@@ -626,6 +633,27 @@ setupDemo("demo-animation", (v, ctx, t) => {
     stop();
     ctx.p.reset();
     return tune(ctx.p).toSVG();
+  }
+
+  // Scrubbing is the API in the prose, driven by hand: one move held at a
+  // fraction of its turn. The control is a strip of cells — the same form the
+  // puzzle is made of — so the thing you drag and the thing you turn are cut
+  // from one material.
+  if (t && t.key === "scrub") {
+    stop();
+    const token = (v.seq || "").trim().split(/[\s,]+/).filter(Boolean)[0];
+    if (token) {
+      try {
+        ctx.p.parseMove(token);
+        return tune(ctx.p).toSVG({
+          fitSphere: true,
+          turn: { move: token, progress: v.scrub / 100 },
+        });
+      } catch {
+        /* a sequence that does not parse simply does not scrub */
+      }
+    }
+    return tune(ctx.p).toSVG({ fitSphere: true });
   }
 
   if (t && (t.key === "play" || t.key === "seq")) {

@@ -1088,6 +1088,17 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
                 />
                 <span class="control-value">180</span></label
               >
+              <label class="control-label"
+                >Scrub
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="0"
+                  data-bind="scrub"
+                />
+                <span class="control-value">0</span></label
+              >
               <button data-bind="play">Play</button>
               <button data-bind="reset">Reset</button>
             </div>
@@ -1100,7 +1111,9 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
             position mid-turn — the layer rotates continuously and the plastic
             core is exposed. Drive <code>progress</code> from
             <code>requestAnimationFrame</code> and you have a player; pair it
-            with <code>fitSphere</code> so the viewBox holds still.
+            with <code>fitSphere</code> so the viewBox holds still. Drag
+            <em>Scrub</em> to drive it by hand instead — that control is a
+            row of cells, which is the same thing you are turning.
           </p>
           <pre><code>cube.toSVG({
   fitSphere: true,
