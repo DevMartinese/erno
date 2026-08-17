@@ -146,6 +146,19 @@ function makeBoxParser(dims, shapeShift = false) {
 
 const cubeParse3 = makeBoxParser([3, 3, 3]);
 
+/**
+ * Several puzzles are built at one fixed size. Passing `size` to them used to
+ * do nothing at all — you asked for a 5×5 Void and got a 3×3 without a word,
+ * which is worse than an error because the result looks plausible. Say so
+ * instead, and name the ones that do take a size.
+ */
+function fixedSize(name, options) {
+  if (options.size)
+    throw new Error(
+      `erno: ${name} is built at 3×3 only — for other sizes use Erno or Cuboid, which take { size }`,
+    );
+}
+
 // ── Skewb ───────────────────────────────────────────────────────────────────
 
 function buildSkewbDef() {
@@ -186,6 +199,7 @@ let _skewbDef;
 
 export class Skewb extends Twisty {
   constructor(options = {}) {
+    fixedSize("Skewb", options);
     super(_skewbDef || (_skewbDef = buildSkewbDef()), options);
   }
 }
@@ -286,6 +300,7 @@ let _skewbDiamondDef;
 /** Skewb Diamond — an octahedron on the Skewb mechanism. */
 export class SkewbDiamond extends Twisty {
   constructor(options = {}) {
+    fixedSize("SkewbDiamond", options);
     super(_skewbDiamondDef || (_skewbDiamondDef = buildSkewbDiamondDef()), options);
   }
 }
@@ -395,6 +410,7 @@ let _megaminxDef, _kilominxDef;
 /** Megaminx — the dodecahedral 3×3: 12 centres, 30 edges, 20 corners. */
 export class Megaminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Megaminx", options);
     // 0.62–0.75 all give the true 62 pieces / 11 stickers per face; sit in
     // the middle of that band so no cut lands on a vertex by rounding
     super(_megaminxDef || (_megaminxDef = buildMinxDef("megaminx", 0.68, 30)), options);
@@ -404,6 +420,7 @@ export class Megaminx extends Twisty {
 /** Kilominx — the dodecahedral 2×2: corners only, no edges. */
 export class Kilominx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Kilominx", options);
     super(_kilominxDef || (_kilominxDef = buildMinxDef("kilominx", 0.0, 20)), options);
   }
 }
@@ -532,6 +549,7 @@ let _pyraminxDef;
 
 export class Pyraminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Pyraminx", options);
     super(_pyraminxDef || (_pyraminxDef = buildPyraminxDef()), options);
   }
 }
@@ -541,6 +559,7 @@ let _masterPyraminxDef;
 /** Master Pyraminx — the 4-layer Pyraminx: u tips, U two layers, Uw three. */
 export class MasterPyraminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("MasterPyraminx", options);
     super(
       _masterPyraminxDef ||
         (_masterPyraminxDef = buildTetraTurnDef("master-pyraminx", 4)),
@@ -588,6 +607,7 @@ let _pyramorphixDef, _mastermorphixDef;
 
 export class Pyramorphix extends Twisty {
   constructor(options = {}) {
+    fixedSize("Pyramorphix", options);
     super(
       _pyramorphixDef || (_pyramorphixDef = buildMorphixDef("pyramorphix", 2)),
       options,
@@ -597,6 +617,7 @@ export class Pyramorphix extends Twisty {
 
 export class Mastermorphix extends Twisty {
   constructor(options = {}) {
+    fixedSize("Mastermorphix", options);
     super(
       _mastermorphixDef ||
         (_mastermorphixDef = buildMorphixDef("mastermorphix", 3)),
@@ -652,6 +673,7 @@ let _mirrorDef;
 
 export class Mirror extends Twisty {
   constructor(options = {}) {
+    fixedSize("Mirror", options);
     super(_mirrorDef || (_mirrorDef = buildMirrorDef()), options);
   }
 }
@@ -688,6 +710,7 @@ let _voidDef;
 
 export class Void extends Twisty {
   constructor(options = {}) {
+    fixedSize("Void", options);
     super(_voidDef || (_voidDef = buildVoidDef()), options);
   }
 }
@@ -888,6 +911,7 @@ let _tetrisDef;
 
 export class Tetris extends Twisty {
   constructor(options = {}) {
+    fixedSize("Tetris", options);
     super(_tetrisDef || (_tetrisDef = buildTetrisDef()), options);
     this._solvedTints = this.getTints().join();
   }
@@ -959,6 +983,7 @@ let _fisherDef, _windmillDef, _axisDef, _ghostDef;
 /** Fisher Cube — 3×3 mechanism yawed 45°; R/L/F/B name the diagonal faces. */
 export class Fisher extends Twisty {
   constructor(options = {}) {
+    fixedSize("Fisher", options);
     super(_fisherDef || (_fisherDef = buildConjugatedDef("fisher", rotY(45))), options);
   }
 }
@@ -966,6 +991,7 @@ export class Fisher extends Twisty {
 /** Windmill Cube — same idea at yaw 30°, pinwheel-shaped layers. */
 export class Windmill extends Twisty {
   constructor(options = {}) {
+    fixedSize("Windmill", options);
     super(_windmillDef || (_windmillDef = buildConjugatedDef("windmill", rotY(30))), options);
   }
 }
@@ -973,6 +999,7 @@ export class Windmill extends Twisty {
 /** Axis Cube — mechanism rotated 60° about a corner diagonal. */
 export class Axis extends Twisty {
   constructor(options = {}) {
+    fixedSize("Axis", options);
     super(
       _axisDef ||
         (_axisDef = buildConjugatedDef(
@@ -991,6 +1018,7 @@ export class Axis extends Twisty {
  */
 export class Ghost extends Twisty {
   constructor(options = {}) {
+    fixedSize("Ghost", options);
     if (!_ghostDef) {
       const pale = "#eceae4";
       _ghostDef = buildConjugatedDef(
@@ -1057,6 +1085,7 @@ let _dinoDef, _compyDef, _masterSkewbDef;
 
 export class Dino extends Twisty {
   constructor(options = {}) {
+    fixedSize("Dino", options);
     super(
       _dinoDef || (_dinoDef = buildCornerTurnDef("dino", 1.5 / Math.sqrt(3), 1.0, 14)),
       options,
@@ -1067,6 +1096,7 @@ export class Dino extends Twisty {
 /** Compy Cube — shallow corner turner: caps, wings and big plus centers. */
 export class Compy extends Twisty {
   constructor(options = {}) {
+    fixedSize("Compy", options);
     super(
       _compyDef || (_compyDef = buildCornerTurnDef("compy", 1.15, 1.27, 12)),
       options,
@@ -1077,6 +1107,7 @@ export class Compy extends Twisty {
 /** Master Skewb — deep corner turner: corners, petals, edges and centers. */
 export class MasterSkewb extends Twisty {
   constructor(options = {}) {
+    fixedSize("MasterSkewb", options);
     super(
       _masterSkewbDef ||
         (_masterSkewbDef = buildCornerTurnDef("master-skewb", 0.52, 0.62, 16)),
@@ -1119,6 +1150,7 @@ let _heliDef;
 
 export class Helicopter extends Twisty {
   constructor(options = {}) {
+    fixedSize("Helicopter", options);
     super(_heliDef || (_heliDef = buildHeliDef()), options);
   }
 }
@@ -1217,6 +1249,7 @@ let _penroseDef;
 
 export class Penrose extends Twisty {
   constructor(options = {}) {
+    fixedSize("Penrose", options);
     super(_penroseDef || (_penroseDef = buildPenroseDef()), options);
   }
 }
@@ -1346,6 +1379,7 @@ let _twistDef;
 
 export class Twist extends Twisty {
   constructor(options = {}) {
+    fixedSize("Twist", options);
     super(_twistDef || (_twistDef = buildTwistDef()), options);
   }
 }

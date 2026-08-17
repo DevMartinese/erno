@@ -694,6 +694,43 @@ test("the two policies are separate puzzles, cached apart", () => {
   assert(threw, "the strict one is still strict after the other was built");
 });
 
+test("a fixed-size puzzle says so instead of ignoring the option", () => {
+  // Passing size used to do nothing at all: you asked for a 5×5 Void and got
+  // a 3×3 without a word, which is worse than an error because the result
+  // looks plausible.
+  for (const [name, C] of [["Void", Void], ["Mirror", Mirror], ["Tetris", Tetris],
+                           ["Fisher", Fisher], ["Skewb", Skewb], ["Megaminx", Megaminx]]) {
+    let threw = false;
+    try {
+      new C({ size: [5, 5, 5] });
+    } catch {
+      threw = true;
+    }
+    assert(threw, `${name} must refuse a size it cannot honour`);
+  }
+  // and the ones that do take a size still do
+  assertEqual(new Cuboid({ size: [5, 5, 5] }).pieces.length, 98, "5×5 cuboid");
+});
+
+test("paint reaches every granularity, down to one sticker", () => {
+  const size = [3, 3, 3];
+  // a whole named pattern
+  assertEqual(new Set(new Cuboid({ size, paint: tetrisPaint }).getTints().filter(Boolean)).size, 7,
+    "the Tetris layout carries its seven colours onto a plain 3×3");
+  // one face
+  assertEqual(
+    new Cuboid({ size, paint: ({ letter }) => (letter === "U" ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    9, "one face");
+  // one sticker: a piece and a face together name exactly one
+  const probe = new Cuboid({ size });
+  const idx = probe.pieces.findIndex((p) => p.faces.some((f) => f.letter === "U"));
+  assertEqual(
+    new Cuboid({ size, paint: ({ index, letter }) => (index === idx && letter === "U" ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    1, "one sticker");
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);
