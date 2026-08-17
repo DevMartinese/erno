@@ -478,17 +478,19 @@ familyDemo("demo-solids", {
    cheap; showing the two strings agree is not. */
 const BENDS = {
   squished: () => new Squished(),
-  hard: () => new Squished({ squash: 0.42 }),
-  stretched: () => new Cube({ deform: squash(1.7), camera: { type: "perspective", distance: 26 } }),
+  hard: () => new Squished({ offset: 0.45 }),
+  mirror: () => new Mirror(),
+  deformed: () => new Cube({ deform: squash(0.6), camera: { type: "perspective", distance: 24 } }),
   minx: () => new Megaminx({ deform: squash(0.6), camera: { type: "perspective", distance: 26 } }),
-  weld: () => new Siamese({ deform: squash(0.6), camera: { type: "perspective", distance: 34 } }),
-  none: () => new Cube({ camera: { type: "perspective", distance: 24 } }),
 };
 
 setupDemo("demo-deform", (v, ctx, t) => {
   if (!ctx.p || ctx.kind !== v.kind) {
     ctx.p = BENDS[v.kind]();
-    ctx.twin = /squished|hard|stretched|none/.test(v.kind) ? new Cube() : null;
+    // Every one of these keeps a plain 3×3's facelets — the uneven-cut ones
+    // because the Mirror mechanism is isomorphic to a cube, the bent ones
+    // because a deformation never touches the state at all.
+    ctx.twin = v.kind === "minx" ? null : new Cube();
     ctx.kind = v.kind;
   }
   if (t && isMove(t)) {
@@ -513,7 +515,7 @@ setupDemo("demo-deform", (v, ctx, t) => {
       ? `facelets vs a plain 3×3: ${
           ctx.p.getState() === ctx.twin.getState() ? "identical" : "DIFFERENT"
         } — ${ctx.p.getState().slice(0, 27)}…`
-      : `${ctx.p.pieces.length} pieces, bent by one linear map`;
+      : `${ctx.p.pieces.length} pieces — a Megaminx, bent as it is drawn`;
   return tune(ctx.p, { scheme: false }).toSVG({ fitSphere: true });
 });
 

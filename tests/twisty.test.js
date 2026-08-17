@@ -979,22 +979,55 @@ test("fused bodies have to line up cubie to cubie", () => {
 
 // ── Deformation ─────────────────────────────────────────────────────────────
 
-test("a deformed puzzle is the same puzzle, exactly", () => {
-  // The Squished Cube is a 3×3 under one linear map: every position of it is
-  // a 3×3's position deformed, so the notation, the state and the solve are
-  // the cube's. If that were not true the whole idea would be wrong.
+test("the Squished is the Mirror's mechanism wearing colours", () => {
+  // Its layers are of different thickness — the cuts sit off centre — which
+  // is exactly the Mirror cube. What separates them is the paint: silver and
+  // you solve by shape, six colours and you solve by colour. Same finding as
+  // Tetris, one more time.
+  const p = new Squished();
+  assertEqual(p.pieces.length, new Mirror().pieces.length, "same pieces as a Mirror");
+  assertEqual(p.getState().length, 54, "and a 3×3's facelets");
+  assert(p.isSolved(), "starts solved");
   const seq = "R U R' U' F2 D L'";
   assertEqual(
     new Squished().move(seq).getState(),
     new Cube().move(seq).getState(),
-    "same facelets as a plain 3×3",
+    "isomorphic to a plain 3×3, facelet for facelet",
   );
-  const p = new Squished();
-  assertEqual(p.pieces.length, 26, "same pieces");
-  assert(p.isSolved(), "starts solved");
   const s2 = p.scramble();
   p.move(Twisty.inverse(s2));
   assert(p.isSolved(), `inverse of "${s2}"`);
+});
+
+test("the Squished shifts shape, which is the point of it", () => {
+  // A thin layer landing where a thick one was cannot leave the outline
+  // alone. If it did not shift, the uneven cuts would not be doing anything.
+  const bounds = (svg) => {
+    let x0 = 1e9, x1 = -1e9;
+    for (const m of svg.matchAll(/points="([^"]*)"/g))
+      for (const q of m[1].trim().split(" ")) {
+        const x = +q.split(",")[0];
+        x0 = Math.min(x0, x);
+        x1 = Math.max(x1, x);
+      }
+    return x1 - x0;
+  };
+  const solved = new Squished();
+  const turned = new Squished().move("R U'");
+  assert(
+    Math.abs(bounds(solved.toSVG()) - bounds(turned.toSVG())) > 1,
+    "the outline changes when it turns",
+  );
+});
+
+test("a Squished refuses a cut it cannot make", () => {
+  let threw = false;
+  try {
+    new Squished({ offset: 0.6 });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "an offset past half a cubie is an error, not a broken puzzle");
 });
 
 test("a deformation is a way of looking, so it composes with everything", () => {

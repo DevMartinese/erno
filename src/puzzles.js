@@ -639,9 +639,17 @@ export class Mastermorphix extends Twisty {
 // pieces and open impossible gaps.
 const MIRROR_PIVOT = [0.3, -0.45, 0.15];
 
-function buildMirrorDef() {
+/**
+ * A 3×3 whose cut planes sit OFF CENTRE, so its cubies come out different
+ * sizes. One mechanism, two famous puzzles: paint it silver and it is the
+ * Mirror cube, solved by shape; paint it in the usual six and it is the
+ * Squished Cube, solved by colour on a body whose cells are visibly uneven.
+ * The difference between them is the paint, not the machine — the same
+ * finding as Tetris, one more time.
+ */
+function buildOffsetCubeDef(name, pivot, colors) {
   const cuts = [];
-  MIRROR_PIVOT.forEach((c, axis) => {
+  pivot.forEach((c, axis) => {
     const u = [0, 0, 0];
     u[axis] = 1;
     cuts.push({ n: u, d: c - 0.5 }, { n: u, d: c + 0.5 });
@@ -651,32 +659,84 @@ function buildMirrorDef() {
   // classify the physical centroid per axis, then snap to {-1, 0, 1}.
   const slotPointOf = (centroid) =>
     centroid.map((c, axis) => {
-      const p = MIRROR_PIVOT[axis];
+      const p = pivot[axis];
       return c < p - 0.5 ? -1 : c < p + 0.5 ? 0 : 1;
     });
 
-  const silver = "#c9ccd1";
   return {
-    name: "mirror",
+    name,
     solid: cubeSolid(1.5),
     cuts,
-    pivot: MIRROR_PIVOT,
+    pivot,
     parseMove: cubeParse3,
     slotPointOf,
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
-    colors: { U: silver, R: silver, F: silver, D: silver, L: silver, B: silver },
+    colors,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
 }
+
+const SILVER = "#c9ccd1";
 
 let _mirrorDef;
 
 export class Mirror extends Twisty {
   constructor(options = {}) {
     fixedSize("Mirror", options);
-    super(_mirrorDef || (_mirrorDef = buildMirrorDef()), options);
+    super(
+      _mirrorDef ||
+        (_mirrorDef = buildOffsetCubeDef("mirror", MIRROR_PIVOT, {
+          U: SILVER,
+          R: SILVER,
+          F: SILVER,
+          D: SILVER,
+          L: SILVER,
+          B: SILVER,
+        })),
+      options,
+    );
+  }
+}
+
+// The Squished's layers are further off centre than the Mirror's — on the
+// real puzzle one layer per axis is visibly thin — and it keeps the six
+// colours, so you solve it by colour while the body stays uneven.
+const SQUISHED_PIVOT = [0.34, -0.34, 0.34];
+
+const _squishedDefs = new Map();
+
+/**
+ * The Squished Cube: a 3×3 whose layers are of different thickness.
+ *
+ * Solved it is a cube of uneven cells; turned, it shifts shape, because a
+ * thin layer landing where a thick one was cannot leave the outline alone.
+ * Mechanically it is the Mirror cube — same off-centre cuts, same uniform
+ * logical grid underneath — wearing the ordinary six colours instead of
+ * silver, which is what moves the puzzle from solving by shape to solving by
+ * colour. Its state is a plain 3×3's, facelet for facelet.
+ *
+ * @param {Object} [options] - Twisty options plus:
+ * @param {number} [options.offset=0.34] - how far the cuts sit off centre,
+ *   0 being an ordinary cube
+ */
+export class Squished extends Twisty {
+  constructor(options = {}) {
+    fixedSize("Squished", options);
+    const off = options.offset === undefined ? 0.34 : options.offset;
+    if (Math.abs(off) >= 0.5)
+      throw new Error(
+        `erno: a Squished offset of ${off} would put a cut outside the cube — keep it under 0.5`,
+      );
+    const key = String(off);
+    let def = _squishedDefs.get(key);
+    if (!def) {
+      def = buildOffsetCubeDef(`squished-${off}`, [off, -off, off], { ...CUBE_COLORS });
+      _squishedDefs.set(key, def);
+    }
+    super(def, options);
+    this.offset = off;
   }
 }
 
@@ -858,36 +918,6 @@ export function squash(k, axis = [1, 1, 1]) {
   for (let i = 0; i < 3; i++)
     for (let j = 0; j < 3; j++) m[i][j] += (k - 1) * n[i] * n[j];
   return m;
-}
-
-/**
- * The Squished Cube: a 3×3 compressed along a body diagonal.
- *
- * Not a mechanism of its own — every position of it is a 3×3's position under
- * one linear map, so the notation, the state and the solve are the cube's
- * exactly. It ships with a camera off that diagonal, because a parallel
- * projection looking straight down the axis of a compression cannot see it:
- * on the default isometric view a squished cube and a plain one are the same
- * picture.
- *
- * @param {Object} [options] - Cube options plus:
- * @param {number} [options.squash=0.6] - how far it is compressed, 1 being
- *   not at all
- */
-export class Squished extends Cube {
-  constructor(options = {}) {
-    const k = options.squash === undefined ? 0.6 : options.squash;
-    super({
-      // A parallel projection looking straight down the axis of a
-      // compression cannot see it: on the default isometric view — which
-      // looks along the body diagonal — a squished cube and a plain one are
-      // the same picture. It ships with a camera off that axis.
-      camera: { type: "perspective", distance: 24 },
-      ...options,
-      deform: squash(k),
-    });
-    this.squash = k;
-  }
 }
 
 // ── Printed faces: dice, dominoes, sudoku ───────────────────────────────────

@@ -158,7 +158,7 @@
                 <li><a href="#turners">Corner &amp; edge turners</a></li>
                 <li><a href="#solids">Beyond the cube</a></li>
                 <li><a href="#welding">Welding</a></li>
-                <li><a href="#deform">Deformation</a></li>
+                <li><a href="#deform">Squished</a></li>
               </ol>
             </li>
             <li class="toc-group" style="--band: var(--yellow); --band-ink: var(--on-yellow)">
@@ -874,7 +874,7 @@ new Cube({
         </div>
       </div>
 
-      <!-- ─── 9g. Deformation ──────────────────────────── -->
+      <!-- ─── 9g. Squished ─────────────────────────────── -->
 
       <div class="section-row" id="deform">
         <div class="section-demo">
@@ -884,12 +884,11 @@ new Cube({
               <label class="control-label"
                 >Bent
                 <select data-bind="kind">
-                  <option value="squished" selected>Squished Cube</option>
+                  <option value="squished" selected>Squished — uneven cuts</option>
                   <option value="hard">Squished harder</option>
-                  <option value="stretched">Stretched</option>
-                  <option value="minx">A squished Megaminx</option>
-                  <option value="weld">A squished weld</option>
-                  <option value="none">Not bent at all</option>
+                  <option value="mirror">The same cuts, in silver</option>
+                  <option value="deformed">A cube bent at the last moment</option>
+                  <option value="minx">A bent Megaminx</option>
                 </select>
               </label>
               <button data-bind="move:R">R</button>
@@ -902,40 +901,37 @@ new Cube({
           </div>
         </div>
         <div class="section-text">
-          <h2>Deformation</h2>
+          <h2>Squished</h2>
           <p>
-            A paint changes a sticker's colour and a decal puts a mark on it.
-            A <strong>deformation</strong> changes the shape of the whole
-            puzzle, by applying one linear map as it is drawn — and the
-            Squished Cube is a 3×3 under exactly that.
+            The Squished Cube's layers are of different thickness: its cut
+            planes sit off centre, so its cubies come out uneven. Solved it
+            is a cube of unequal cells; turned, it shifts shape, because a
+            thin layer landing where a thick one was cannot leave the outline
+            alone.
           </p>
           <p>
-            Which is the point: it has no mechanism of its own. Every one of
-            its positions is a 3×3's position bent by the same map, so its
-            notation, its state and its solve are the cube's <em>exactly</em>
-            — the readout below compares the two facelet strings as you turn
-            it, and they never part. A deformation is a way of looking, in
-            the same sense a paint is.
+            Mechanically it <em>is</em> the Mirror cube — the same off-centre
+            cuts, the same uniform logical grid underneath. What separates
+            them is the paint: silver and you solve by shape, the ordinary six
+            and you solve by colour. One machine, two famous puzzles; the same
+            finding as the Tetris cube, one more time.
           </p>
-          <pre><code>import { Cube, Squished, squash } from 'erno'
+          <pre><code>import { Squished, Mirror } from 'erno'
 
-new Squished()                      // a 3×3 as a rhombohedron
-new Squished({ squash: 0.45 })      // harder
-new Cube({ deform: squash(0.6) })   // the map on its own
+new Squished()                  // uneven cuts, six colours
+new Squished({ offset: 0.45 })  // further off centre
+new Mirror()                    // the same cuts, in silver</code></pre>
+          <p>
+            Worth keeping apart from a <strong>deformation</strong>, which
+            bends the picture rather than the puzzle:
+            <code>deform</code> applies a linear map as the SVG is drawn, so
+            it can squash a Megaminx or stretch a weld without touching a
+            mechanism. It is a way of looking; the Squished is a way of
+            cutting. They are easy to confuse — and the readout tells them
+            apart, since both of these keep a plain 3×3's facelets exactly.
+          </p>
+          <pre><code>new Cube({ deform: squash(0.6) })   // bent as it is drawn
 new Megaminx({ deform: squash(0.6) })</code></pre>
-          <p>
-            <code>squash(k, axis)</code> compresses by <code>k</code> along
-            an axis that defaults to the body diagonal; above 1 it stretches
-            instead, and the frame widens to match. Any invertible 3×3 works.
-          </p>
-          <p>
-            One thing to know, because it is the first thing that goes wrong:
-            a parallel projection looking straight down the axis of a
-            compression <em>cannot see it</em>. erno's default isometric
-            camera looks along the body diagonal, so the first render of a
-            squished cube came out pixel for pixel identical to a plain one.
-            This one ships with a camera off that axis.
-          </p>
         </div>
       </div>
 

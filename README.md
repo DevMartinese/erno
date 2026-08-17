@@ -342,37 +342,54 @@ the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
 is left is a real puzzle: it turns, scrambles and inverts exactly, and
 `Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
 
-## Deformation
+## The Squished Cube
 
-A paint changes a sticker's colour, a decal puts a mark on it — and a
-**deformation** changes the shape of the whole puzzle, by applying one linear
-map as it is drawn.
+Its layers are of different thickness — the cut planes sit off centre — so
+its cubies come out uneven. Solved it is a cube of unequal cells; turned, it
+shifts shape, because a thin layer landing where a thick one was cannot leave
+the outline alone.
 
 ```js
-import { Cube, Squished, squash } from 'erno'
+import { Squished, Mirror } from 'erno'
 
-new Squished()                      // the Squished Cube: a 3×3 as a rhombohedron
-new Squished({ squash: 0.45 })      // harder
-new Cube({ deform: squash(0.6) })   // the map on its own
-new Megaminx({ deform: squash(0.6) })
+new Squished()                  // uneven cuts, six colours
+new Squished({ offset: 0.45 })  // further off centre
+new Mirror()                    // the same cuts, in silver
 ```
 
-The point is what it is *not*: the Squished Cube has no mechanism of its own.
-Every one of its positions is a 3×3's position under the same map, so its
-notation, its state and its solve are the cube's exactly —
-`new Squished().move(seq).getState()` equals `new Cube().move(seq).getState()`
-for every sequence. It is a way of looking, in the same sense a paint is.
+Mechanically it **is** the Mirror cube: the same off-centre cuts, the same
+uniform logical grid underneath, and a state that is a plain 3×3's facelet
+for facelet. What separates them is the paint — silver and you solve by
+shape, the ordinary six and you solve by colour. One machine, two famous
+puzzles.
 
-`squash(k, axis)` compresses by `k` along `axis`, which defaults to the body
-diagonal: `I + (k − 1)·nnᵀ`. Values above 1 stretch instead, and the viewBox
-is widened to match so nothing is clipped. Any invertible 3×3 works as
-`deform`.
+## Deformation
+
+Not to be confused with the above, which is easy to do: a **deformation**
+bends the picture rather than the puzzle. `deform` applies a linear map as
+the SVG is drawn, so it can squash a Megaminx or stretch a weld without
+touching a mechanism.
+
+```js
+import { Cube, Megaminx, squash } from 'erno'
+
+new Cube({ deform: squash(0.6) })
+new Megaminx({ deform: squash(0.6) })
+new Cube({ deform: squash(1.7) })     // above 1 stretches
+```
+
+`squash(k, axis)` compresses by `k` along an axis that defaults to the body
+diagonal: `I + (k − 1)·nnᵀ`. The viewBox widens by the map's largest stretch
+so nothing is clipped. Any invertible 3×3 works.
+
+Because it is only a way of looking, the state is untouched: a deformed
+puzzle's facelets are its undeformed one's, exactly.
 
 One thing to know, because it is the first thing that goes wrong: a parallel
 projection looking straight down the axis of a compression cannot see it. On
 erno's default isometric camera — which looks along the body diagonal — a
-squished cube and a plain one are the same picture. `Squished` ships with a
-camera off that axis for exactly this reason.
+squashed cube and a plain one are the same picture. Give it a camera off that
+axis.
 
 ## Decals
 

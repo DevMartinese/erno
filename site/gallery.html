@@ -140,7 +140,7 @@
       // Deformation: one linear map, and the state is still a plain 3×3's.
       show("squished cube", new Squished().toSVG());
       show("squished R U R'", new Squished().move("R U R'").toSVG());
-      show("squished harder", new Squished({ squash: 0.42 }).toSVG());
+      show("squished harder", new Squished({ offset: 0.45 }).toSVG());
       show("stretched", new Cube({ deform: squash(1.7), camera: { type: "perspective", distance: 26 } }).toSVG());
       show("squished megaminx", new Megaminx({ deform: squash(0.6), camera: { type: "perspective", distance: 26 } }).toSVG());
       show("squished siamese", new Siamese({ deform: squash(0.6), camera: { type: "perspective", distance: 34 } }).toSVG());
