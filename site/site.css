@@ -1046,6 +1046,15 @@ nav {
   line-height: var(--lh);
 }
 
+/* THE INDEX AS A SCALE MODEL.
+
+   A list of links with numerals in front is what every manual does. This one
+   is a plan of the page: each entry carries the colour of the plane its
+   plate actually wears, read off the document at runtime rather than
+   restated here — so if a plate changes colour the index follows and cannot
+   drift into a lie. The numeral rides its own plane exactly as it does on
+   the plate itself, which makes the index the composition seen from above.
+   Kassák's planes at a twentieth scale. */
 nav ol {
   list-style: none;
   counter-reset: toc;
@@ -1060,21 +1069,47 @@ li + li {
 nav li {
   counter-increment: toc;
   white-space: nowrap;
-}
-
-nav li::before {
-  content: counter(toc, upper-roman) ". ";
-  color: color-mix(in oklab, var(--text) 40%, var(--bg));
-  display: inline-block;
-  width: 6ch;
+  break-inside: avoid;
+  margin-top: 0;
+  margin-bottom: var(--space-0-5);
 }
 
 nav a {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
   text-decoration: none;
+  color: var(--ink);
 }
 
-nav a:hover {
+/* The numeral on its plane, at the size of a line. Fixed width, so the
+   titles start on one line down the column. */
+nav a::before {
+  content: counter(toc, upper-roman);
+  flex: 0 0 auto;
+  min-width: calc(var(--space-unit) * 5);
+  padding: 0 var(--space-0-5);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: var(--size-xs);
+  letter-spacing: 0.08em;
+  line-height: var(--lh);
+  background: var(--plate, var(--ink));
+  color: var(--plate-ink, var(--paper));
+}
+
+/* Hover moves the PLANE, not the words — the same red that means live
+   everywhere else on this page. */
+nav a:hover::before,
+nav a:focus-visible::before {
+  background: var(--red);
+  color: var(--on-red);
+}
+
+nav a:hover span,
+nav a:focus-visible span {
   text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* A control is a plane, not a chip. Solid ink on paper, squared off, with

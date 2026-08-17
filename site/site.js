@@ -48,6 +48,21 @@ document.querySelectorAll("pre code").forEach((el) => {
 
 document.querySelector("h1 .version").textContent = version;
 
+// ─── The index reads the page ────────
+// Each entry takes the colour of the plane its plate actually wears. Read off
+// the document rather than restated in CSS, so the index cannot drift out of
+// step with the composition it maps — and the titles are wrapped so the
+// numeral plane and the words can be styled apart.
+for (const a of document.querySelectorAll("nav a")) {
+  if (!a.querySelector("span")) a.innerHTML = `<span>${a.textContent.trim()}</span>`;
+  const target = document.querySelector(a.getAttribute("href"));
+  const heading = target && (target.matches("h2") ? target : target.querySelector("h2"));
+  if (!heading) continue;
+  const cs = getComputedStyle(heading);
+  a.style.setProperty("--plate", cs.backgroundColor);
+  a.style.setProperty("--plate-ink", cs.color);
+}
+
 // ─── Enhance all range inputs ────────
 function enhanceRange(input) {
   const wrap = document.createElement("div");
@@ -280,7 +295,11 @@ function variantDemo(id, make, options) {
     if (t && isMove(t)) ctx.p.move(moveToken(t));
     if (t && t.key === "scramble") ctx.p.scramble();
     if (t && t.key === "reset") ctx.p.reset();
-    return tune(ctx.p, options).toSVG();
+    // The frame is the puzzle's own circumsphere, not its current outline.
+    // A tight fit is measured on the drawing, so anything that shape-shifts
+    // — or simply opens up mid-turn — redraws at a different scale and the
+    // puzzle appears to shrink as you use it.
+    return tune(ctx.p, options).toSVG({ fitSphere: true });
   });
 }
 
@@ -532,7 +551,7 @@ setupDemo("demo-mirror", (v, ctx, t) => {
   if (t && t.key === "reset") ctx.p.reset();
   tune(ctx.p, { scheme: false });
   ctx.p.colors = { ...SCHEMES[v.finish] };
-  return ctx.p.toSVG();
+  return ctx.p.toSVG({ fitSphere: true });
 });
 
 // ─── 10. Schemes ─────────────────────
@@ -637,7 +656,7 @@ setupDemo("demo-animation", (v, ctx, t) => {
   if (t && t.key === "reset") {
     stop();
     ctx.p.reset();
-    return tune(ctx.p).toSVG();
+    return tune(ctx.p).toSVG({ fitSphere: true });
   }
 
   // Scrubbing is the API in the prose, driven by hand: one move held at a
@@ -668,7 +687,7 @@ setupDemo("demo-animation", (v, ctx, t) => {
       tokens = v.seq.trim().split(/[\s,]+/).filter(Boolean);
       tokens.forEach((tok) => ctx.p.parseMove(tok));
     } catch {
-      return tune(ctx.p).toSVG();
+      return tune(ctx.p).toSVG({ fitSphere: true });
     }
     const canvas = ctx.root.querySelector(".demo-canvas");
     const easeOut = (x) => 1 - Math.pow(1 - x, 3);
