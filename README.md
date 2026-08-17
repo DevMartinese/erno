@@ -349,12 +349,19 @@ Sudokube and the spots on Ernő's own Domino are the same mechanisms
 underneath, printed differently — so they ship as decoration, not as classes.
 
 ```js
-import { Cube, Domino, dicePips, sudokuDigits, dominoPips } from 'erno'
+import { Cube, Domino, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT } from 'erno'
 
-new Cube({ decal: dicePips })       // each face is one die; opposites sum to 7
-new Cube({ decal: sudokuDigits })   // 1–9 on every face
-new Domino({ decal: dominoPips })   // the 1978 puzzle, spots and all
+new Cube(DICE_CUBE)        // every cubie is a die; opposite faces sum to 7
+new Cube(SUDOKU_CUBE)      // 1–9 on every face
+new Domino(DOMINO_PRINT)   // the 1978 puzzle, spots and all
 ```
+
+Each of those is a bundle of `colors`, `plastic` and `decal`, because on a
+printed cube the colour is not a scheme choice — it is what the puzzle looks
+like: a dice cube is black with white pips, a Sudokube white with black
+numerals, the Domino cream tiles on black. The marks alone are
+`dicePips`, `sudokuDigits` and `dominoPips`, to put on any mechanism you
+like.
 
 The callback is addressed exactly like `paint` —
 `({ face, index, row, col, size, letter, piece, slot, normal, fill })` — and

@@ -1450,8 +1450,17 @@ export class Twisty {
     let vb;
     if (options.viewBox) vb = options.viewBox;
     else if (options.fitSphere) {
-      const R = this._radius;
-      vb = sphereViewBox(this._project(), R, R, R, R, pad);
+      // A number frames to that radius instead of the puzzle's own, so a set
+      // of puzzles can share one frame. Two 3×3s draw the same geometry but
+      // reserve different room — a Mirror shape-shifts and needs it — and
+      // side by side in one control the difference reads as the puzzle
+      // changing size when only the frame did.
+      // The centre is where toRender placed the puzzle — always its own
+      // radius — while the RADIUS may be borrowed. Passing the borrowed one
+      // as the centre too slides the puzzle off its own frame.
+      const C = this._radius;
+      const R = typeof options.fitSphere === "number" ? options.fitSphere : C;
+      vb = sphereViewBox(this._project(), C, C, C, R, pad);
     } else vb = boundsViewBox(faces, pad);
 
     const parts = [openSvgTag(vb)];

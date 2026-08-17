@@ -39,6 +39,9 @@ import {
   dicePips,
   dominoPips,
   sudokuDigits,
+  DICE_CUBE,
+  SUDOKU_CUBE,
+  DOMINO_PRINT,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -1012,22 +1015,40 @@ test("marks on one face all read the same way up", () => {
     assertEqual(new Set(byFace[f]).size, 1, `face ${f} has one orientation`);
 });
 
-test("the dice cube is a die: opposite faces sum to seven", () => {
-  const p = new Cube({ decal: dicePips });
-  // count the pips printed on each face at rest
+test("every cubie of the dice cube is a die, and opposites sum to seven", () => {
+  // The real puzzle prints a whole die on EVERY sticker, so a solved face is
+  // nine identical dice — not one die spread across nine stickers, which is
+  // the tidier version and is not what the thing looks like.
   const pips = {};
-  for (const f of ["U", "R", "F", "D", "L", "B"]) pips[f] = 0;
-  const probe = new Cube({
+  new Cube({
     decal: (ctx) => {
       const mark = dicePips(ctx);
-      if (mark) pips[ctx.face]++;
+      if (!mark) return mark;
+      const n = (mark.match(/<circle/g) || []).length;
+      (pips[ctx.face] ||= new Set()).add(n);
       return mark;
     },
   });
-  assert(probe.pieces.length === 26, "built");
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assertEqual(pips[f].size, 1, `every sticker of ${f} shows the same die`);
+  const n = (f) => [...pips[f]][0];
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assert(n(f) >= 1 && n(f) <= 6, `${f} is a real die face (${n(f)})`);
   for (const [a, b] of [["U", "D"], ["R", "L"], ["F", "B"]])
-    assertEqual(pips[a] + pips[b], 7, `${a}+${b}`);
-  assert(p.toSVG().includes("data-part=\"decal\""), "and it renders");
+    assertEqual(n(a) + n(b), 7, `${a}+${b}`);
+  assert(new Cube(DICE_CUBE).toSVG().includes('data-part="decal"'), "and it renders");
+});
+
+test("the printings carry their own colour, because that is what they are", () => {
+  for (const [label, make, ink] of [
+    ["dice", () => new Cube(DICE_CUBE), "#f4efe7"],
+    ["sudoku", () => new Cube(SUDOKU_CUBE), "#17110c"],
+    ["domino", () => new Domino(DOMINO_PRINT), "#17110c"],
+  ]) {
+    const svg = make().toSVG();
+    assert(svg.includes('data-part="decal"'), `${label} prints`);
+    assert(svg.includes(ink), `${label} marks read against their own ground`);
+  }
 });
 
 test("the sudokube reads one to nine on every face", () => {

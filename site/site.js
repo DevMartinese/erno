@@ -30,9 +30,9 @@ import {
   schemeFrom,
   generateRamp,
   tetrisPaint,
-  dicePips,
-  dominoPips,
-  sudokuDigits,
+  DICE_CUBE,
+  SUDOKU_CUBE,
+  DOMINO_PRINT,
   Puzzle,
   Cube,
   Fused,
@@ -288,12 +288,7 @@ variantDemo("demo-void", () => new Void());
    can never be unsolved. */
 const PAINTS = {
   tetris: () => new Tetris(),
-  // A decal is the other half of the idea: paint sets a sticker's colour, a
-  // decal puts a mark on it — and the mark is printed on the cubie, so it
-  // travels when you scramble.
-  dice: () => new Cube({ decal: dicePips }),
-  sudoku: () => new Cube({ decal: sudokuDigits }),
-  domino: () => new Domino({ decal: dominoPips }),
+
   mirror: () => new Mirror({ paint: tetrisPaint }),
   // paint belongs to the piece engine, so a painted 3×3 is a Cuboid — the
   // facelet Erno is a different representation and carries no pieces
@@ -311,6 +306,19 @@ const PAINTS = {
 };
 
 familyDemo("demo-painting", PAINTS, { scheme: false });
+
+/* Decals get their own plate. They are a different idea from a paint — a mark
+   rather than a colour — and the three printings share a frame of their own,
+   which a Mirror in the same family would have forced wide. */
+familyDemo(
+  "demo-decals",
+  {
+    dice: () => new Cube(DICE_CUBE),
+    sudoku: () => new Cube(SUDOKU_CUBE),
+    domino: () => new Domino(DOMINO_PRINT),
+  },
+  { scheme: false },
+);
 
 // ─── 9c. Cuboids ─────────────────────
 const CUBOIDS = {
@@ -339,6 +347,17 @@ setupDemo("demo-cuboids", (v, ctx, t) => {
 
 // ─── 9d/9e. Shape mods & turners ─────
 function familyDemo(id, kinds, options) {
+  // One frame for the whole family. Each puzzle reserves the room its own
+  // turns need — a Mirror shape-shifts and asks for a quarter more than a
+  // plain 3×3 — so framing each to itself makes the cube appear to change
+  // size when you change the option and only the frame moved. Built once,
+  // from the largest.
+  let shared = null;
+  const frame = () => {
+    if (shared === null)
+      shared = Math.max(...Object.values(kinds).map((make) => make()._radius));
+    return shared;
+  };
   setupDemo(id, (v, ctx, t) => {
     if (!ctx.p || ctx.kind !== v.kind) {
       ctx.p = kinds[v.kind]();
@@ -354,7 +373,7 @@ function familyDemo(id, kinds, options) {
     if (t && t.key === "scramble") ctx.p.scramble();
     if (t && t.key === "reset") ctx.p.reset();
     tune(ctx.p, v.kind === "penrose" ? { scheme: false } : options);
-    return ctx.p.toSVG({ fitSphere: true });
+    return ctx.p.toSVG({ fitSphere: frame() });
   });
 }
 
@@ -418,6 +437,19 @@ const WELDS = {
     }),
 };
 
+// The welds are framed to their own outline rather than a sphere they barely
+// fill, which leaves each one filling its box — so a staircase of three cubes
+// and a single bandaged one drew their cubies at 1.7× each other. One frame,
+// big enough for the largest, centred on whichever is showing: the cubie is
+// then the same size whatever you pick, and a bigger puzzle looks bigger.
+let weldBox = null;
+function weldFrame(svg) {
+  const vb = svg.match(/viewBox="([^"]*)"/)[1].split(" ").map(Number);
+  const cx = vb[0] + vb[2] / 2,
+    cy = vb[1] + vb[3] / 2;
+  return [cx - weldBox / 2, cy - weldBox / 2, weldBox, weldBox];
+}
+
 let weldRender;
 weldRender = setupDemo("demo-welding", (v, ctx, t) => {
   if (!ctx.p || ctx.kind !== v.kind) {
@@ -463,7 +495,15 @@ weldRender = setupDemo("demo-welding", (v, ctx, t) => {
   // its layer onto itself, so the silhouette is invariant and the tight fit
   // cannot jump. Measured across every legal move and a forty-move scramble
   // on all seven welds: zero drift.
-  return tune(p, { scheme: false }).toSVG();
+  const tight = tune(p, { scheme: false }).toSVG();
+  if (weldBox === null)
+    weldBox = Math.max(
+      ...Object.values(WELDS).map((make) => {
+        const vb = make().toSVG().match(/viewBox="([^"]*)"/)[1].split(" ").map(Number);
+        return Math.max(vb[2], vb[3]);
+      }),
+    );
+  return p.toSVG({ viewBox: weldFrame(tight) });
 });
 
 setupDemo("demo-mirror", (v, ctx, t) => {

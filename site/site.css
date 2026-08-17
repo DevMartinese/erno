@@ -368,7 +368,11 @@ article {
      height rather than leaving it as margin — it is the reason the plate
      exists. Still capped in absolute terms so a very tall window does not
      blow one cube up into a poster. */
-  max-height: min(70vh, 40rem);
+  /* The plate is a screen tall and the prose beside it rarely fills that,
+     so the puzzle takes what is left rather than sitting at a cap set for a
+     shorter plate. Kept below the text column's height so nothing pushes a
+     plate past the fold. */
+  max-height: min(76vh, 44rem);
   margin: 0 auto;
 }
 
@@ -450,7 +454,7 @@ article {
   grid-column: span 7;
 }
 .plate--light .demo-canvas {
-  max-height: min(62vh, 34rem);
+  max-height: min(70vh, 40rem);
 }
 
 .plate--even .section-text,
@@ -458,7 +462,7 @@ article {
   grid-column: span 6;
 }
 .plate--even .demo-canvas {
-  max-height: min(68vh, 38rem);
+  max-height: min(74vh, 42rem);
 }
 
 /* Heavy plates get the wide text column and a taller demo to match it, so
@@ -470,7 +474,7 @@ article {
   grid-column: span 5;
 }
 .plate--heavy .demo-canvas {
-  max-height: min(74vh, 44rem);
+  max-height: min(78vh, 46rem);
 }
 
 /* The side. Straight puts the demo first, flipped puts the text first —

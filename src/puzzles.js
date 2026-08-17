@@ -875,33 +875,35 @@ function inkOn(fill) {
 }
 
 /** A cluster of `n` pips laid out inside one sticker. */
-function pipCluster(n, fill) {
+function pipCluster(n, fill, r = 0.082, spread = 0.64) {
   const c = inkOn(fill);
+  const lo = (1 - spread) / 2;
   return (PIPS[n] || [])
     .map(
-      ([r, k]) =>
-        `<circle cx="${(0.18 + ((k + 0.5) / 3) * 0.64).toFixed(3)}" cy="${(
-          0.18 +
-          ((r + 0.5) / 3) * 0.64
-        ).toFixed(3)}" r="0.082" fill="${c}"/>`,
+      ([row, k]) =>
+        `<circle cx="${(lo + ((k + 0.5) / 3) * spread).toFixed(3)}" cy="${(
+          lo +
+          ((row + 0.5) / 3) * spread
+        ).toFixed(3)}" r="${r}" fill="${c}"/>`,
     )
     .join("");
 }
 
 /**
- * The dice cube: each face is one die, its pips laid across the nine
- * stickers rather than drawn on each. Opposite faces sum to seven, as a die
- * does — so it is the cube's own opposite-face structure that makes it read
- * as a die at all.
+ * The dice cube: every cubie IS a die, so every sticker carries a whole face
+ * of one — not one die spread across nine stickers, which is the version
+ * that looks tidier and is not the puzzle. Each little die reads its home
+ * face's number, and the cube's opposite faces sum to seven exactly as a
+ * die's do, so a solved face is nine identical dice and a scrambled one is
+ * the jumble of counts you see on the real thing.
  *
- *   new Cube({ decal: dicePips })
+ *   new Cube(DICE_CUBE)              // with its black-and-white printing
+ *   new Cube({ decal: dicePips })    // the marks alone
  */
-export function dicePips({ face, row, col, fill }) {
+export function dicePips({ face, row, fill }) {
   const n = DIE_FACE[face];
   if (!n || row === undefined) return null;
-  return PIPS[n].some(([r, k]) => r === row && k === col)
-    ? `<circle cx="0.5" cy="0.5" r="0.3" fill="${inkOn(fill)}"/>`
-    : null;
+  return pipCluster(n, fill, 0.115, 0.72);
 }
 
 /**
@@ -928,6 +930,37 @@ export function sudokuDigits({ index, row, fill }) {
     fill,
   )}">${index + 1}</text>`;
 }
+
+/**
+ * The printings. A dice cube is black with white pips, a Sudokube white with
+ * black numerals, the Domino cream tiles on black — the colour is not a
+ * scheme choice on these, it is what the puzzle looks like. Spread one into
+ * the constructor.
+ *
+ *   new Cube(DICE_CUBE)
+ *   new Cube(SUDOKU_CUBE)
+ *   new Domino(DOMINO_PRINT)
+ */
+const allFaces = (fill) =>
+  Object.fromEntries(FACES.map((f) => [f, fill]));
+
+export const DICE_CUBE = {
+  colors: allFaces("#1b1b1b"),
+  plastic: "#0a0a0a",
+  decal: dicePips,
+};
+
+export const SUDOKU_CUBE = {
+  colors: allFaces("#f2f0eb"),
+  plastic: "#141414",
+  decal: sudokuDigits,
+};
+
+export const DOMINO_PRINT = {
+  colors: { U: "#efdfba", D: "#efdfba", R: "#1b1b1b", L: "#1b1b1b", F: "#1b1b1b", B: "#1b1b1b" },
+  plastic: "#0a0a0a",
+  decal: dominoPips,
+};
 
 // ── Fused puzzles ───────────────────────────────────────────────────────────
 
