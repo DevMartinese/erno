@@ -29,6 +29,7 @@ import {
   schemeFrom,
   generateRamp,
   tetrisPaint,
+  Puzzle,
 } from "../src/erno.js";
 import { version } from "../package.json";
 import { initHero } from "./hero.js";
@@ -598,3 +599,93 @@ composePlates();
 
 // ─── Hero ────────────────────────────
 initHero(document.getElementById("hero"));
+
+/**
+ * Compose one — the code block IS the control.
+ *
+ * The spec is parsed, never evaluated: this reads `key: value` pairs and
+ * nothing else, so an editable block on a public page cannot run anything.
+ * It costs a few lines against `new Function` and is worth every one.
+ */
+function parseSpec(text) {
+  const body = text.slice(text.indexOf("{") + 1, text.lastIndexOf("}"));
+  const spec = {};
+  for (const part of body.split(",")) {
+    const at = part.indexOf(":");
+    if (at < 0) continue;
+    const key = part.slice(0, at).trim().replace(/^["']|["']$/g, "");
+    const raw = part.slice(at + 1).trim();
+    if (!key) continue;
+    // fractions are allowed because the classic depths ARE fractions —
+    // a Dino is exactly 1/3, and 0.3333 is a different puzzle
+    const frac = raw.match(/^(-?[\d.]+)\s*\/\s*([\d.]+)$/);
+    if (frac) spec[key] = Number(frac[1]) / Number(frac[2]);
+    else if (/^["']/.test(raw)) spec[key] = raw.replace(/^["']|["']$/g, "");
+    else if (/^\[/.test(raw)) spec[key] = raw.replace(/[[\]]/g, "").split(/\s+/).map(Number);
+    else if (raw !== "" && !Number.isNaN(Number(raw))) spec[key] = Number(raw);
+  }
+  // `size` is written [3, 2, 3], and splitting the body on commas tore it
+  // apart — stitch it back from the original text
+  const size = text.match(/size\s*:\s*\[([^\]]*)\]/);
+  if (size) spec.size = size[1].split(",").map((n) => parseInt(n, 10));
+  return spec;
+}
+
+const SPEC_PRESETS = {
+  skewb: 'new Puzzle({\n  shape: "cube",\n  turn: "corners",\n  depth: 0\n})',
+  dino: 'new Puzzle({\n  shape: "cube",\n  turn: "corners",\n  depth: 1/3\n})',
+  helicopter: 'new Puzzle({\n  shape: "cube",\n  turn: "edges",\n  depth: 0.5\n})',
+  megaminx: 'new Puzzle({\n  shape: "dodecahedron",\n  depth: 0.32\n})',
+  cuboid: 'new Puzzle({\n  shape: "box",\n  size: [3, 2, 3]\n})',
+  nobody: 'new Puzzle({\n  shape: "cube",\n  turn: "edges",\n  depth: 0.68\n})',
+};
+
+(function composeDemo() {
+  const root = document.getElementById("demo-compose");
+  if (!root) return;
+  const canvas = root.querySelector(".demo-canvas");
+  const source = document.getElementById("spec-source");
+  const readout = document.querySelector("#compose [data-readout]");
+  let puzzle = null;
+
+  function rebuild(keepState = false) {
+    let spec;
+    try {
+      spec = parseSpec(source.textContent);
+      const next = new Puzzle(spec);
+      if (keepState && puzzle) next.move(puzzle.history.join(" "));
+      puzzle = next;
+      readout.textContent = `${puzzle.pieces.length} pieces · turns: ${Object.keys(
+        puzzle.def.moves || { R: 1, U: 1, F: 1, D: 1, L: 1, B: 1 },
+      ).join(" ")}`;
+    } catch (err) {
+      // an unbuildable spec keeps the last good puzzle on screen and says why
+      readout.textContent = `⚠ ${err.message}`;
+      return;
+    }
+    draw();
+  }
+
+  function draw() {
+    if (puzzle) canvas.innerHTML = tune(puzzle, { scheme: false }).toSVG({ fitSphere: true });
+  }
+
+  source.addEventListener("input", () => rebuild());
+  root.querySelectorAll("[data-preset]").forEach((b) =>
+    b.addEventListener("click", () => {
+      source.textContent = SPEC_PRESETS[b.dataset.preset];
+      rebuild();
+    }),
+  );
+  root.querySelector('[data-bind="scramble"]').addEventListener("click", () => {
+    if (puzzle) puzzle.scramble();
+    draw();
+  });
+  root.querySelector('[data-bind="reset"]').addEventListener("click", () => {
+    if (puzzle) puzzle.reset();
+    draw();
+  });
+
+  rebuild();
+  demos.push(draw);
+})();

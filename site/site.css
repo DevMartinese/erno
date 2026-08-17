@@ -1370,3 +1370,31 @@ input[type="color"]::-webkit-color-swatch {
 .hero-puzzle {
   transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.15);
 }
+
+/* The editable spec. It has to announce that it is a control and not just a
+   listing, so it takes the yellow plane the rest of the system uses for a
+   live field — and keeps it while focused rather than lighting up only then,
+   because nobody clicks a code block on a hunch. */
+.spec-editor {
+  background: color-mix(in oklab, var(--yellow) 22%, var(--paper));
+  border-width: 0 0 0 var(--rule);
+  border-left-style: solid;
+  border-color: var(--ink);
+  margin: 1.2rem 0;
+}
+
+.spec-editor code {
+  display: block;
+  outline: none;
+  cursor: text;
+}
+
+.spec-editor:focus-within {
+  background: color-mix(in oklab, var(--yellow) 45%, var(--paper));
+}
+
+#compose .demo-readout {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0 2rem;
+}
