@@ -36,7 +36,7 @@
     <h1>erno — puzzle gallery (visual test page)</h1>
     <div class="grid" id="grid"></div>
     <script type="module">
-      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, dicePips, dominoPips, sudokuDigits, SCHEMES } from "../src/erno.js";
+      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, SCHEMES } from "../src/erno.js";
 
       const grid = document.getElementById("grid");
       const show = (label, svg) => {
@@ -131,12 +131,12 @@
       show("fused cube D L2 B", bandaged(({ slot }) => slot.every((v) => v >= 0) ? "block" : null).move("D L2 B").toSVG());
       show("bandaged column", bandaged(({ slot }) => slot[0] === 1 && slot[2] === 1 ? "col" : null).toSVG());
       // Printed faces: the same mechanisms, decorated.
-      show("dice cube", new Cube({ decal: dicePips }).toSVG());
-      show("dice cube scrambled", (() => { const p = new Cube({ decal: dicePips }); p.move("R U F' L2 D"); return p.toSVG(); })());
-      show("sudokube", new Cube({ decal: sudokuDigits }).toSVG());
-      show("sudokube R U'", new Cube({ decal: sudokuDigits }).move("R U'").toSVG());
-      show("domino with its spots", new Domino({ decal: dominoPips }).toSVG());
-      show("domino R2 U F2", new Domino({ decal: dominoPips }).move("R2 U F2").toSVG());
+      show("dice cube", new Cube(DICE_CUBE).toSVG());
+      show("dice cube scrambled", (() => { const p = new Cube(DICE_CUBE); p.move("R U F' L2 D"); return p.toSVG(); })());
+      show("sudokube", new Cube(SUDOKU_CUBE).toSVG());
+      show("sudokube R U'", new Cube(SUDOKU_CUBE).move("R U'").toSVG());
+      show("domino with its spots", new Domino(DOMINO_PRINT).toSVG());
+      show("domino R2 U F2", new Domino(DOMINO_PRINT).move("R2 U F2").toSVG());
       show("bandaged pair", new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]], stickerGroup: true }).toSVG());
     </script>
   </body>

@@ -328,7 +328,14 @@ const CUBOIDS = {
   343: () => new Cuboid({ size: [3, 4, 3] }),
 };
 
+// One frame for the boxes too. They are genuinely different sizes, so here
+// sharing is not about hiding a difference — it is what makes the difference
+// legible: the cubie stays one size and a Floppy reads as flat rather than
+// being blown up to fill the same square as a 3×4×3.
+let cuboidFrame = null;
 setupDemo("demo-cuboids", (v, ctx, t) => {
+  if (cuboidFrame === null)
+    cuboidFrame = Math.max(...Object.values(CUBOIDS).map((make) => make()._radius));
   if (!ctx.p || ctx.kind !== v.kind) {
     ctx.p = CUBOIDS[v.kind]();
     ctx.kind = v.kind;
@@ -342,7 +349,7 @@ setupDemo("demo-cuboids", (v, ctx, t) => {
   }
   if (t && t.key === "scramble") ctx.p.scramble();
   if (t && t.key === "reset") ctx.p.reset();
-  return tune(ctx.p).toSVG({ fitSphere: true });
+  return tune(ctx.p).toSVG({ fitSphere: cuboidFrame });
 });
 
 // ─── 9d/9e. Shape mods & turners ─────

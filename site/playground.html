@@ -332,7 +332,7 @@
     </div>
 
     <script type="module">
-      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, dicePips, dominoPips, sudokuDigits, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
 
       const stage = document.getElementById("stage");
       const historyEl = document.getElementById("history");
@@ -592,19 +592,22 @@
         // Printed faces — decoration, not mechanism, so the notation is
         // whatever the puzzle underneath already used.
         dicecube: {
-          make: (opts) => new Cube({ ...opts, decal: dicePips }),
+          make: (opts) => new Cube({ ...opts, ...DICE_CUBE }),
           moves: ["U", "R", "F", "D", "L", "B"],
           presets: ["classic", "stickerless"],
+          schemes: false,
         },
         sudokube: {
-          make: (opts) => new Cube({ ...opts, decal: sudokuDigits }),
+          make: (opts) => new Cube({ ...opts, ...SUDOKU_CUBE }),
           moves: ["U", "R", "F", "D", "L", "B"],
           presets: ["classic", "stickerless"],
+          schemes: false,
         },
         dominopips: {
-          make: (opts) => new Domino({ ...opts, decal: dominoPips }),
+          make: (opts) => new Domino({ ...opts, ...DOMINO_PRINT }),
           moves: ["U", "R2", "F2", "D", "L2", "B2"],
           presets: ["classic", "stickerless"],
+          schemes: false,
         },
       };
 

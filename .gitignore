@@ -2,3 +2,7 @@ node_modules
 dist
 dist-site
 .DS_Store
+
+# Claude Code's local workspace: session notes and the skills installed for
+# this project. Local tooling, not part of the library.
+.claude
