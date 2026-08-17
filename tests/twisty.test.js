@@ -1370,6 +1370,55 @@ test("mid-turn, the turning layer is ordered by its own cut plane", () => {
   }
 });
 
+test("the frame holds every state, and wastes no room on the Mirror", () => {
+  // fitSphere reserves one frame for every state a puzzle can reach, so the
+  // viewBox never resizes as you scramble. Two things must hold: nothing
+  // ever escapes it, and it is not bigger than it has to be. The Mirror is
+  // the case that tests the second, since its mechanism sits off the middle
+  // of its shell; framed on the shell it reserved a fifth it could not use.
+  const measure = (svg) => {
+    const vb = svg.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number);
+    const nums = [...svg.matchAll(/points="([^"]+)"/g)].flatMap((m) =>
+      m[1].trim().split(/[\s,]+/).map(Number),
+    );
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < nums.length; i += 2) {
+      x0 = Math.min(x0, nums[i]); x1 = Math.max(x1, nums[i]);
+      y0 = Math.min(y0, nums[i + 1]); y1 = Math.max(y1, nums[i + 1]);
+    }
+    return {
+      escapes:
+        x0 < vb[0] - 0.5 || y0 < vb[1] - 0.5 ||
+        x1 > vb[0] + vb[2] + 0.5 || y1 > vb[1] + vb[3] + 0.5,
+      fill: Math.max((x1 - x0) / vb[2], (y1 - y0) / vb[3]),
+    };
+  };
+  for (const [label, make] of [
+    ["Mirror", () => new Mirror()],
+    ["3×3", () => new Cube({ size: 3 })],
+    ["Fisher", () => new Fisher()],
+    ["Megaminx", () => new Megaminx()],
+  ]) {
+    const p = make();
+    let best = 0;
+    for (let k = 0; k < 60; k++) {
+      const open = p.legalMoves();
+      const mv = open[k % open.length];
+      for (const progress of [0, 0.5]) {
+        const m = measure(
+          p.toSVG({ fitSphere: true, turn: progress ? { move: mv, progress } : undefined }),
+        );
+        assert(!m.escapes, `${label} escaped its frame after ${k} turns`);
+        best = Math.max(best, m.fill);
+      }
+      p.move(mv);
+    }
+    // A puzzle that can only ever fill half its frame is drawing itself
+    // small for no reason.
+    assert(best > 0.66, `${label} never fills more than ${(best * 100) | 0}% of its frame`);
+  }
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

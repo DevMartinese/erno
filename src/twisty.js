@@ -565,30 +565,52 @@ export class Twisty {
       });
     });
 
-    // Where the drawing is centred, and how far it can ever reach from
-    // there. A puzzle built around the origin centres on the origin, which
-    // is every puzzle here but the welded ones: those sit off to one side,
-    // and centring on the origin would leave them hanging in a corner of
-    // their own frame. The reach has to cover every turn centre the puzzle
-    // has, since a point turning about one of those stays within its own
-    // distance of it — that is what keeps the viewBox from clipping
-    // mid-turn.
+    // THE FRAME: where the drawing is centred, and how far it can ever reach
+    // from there. It has to hold every state the puzzle can get into, or the
+    // viewBox would resize as you scramble and the puzzle would appear to
+    // breathe.
+    //
+    // Every state lies inside ONE BALL. A turn rotates a layer about the
+    // mechanism centre, so no point ever leaves its own distance from that
+    // centre, however long you scramble. The smallest sphere holding every
+    // state is therefore the one centred ON the mechanism, and centring
+    // anywhere else pays the offset twice: once to reach out past the far
+    // side, and again as empty paper on the near one.
+    //
+    // The Mirror is where this shows, because it is the one puzzle whose
+    // mechanism is not the middle of its shell. Framed on the shell it
+    // reserved a fifth more room than it can ever use, and drew a fifth
+    // smaller than every other cube on the page for it.
+    //
+    // Welded puzzles are the exception and keep the old reckoning: they turn
+    // about several centres, no single ball is tight, and they sit off to
+    // one side of the origin, so the frame takes the composition's own
+    // middle with room enough for each body.
     const verts = [];
     for (const solid of solids) for (const f of solid) verts.push(...f.pts);
-    const lo = [Infinity, Infinity, Infinity];
-    const hi = [-Infinity, -Infinity, -Infinity];
-    for (const p of verts)
-      for (let i = 0; i < 3; i++) {
-        if (p[i] < lo[i]) lo[i] = p[i];
-        if (p[i] > hi[i]) hi[i] = p[i];
-      }
-    const mid = [0, 1, 2].map((i) => (lo[i] + hi[i]) / 2);
-    this._viewCenter = mid.every((v) => Math.abs(v) < 1e-9) ? ORIGIN : mid;
-    let radius = 0;
-    for (const c of def.turnCenters ? [this._pivot, ...def.turnCenters] : [this._pivot]) {
+    const reachFrom = (c) => {
       let reach = 0;
       for (const p of verts) reach = Math.max(reach, vlen(sub(p, c)));
-      radius = Math.max(radius, vlen(sub(c, this._viewCenter)) + reach);
+      return reach;
+    };
+    let radius = 0;
+    if (def.turnCenters) {
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const p of verts)
+        for (let i = 0; i < 3; i++) {
+          if (p[i] < lo[i]) lo[i] = p[i];
+          if (p[i] > hi[i]) hi[i] = p[i];
+        }
+      const mid = [0, 1, 2].map((i) => (lo[i] + hi[i]) / 2);
+      this._viewCenter = mid.every((v) => Math.abs(v) < 1e-9) ? ORIGIN : mid;
+      for (const c of [this._pivot, ...def.turnCenters])
+        radius = Math.max(radius, vlen(sub(c, this._viewCenter)) + reachFrom(c));
+    } else {
+      this._viewCenter = this._pivot.every((v) => Math.abs(v) < 1e-9)
+        ? ORIGIN
+        : this._pivot;
+      radius = reachFrom(this._pivot);
     }
     // A deformation that STRETCHES would push the puzzle out of a frame sized
     // on its undeformed points, so the reach grows by the map's largest
