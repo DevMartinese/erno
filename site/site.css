@@ -539,8 +539,11 @@ article {
 
 /* The masthead is the one plane that keeps a margin — it is the title
    page, not a plate. */
+/* The top pad is what stands between the hero and the wordmark, so it is
+   also what decides whether the wordmark clears the fold on a short screen.
+   Eight units holds it in view down to a 700px-tall window. */
 .intro {
-  padding: var(--space-12) var(--space-4) var(--space-10);
+  padding: var(--space-8) var(--space-4) var(--space-10);
 }
 
 /* Grid items refuse to shrink below their content, and an inline <code>
@@ -660,7 +663,11 @@ h3 {
   font-weight: 900;
   font-stretch: 118%;
   letter-spacing: -0.02em;
-  margin-top: 1.5em;
+  /* From the spacing scale, not from the heading's own body. An em here ties
+     the page's offsets to the display size, so widening the type scale
+     silently pushes everything down — which is how the masthead ended up
+     below the fold when the scale grew: 1.5em of an 89px word is 134px. */
+  margin-top: var(--space-6);
   overflow-wrap: normal;
   word-break: normal;
   text-wrap: balance;
