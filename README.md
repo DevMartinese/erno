@@ -259,7 +259,11 @@ grid, and still inverts exactly.
 and unlike a style callback it becomes part of the puzzle's state:
 
 ```js
-import { Erno, Mirror, tetrisPaint } from 'erno'
+import { Cube, Skewb, Cuboid, Mirror, tetrisPaint } from 'erno'
+
+// the Tetris cube is a plain 3×3 wearing a paint — this renders
+// identically to `new Tetris()`
+new Cube({ paint: tetrisPaint })
 
 // tint one face of any mechanism
 new Skewb({ paint: ({ letter }) => letter === 'U' ? '#cc2823' : undefined })
@@ -268,10 +272,13 @@ new Skewb({ paint: ({ letter }) => letter === 'U' ? '#cc2823' : undefined })
 // decorate a few stickers without restating the rest
 new Cuboid({ size: [4, 4, 4], paint: ({ index }) => index % 2 && '#00489f' })
 
-// the Tetris cube is mechanically an ordinary 3×3 — everything that makes
-// it Tetris is this paint, so any 3×3 mechanism can wear it
+// and any other mechanism can wear it too
 new Mirror({ paint: tetrisPaint })
 ```
+
+`Cube` is the plain cube on the piece engine — use it when a 3×3 has to
+carry a paint, since `Erno` is the facelet representation and has no pieces
+to paint. It takes a single number for `size`; `Cuboid` takes the triple.
 
 The callback receives `{ piece, index, letter, slot, normal }`.
 

@@ -811,6 +811,30 @@ export class Floppy extends Cuboid {
   }
 }
 
+/**
+ * A plain cube on the piece engine — the thing you want when a 3×3 has to
+ * carry a paint, since `Erno` is the facelet representation and has no
+ * pieces to paint. `Cuboid` could stand in, but only written out as
+ * `new Cuboid({ size: [3, 3, 3] })`: its own default is a 3×2×3, which
+ * nobody would guess.
+ *
+ *   new Cube({ paint: tetrisPaint })   // the Tetris cube, from a plain 3×3
+ */
+export class Cube extends Cuboid {
+  /**
+   * @param {Object} [options] - Cuboid options, except `size` is a single
+   *   number: the cube's dimension (default 3).
+   */
+  constructor(options = {}) {
+    const n = options.size === undefined ? 3 : options.size;
+    if (typeof n !== "number")
+      throw new Error(
+        `erno: Cube takes a single number for size, not [${n}] — use Cuboid for uneven sides`,
+      );
+    super({ ...options, size: [n, n, n] });
+  }
+}
+
 // ── Rubik's Tetris ──────────────────────────────────────────────────────────
 
 // The official Rubik's × Tetris cube: a standard 3×3 whose 26 cubies are

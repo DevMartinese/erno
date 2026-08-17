@@ -33,6 +33,7 @@ import {
   SkewbDiamond,
   Puzzle,
   buildPuzzle,
+  Cube,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -563,9 +564,15 @@ test("a painted puzzle is solved by pattern, not by facelets", () => {
   flat.scramble();
   assert(flat.isSolved(), "a single-colour paint is always solved");
 
-  // while a paint that distinguishes pieces behaves like a real puzzle
-  const striped = new Erno({ paint: ({ slot }) => (slot[1] > 0 ? "#cc2823" : "#00489f") });
+  // while a paint that distinguishes pieces behaves like a real puzzle.
+  // (This used `Erno` until the facelet cube learned to refuse `paint`,
+  // which is when it turned out to have been asserting nothing: the option
+  // was dropped and the test was checking an unpainted cube.)
+  const striped = new Cube({ paint: ({ slot }) => (slot[1] > 0 ? "#cc2823" : "#00489f") });
   assert(striped.isSolved(), "starts solved");
+  assertEqual(new Set(striped.getTints().filter(Boolean)).size, 2, "two tints, as painted");
+  striped.scramble();
+  assert(!striped.isSolved(), "and a two-tint paint really can be unsolved");
 });
 
 test("Tetris still works exactly as before", () => {
@@ -729,6 +736,33 @@ test("paint reaches every granularity, down to one sticker", () => {
     new Cuboid({ size, paint: ({ index, letter }) => (index === idx && letter === "U" ? "#c00" : undefined) })
       .getTints().filter((t) => t === "#c00").length,
     1, "one sticker");
+});
+
+test("Cube is the piece-based 3×3, and a paint turns it into any pattern", () => {
+  assertEqual(new Cube().dims.join("×"), "3×3×3", "Cube defaults to a 3×3");
+  assertEqual(new Cube({ size: 4 }).dims.join("×"), "4×4×4", "and takes a plain number");
+
+  // the whole point: the Tetris cube IS a plain 3×3 wearing a paint, so the
+  // two must be indistinguishable down to the markup
+  assertEqual(
+    new Cube({ paint: tetrisPaint }).toSVG(),
+    new Tetris().toSVG(),
+    "Cube + tetrisPaint renders identically to the Tetris class",
+  );
+
+  // options that cannot work must say so rather than be swallowed
+  for (const [label, make] of [
+    ["Erno has no pieces to paint", () => new Erno({ paint: tetrisPaint })],
+    ["Cube takes a number, not a triple", () => new Cube({ size: [3, 3, 3] })],
+  ]) {
+    let threw = false;
+    try {
+      make();
+    } catch {
+      threw = true;
+    }
+    assert(threw, label);
+  }
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────
