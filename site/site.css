@@ -682,11 +682,16 @@ a {
   overflow: hidden;
 }
 
+
 .control-label select {
   /* sized to its content: in a control bar a select that grows to fill
      dwarfs the buttons beside it */
   flex: 0 1 auto;
   min-width: 0;
+  /* The paper plane reaches the ink frame top and bottom. Centred like its
+     caption it floated, leaving a sliver of ink above and below, and the
+     joint stopped reading as two planes butting. */
+  align-self: stretch;
   appearance: none;
   -webkit-appearance: none;
   border: 0;
@@ -734,7 +739,12 @@ a {
   }
 }
 
-.demo-controls .control-label {
+/* The caption padding is for a control with a caption beside it — a slider
+   or a swatch. A select is a plane, and this padding is ink: it showed as a
+   dirty margin around the paper. Excluded here rather than overridden
+   later, because `:has()` contributes almost no specificity and the
+   override would have lost. */
+.demo-controls .control-label:not(:has(select)) {
   padding: 0.3rem 0;
   flex: 1 1 calc(50% - 1.5rem);
   box-sizing: border-box;
@@ -1160,6 +1170,28 @@ button:active {
 
 .settings-panel .control-label span:first-child {
   min-width: 4.5em;
+}
+
+/* In the panel a select is a ROW, not a bar. The ink plane earns its keep
+   in a control strip, where a select sits among buttons on paper and has to
+   read as one unit. The panel is the opposite case: a paper card whose
+   every row runs caption-then-control down a shared column, and giving two
+   of them the ink plane made them the only black bands in the card and
+   broke the column. They keep the flat treatment — no bevel, no gradient,
+   a drawn triangle — framed on paper like the swatch two rows below. */
+.settings-panel .control-label:has(select) {
+  background: none;
+  color: inherit;
+  border: 0;
+  align-items: center;
+  padding: 0.55rem 0.8rem;
+  overflow: visible;
+}
+
+.settings-panel .control-label select {
+  border: var(--rule) solid var(--ink);
+  margin-left: 0;
+  align-self: auto;
 }
 
 .settings-panel .range-wrap {
