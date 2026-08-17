@@ -640,26 +640,50 @@ const SPEC_PRESETS = {
   nobody: 'new Puzzle({\n  shape: "cube",\n  turn: "edges",\n  depth: 0.68\n})',
 };
 
+/**
+ * Compose one — the code writes itself and the puzzle forms as it goes.
+ *
+ * The hero builds a sculpture cubie by cubie; this builds a puzzle line by
+ * line, which is the same argument in a different register: a puzzle is a
+ * description, and you can watch one being written.
+ *
+ * It rebuilds at property boundaries rather than on every character —
+ * parsing and slicing a solid per keystroke is wasted work, and landing the
+ * change when a value completes is also what reads as cause and effect.
+ *
+ * Typing stops for good the moment anyone touches the block. It is a real
+ * editor underneath, and an animation that fights the person using it is
+ * worse than no animation.
+ */
+const SPEC_SCRIPT = [
+  { label: "a Skewb", text: 'new Puzzle({\n  shape: "cube",\n  turn: "corners",\n  depth: 0\n})' },
+  { label: "a Dino", text: 'new Puzzle({\n  shape: "cube",\n  turn: "corners",\n  depth: 1/3\n})' },
+  { label: "a Helicopter", text: 'new Puzzle({\n  shape: "cube",\n  turn: "edges",\n  depth: 1/2\n})' },
+  { label: "one nobody makes", text: 'new Puzzle({\n  shape: "cube",\n  turn: "edges",\n  depth: 0.68\n})' },
+  { label: "a Megaminx", text: 'new Puzzle({\n  shape: "dodecahedron",\n  depth: 0.32\n})' },
+  { label: "a Domino", text: 'new Puzzle({\n  shape: "box",\n  size: [3, 2, 3]\n})' },
+];
+
 (function composeDemo() {
   const root = document.getElementById("demo-compose");
   if (!root) return;
   const canvas = root.querySelector(".demo-canvas");
   const source = document.getElementById("spec-source");
   const readout = document.querySelector("#compose [data-readout]");
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let puzzle = null;
+  let typing = null;
+  let handedOver = false;
 
-  function rebuild(keepState = false) {
-    let spec;
+  function rebuild() {
     try {
-      spec = parseSpec(source.textContent);
-      const next = new Puzzle(spec);
-      if (keepState && puzzle) next.move(puzzle.history.join(" "));
-      puzzle = next;
+      puzzle = new Puzzle(parseSpec(source.textContent));
       readout.textContent = `${puzzle.pieces.length} pieces · turns: ${Object.keys(
         puzzle.def.moves || { R: 1, U: 1, F: 1, D: 1, L: 1, B: 1 },
       ).join(" ")}`;
     } catch (err) {
-      // an unbuildable spec keeps the last good puzzle on screen and says why
+      // a half-typed or unbuildable spec keeps the last good puzzle on
+      // screen and says why, rather than blanking mid-keystroke
       readout.textContent = `⚠ ${err.message}`;
       return;
     }
@@ -670,22 +694,67 @@ const SPEC_PRESETS = {
     if (puzzle) canvas.innerHTML = tune(puzzle, { scheme: false }).toSVG({ fitSphere: true });
   }
 
-  source.addEventListener("input", () => rebuild());
+  /** Stop the reel and leave the block to whoever just touched it. */
+  function handOver() {
+    if (handedOver) return;
+    handedOver = true;
+    clearTimeout(typing);
+    // the block sits in the text plane and the demo in the other, so the
+    // signal has to be raised on the plate they share
+    root.closest(".section-row").classList.add("is-live");
+  }
+
+  function play(step = 0) {
+    if (handedOver) return;
+    const target = SPEC_SCRIPT[step % SPEC_SCRIPT.length].text;
+    let i = 0;
+    source.textContent = "";
+    (function type() {
+      if (handedOver) return;
+      const ch = target[i];
+      source.textContent = target.slice(0, ++i);
+      // a value has just landed, so show what it built
+      if (ch === "," || ch === "}") rebuild();
+      if (i < target.length) typing = setTimeout(type, ch === "\n" ? 90 : 26);
+      else {
+        rebuild();
+        typing = setTimeout(() => play(step + 1), 2600);
+      }
+    })();
+  }
+
+  source.addEventListener("input", () => {
+    handOver();
+    rebuild();
+  });
+  source.addEventListener("focus", handOver);
   root.querySelectorAll("[data-preset]").forEach((b) =>
     b.addEventListener("click", () => {
+      handOver();
       source.textContent = SPEC_PRESETS[b.dataset.preset];
       rebuild();
     }),
   );
   root.querySelector('[data-bind="scramble"]').addEventListener("click", () => {
+    handOver();
     if (puzzle) puzzle.scramble();
     draw();
   });
   root.querySelector('[data-bind="reset"]').addEventListener("click", () => {
+    handOver();
     if (puzzle) puzzle.reset();
     draw();
   });
 
-  rebuild();
+  if (still) {
+    // no unprompted typing; the block is simply there to be edited
+    source.textContent = SPEC_PRESETS.dino;
+    handedOver = true;
+    root.closest(".section-row").classList.add("is-live");
+    rebuild();
+  } else {
+    rebuild();
+    play(0);
+  }
   demos.push(draw);
 })();
