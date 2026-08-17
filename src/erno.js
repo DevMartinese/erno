@@ -100,6 +100,18 @@ export class Erno {
     this.plastic = options.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
+    // The facelet cube has no pieces, so every option that addresses one has
+    // to say so rather than be quietly dropped.
+    for (const [opt, hint] of [
+      ["paint", "paint"],
+      ["remove", "remove"],
+      ["bandage", "bandage"],
+      ["blocking", "blocking"],
+    ])
+      if (options[opt])
+        throw new Error(
+          `erno: Erno is the facelet cube and has no pieces — use Cube({ ${hint} }) for a piece-based 3×3`,
+        );
     this._styleFn = null;
     this._styleObj = null;
     if (options.style) this.style(options.style);
@@ -612,6 +624,7 @@ export {
   Void,
   Tetris,
   Cuboid,
+  Cube,
   Domino,
   Tower,
   Floppy,
@@ -631,6 +644,19 @@ export {
   SkewbDiamond,
   Megaminx,
   Kilominx,
+  Fused,
+  Siamese,
+  squash,
+  tetrisPaint,
+  TETRIS_PALETTE,
+  dicePips,
+  dominoPips,
+  sudokuDigits,
+  DICE_CUBE,
+  SUDOKU_CUBE,
+  DOMINO_PRINT,
+  buildPuzzle,
+  Puzzle,
   SCHEMES,
 } from "./puzzles.js";
 export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

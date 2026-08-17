@@ -28,6 +28,21 @@ import {
   schemeFrom,
   generateRamp,
   nameScheme,
+  tetrisPaint,
+  Megaminx,
+  SkewbDiamond,
+  Puzzle,
+  buildPuzzle,
+  Cube,
+  Fused,
+  Siamese,
+  dicePips,
+  dominoPips,
+  sudokuDigits,
+  DICE_CUBE,
+  SUDOKU_CUBE,
+  DOMINO_PRINT,
+  squash,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -530,6 +545,878 @@ test("generated schemes drive any puzzle", () => {
   assert(cube.toSVG().startsWith("<svg"));
   const pyra = new Pyraminx({ colors: generateScheme(["F", "L", "R", "D"], { seed: 9 }) });
   assert(pyra.toSVG().startsWith("<svg"));
+});
+
+// ── Painting ────────────────────────────────────────────────────────────────
+
+test("paint tints stickers on any mechanism, not just Tetris", () => {
+  // the Tetris layout lifted onto a different mechanism entirely
+  const m = new Mirror({ paint: tetrisPaint });
+  assert(m.isSolved(), "painted mirror starts solved");
+  assert(m.toSVG().startsWith("<svg"), "painted mirror renders");
+  assert(!new Mirror({ paint: tetrisPaint }).move("R").isSolved(), "R breaks it");
+
+  // a paint may tint only what it wants; the rest keeps its face colour
+  const one = new Skewb({ paint: ({ letter }) => (letter === "U" ? "#cc2823" : undefined) });
+  const reds = one.getTints().filter((t) => t === "#cc2823").length;
+  assertEqual(reds, 5, "every U sticker of a skewb tinted, and only those");
+
+  // and it reaches puzzles that never had a painted variant
+  const mega = new Megaminx({ paint: ({ index }) => (index % 2 ? "#00489f" : "#f6ba00") });
+  assertEqual(new Set(mega.getTints().filter(Boolean)).size, 2, "megaminx takes two tints");
+});
+
+test("a painted puzzle is solved by pattern, not by facelets", () => {
+  // Same-coloured pieces are interchangeable, so a paint that gives every
+  // piece one colour can never be unsolved however it is scrambled.
+  const flat = new SkewbDiamond({ paint: () => "#17110c" });
+  flat.scramble();
+  assert(flat.isSolved(), "a single-colour paint is always solved");
+
+  // while a paint that distinguishes pieces behaves like a real puzzle.
+  // (This used `Erno` until the facelet cube learned to refuse `paint`,
+  // which is when it turned out to have been asserting nothing: the option
+  // was dropped and the test was checking an unpainted cube.)
+  const striped = new Cube({ paint: ({ slot }) => (slot[1] > 0 ? "#cc2823" : "#00489f") });
+  assert(striped.isSolved(), "starts solved");
+  assertEqual(new Set(striped.getTints().filter(Boolean)).size, 2, "two tints, as painted");
+  striped.scramble();
+  assert(!striped.isSolved(), "and a two-tint paint really can be unsolved");
+});
+
+test("Tetris still works exactly as before", () => {
+  const t = new Tetris();
+  assert(t.isSolved(), "solved at birth");
+  assert(!new Tetris().move("R").isSolved(), "R breaks it");
+  const q = new Tetris();
+  const seq = q.scramble();
+  q.move(Twisty.inverse(seq));
+  assert(q.isSolved(), `inverse of "${seq}" restores it`);
+});
+
+// ── Building a puzzle from a description ───────────────────────────────────
+
+test("the builder reproduces the shelf puzzles exactly", () => {
+  // If a description can rebuild the hand-written definitions piece for
+  // piece, then those twenty-six puzzles really are configurations rather
+  // than kinds — which is the whole claim the builder makes.
+  const cases = [
+    ["skewb", { turn: "corners", depth: 0 }, new Skewb().pieces.length],
+    ["dino", { turn: "corners", depth: 1 / 3 }, new Dino().pieces.length],
+    ["compy", { turn: "corners", depth: 1.15 / (1.5 * Math.sqrt(3)) }, new Compy().pieces.length],
+    ["master skewb", { turn: "corners", depth: 0.52 / (1.5 * Math.sqrt(3)) }, new MasterSkewb().pieces.length],
+    ["helicopter", { turn: "edges", depth: 0.5 }, new Helicopter().pieces.length],
+    ["3×3", { turn: "faces", size: [3, 3, 3] }, 26],
+    ["megaminx", { shape: "dodecahedron", depth: 0.32 }, new Megaminx().pieces.length],
+    ["skewb diamond", { shape: "octahedron" }, new SkewbDiamond().pieces.length],
+  ];
+  for (const [name, spec, want] of cases)
+    assertEqual(new Puzzle(spec).pieces.length, want, `${name} rebuilt from a spec`);
+});
+
+test("a built puzzle turns by the order of its axis, and inverts exactly", () => {
+  // The angle is not a free parameter: only a full turn divided by the
+  // axis's rotational order maps the solid back onto itself.
+  for (const [spec, token, order] of [
+    [{ turn: "corners", depth: 0 }, "FRU", 3],
+    [{ turn: "edges", depth: 0.5 }, "FU", 2],
+    [{ turn: "faces", size: [3, 3, 3] }, "R", 4],
+  ]) {
+    const p = new Puzzle(spec);
+    assert(p.isSolved(), "starts solved");
+    for (let i = 0; i < order; i++) p.move(token);
+    assert(p.isSolved(), `${token}^${order} is the identity`);
+
+    const q = new Puzzle(spec);
+    const seq = q.scramble();
+    assert(!q.isSolved(), `scrambled by "${seq}"`);
+    q.move(Twisty.inverse(seq));
+    assert(q.isSolved(), `inverse of "${seq}" restores it`);
+  }
+});
+
+test("the builder makes puzzles that are not on the shelf", () => {
+  // Depths nobody manufactures still have to produce a working mechanism.
+  for (const depth of [0.15, 0.55, 0.65, 0.8]) {
+    const p = new Puzzle({ turn: "corners", depth });
+    assert(p.pieces.length > 0, `corners at ${depth} builds pieces`);
+    assert(p.isSolved(), `corners at ${depth} starts solved`);
+    const seq = p.scramble();
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `corners at ${depth}: inverse of "${seq}"`);
+    assert(new Puzzle({ turn: "corners", depth }).toSVG().startsWith("<svg"), "renders");
+  }
+});
+
+test("the builder refuses an axis family a cube does not have", () => {
+  let threw = false;
+  try {
+    buildPuzzle({ turn: "diagonals" });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "an unknown axis family is an error, not a silent empty puzzle");
+});
+
+// ── Cuboids that change shape ──────────────────────────────────────────────
+
+test("a cuboid refuses the misshaping turn by default", () => {
+  let threw = false;
+  try {
+    new Domino().move("R");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "R on a 3×2×3 is refused unless asked for");
+  assert(new Domino().move("R2").isSolved() === false, "R2 is always legal");
+});
+
+test("shapeShift turns the same cuboid into the kind that deforms", () => {
+  // Both are real puzzles: a Domino's mechanism cannot make the move, while
+  // a 3×3×5 is sold precisely because it can. The engine already handled the
+  // deformed state — only the parser stood in the way.
+  for (const size of [[3, 2, 3], [3, 3, 5], [2, 3, 4]]) {
+    const p = new Cuboid({ size, shapeShift: true });
+    p.move("R");
+    assert(!p.isSolved(), `${size.join("×")} deforms on R`);
+    assert(p.toSVG().startsWith("<svg"), `${size.join("×")} still renders deformed`);
+
+    const q = new Cuboid({ size, shapeShift: true });
+    q.move("R");
+    q.move("R'");
+    assert(q.isSolved(), `${size.join("×")}: R then R' comes back`);
+
+    const r = new Cuboid({ size, shapeShift: true });
+    for (let i = 0; i < 4; i++) r.move("R");
+    assert(r.isSolved(), `${size.join("×")}: R⁴ is the identity`);
+
+    const t = new Cuboid({ size, shapeShift: true });
+    const seq = t.scramble();
+    t.move(Twisty.inverse(seq));
+    assert(t.isSolved(), `${size.join("×")}: inverse of "${seq}"`);
+  }
+});
+
+test("the two policies are separate puzzles, cached apart", () => {
+  const strict = new Cuboid({ size: [3, 2, 3] });
+  const shifty = new Cuboid({ size: [3, 2, 3], shapeShift: true });
+  assert(strict.def !== shifty.def, "one definition must not be reused for the other");
+  let threw = false;
+  try {
+    strict.move("R");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "the strict one is still strict after the other was built");
+});
+
+test("a fixed-size puzzle says so instead of ignoring the option", () => {
+  // Passing size used to do nothing at all: you asked for a 5×5 Void and got
+  // a 3×3 without a word, which is worse than an error because the result
+  // looks plausible.
+  for (const [name, C] of [["Void", Void], ["Mirror", Mirror], ["Tetris", Tetris],
+                           ["Fisher", Fisher], ["Skewb", Skewb], ["Megaminx", Megaminx]]) {
+    let threw = false;
+    try {
+      new C({ size: [5, 5, 5] });
+    } catch {
+      threw = true;
+    }
+    assert(threw, `${name} must refuse a size it cannot honour`);
+  }
+  // and the ones that do take a size still do
+  assertEqual(new Cuboid({ size: [5, 5, 5] }).pieces.length, 98, "5×5 cuboid");
+});
+
+test("paint reaches every granularity, down to one sticker", () => {
+  const size = [3, 3, 3];
+  // a whole named pattern
+  assertEqual(new Set(new Cuboid({ size, paint: tetrisPaint }).getTints().filter(Boolean)).size, 7,
+    "the Tetris layout carries its seven colours onto a plain 3×3");
+  // one face
+  assertEqual(
+    new Cuboid({ size, paint: ({ letter }) => (letter === "U" ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    9, "one face");
+  // one sticker, addressed the way getState() addresses it
+  assertEqual(
+    new Cube({ paint: ({ face, row, col }) => (face === "U" && row === 1 && col === 1 ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    1, "the centre of U, and nothing else");
+  // one row
+  assertEqual(
+    new Cube({ paint: ({ face, row }) => (face === "F" && row === 0 ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    3, "the top row of F");
+});
+
+test("paint takes a hand-written map as well as a callback", () => {
+  // the by-hand form: face letter → colours in the same reading order the
+  // state string uses, with a hole wherever a sticker keeps its face colour
+  const m = new Cube({ paint: { U: ["#c00", null, "#00f", null, "#fc0", null, null, null, "#0a0"] } });
+  assertEqual(m.getTints().filter(Boolean).length, 4, "only the four named stickers");
+  assertEqual(m.getTints().filter((t) => t === "#c00").length, 1, "the first one");
+
+  // a bare colour paints the whole face
+  assertEqual(new Cube({ paint: { U: "#111" } }).getTints().filter((t) => t === "#111").length,
+    9, "a face given one colour takes it whole");
+
+  // row/col are withheld where a grid would be a lie: a Skewb face holds five
+  const seen = new Set();
+  new Skewb({ paint: ({ face, row }) => { seen.add(row); return undefined; } });
+  assert(seen.size === 1 && seen.has(undefined), "no row/col on a non-square face");
+});
+
+test("Cube is the piece-based 3×3, and a paint turns it into any pattern", () => {
+  assertEqual(new Cube().dims.join("×"), "3×3×3", "Cube defaults to a 3×3");
+  assertEqual(new Cube({ size: 4 }).dims.join("×"), "4×4×4", "and takes a plain number");
+
+  // the whole point: the Tetris cube IS a plain 3×3 wearing a paint, so the
+  // two must be indistinguishable down to the markup
+  assertEqual(
+    new Cube({ paint: tetrisPaint }).toSVG(),
+    new Tetris().toSVG(),
+    "Cube + tetrisPaint renders identically to the Tetris class",
+  );
+
+  // options that cannot work must say so rather than be swallowed
+  for (const [label, make] of [
+    ["Erno has no pieces to paint", () => new Erno({ paint: tetrisPaint })],
+    ["Cube takes a number, not a triple", () => new Cube({ size: [3, 3, 3] })],
+  ]) {
+    let threw = false;
+    try {
+      make();
+    } catch {
+      threw = true;
+    }
+    assert(threw, label);
+  }
+});
+
+// ── Subtraction ────────────────────────────────────────────────────────────
+
+test("remove: 'centers' rebuilds the Void from an ordinary cube", () => {
+  // The Void is a 3×3 with its face centres taken out, so subtraction on a
+  // plain cube must give it back exactly — markup included.
+  const v = new Cube({ remove: "centers" });
+  assertEqual(v.pieces.length, new Void().pieces.length, "same pieces");
+  assertEqual(v.getState().length, new Void().getState().length, "same facelets");
+  assertEqual(v.toSVG(), new Void().toSVG(), "same markup");
+});
+
+test("subtraction leaves a working puzzle, on any mechanism", () => {
+  for (const [label, make] of [
+    ["cube", () => new Cube({ remove: "centers" })],
+    ["5×5", () => new Cube({ size: 5, remove: "centers" })],
+    ["cuboid", () => new Cuboid({ size: [3, 2, 3], remove: "centers" })],
+    ["megaminx", () => new Megaminx({ remove: "centers" })],
+    ["skewb", () => new Skewb({ remove: "centers" })],
+    ["a whole layer", () => new Cube({ remove: ({ slot }) => Math.abs(slot[1]) < 1e-6 })],
+    ["one corner", () => new Cube({ remove: ({ slot }) => slot.every((v) => v > 0) })],
+    ["a box region", () => new Cube({ remove: { box: [[0, 0, 0], [2, 2, 2]] } })],
+  ]) {
+    const p = make();
+    assert(p.pieces.length > 0, `${label} keeps pieces`);
+    assert(p.isSolved(), `${label} starts solved`);
+    assert(p.toSVG().includes('data-part="core"'), `${label} shows the walls behind the hole`);
+    const q = make();
+    const seq = q.scramble();
+    q.move(Twisty.inverse(seq));
+    assert(q.isSolved(), `${label}: inverse of "${seq}"`);
+  }
+});
+
+test("remove refuses a shape it does not understand", () => {
+  let threw = false;
+  try {
+    new Cube({ remove: "everything" });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "an unknown region is an error, not a silently whole cube");
+});
+
+// ── Fusion ──────────────────────────────────────────────────────────────────
+
+test("fusion welds two cubes into one body, seam and all", () => {
+  const s = new Siamese();
+  // 26 + 26 cubies, less the 3 they share, less the one of those three that
+  // ends up buried inside the union with no face left to show
+  assertEqual(s.pieces.length, 48, "pieces");
+  assert(s.isSolved(), "starts solved");
+  assert(!s.getState().includes("?"), "every sticker lands on the facelet grid");
+  // the weld is not skin: two separate cubes would carry 108 stickers
+  assert(s.getState().length < 108, `${s.getState().length} stickers, fewer than two loose cubes`);
+});
+
+test("the Siamese refuses exactly the turns its mechanism cannot make", () => {
+  // The shared bar runs along z at the +x +y corner of cube A. Every turn
+  // that would drag it away from cube B is impossible, which leaves each
+  // cube the two faces furthest from the weld — and nothing in the engine
+  // says so anywhere: it falls out of the layer having to come back to
+  // itself.
+  const s = new Siamese();
+  assertEqual(
+    s.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "AD AL BU BR",
+    "free faces",
+  );
+  let threw = false;
+  try {
+    s.move("AF");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "a blocked turn is an error, not a silent tear");
+  assert(s.isSolved(), "and it left the puzzle where it was");
+});
+
+test("a fused puzzle turns, scrambles and inverts like any other", () => {
+  for (const [label, make] of [
+    ["1×1×3", () => new Siamese()],
+    ["2×1×3", () => new Siamese({ offset: [1, 2, 0] })],
+    ["2×2×3", () => new Siamese({ offset: [1, 1, 0] })],
+    ["2×2 on a 3×3", () =>
+      new Fused({
+        bodies: [
+          { size: [3, 3, 3], at: [0, 0, 0] },
+          { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+        ],
+      })],
+    ["three in a row", () =>
+      new Fused({
+        bodies: [
+          { size: [3, 3, 3], at: [0, 0, 0] },
+          { size: [3, 3, 3], at: [2, 2, 0] },
+          { size: [3, 3, 3], at: [4, 4, 0] },
+        ],
+      })],
+  ]) {
+    const p = make();
+    assert(p.isSolved(), `${label} starts solved`);
+    assert(p.legalMoves().length > 0, `${label} has somewhere to go`);
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    const seq = p.scramble(12);
+    assert(!p.isSolved(), `${label} scrambles to something`);
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label}: inverse of "${seq}"`);
+  }
+});
+
+test("a chain of three keeps only the turns its symmetry allows", () => {
+  // A at (0,0), B at (2,2), C at (4,4): a staircase with a half-turn
+  // symmetry about B. The outer cubes keep the two faces facing away from
+  // the chain. The middle one is gripped at both ends and keeps no quarter
+  // turn at all — but its front and back slabs span the whole staircase,
+  // and a half turn about B swaps A with C and maps that slab onto itself,
+  // so those two survive. Nothing here was reasoned out in code: the layer
+  // test found the symmetry on its own.
+  const make = () =>
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [2, 2, 0] },
+        { size: [3, 3, 3], at: [4, 4, 0] },
+      ],
+    });
+  const p = make();
+  assertEqual(p.legalMoves().filter((t) => t[0] === "B").join(" "), "BF2 BB2", "B");
+  assert(
+    !p.legalMoves().some((t) => t[0] === "B" && !t.endsWith("2")),
+    "B has no quarter turn left",
+  );
+  const q = make();
+  q.move("BF2");
+  assert(!q.isSolved(), "and BF2 is a real move, not a no-op");
+  q.move("BF2");
+  assert(q.isSolved(), "twice over, it is the identity");
+});
+
+test("blocking derives the cuboid policy nobody has to write down", () => {
+  // A Domino refuses its quarter turns because a 3×1×3 layer spun about x
+  // comes back 3×3×1. That rule lives in makeBoxParser as a hand-written
+  // policy; switch on `blocking` over a cuboid that is allowed to deform
+  // and the same law reproduces it, size for size.
+  for (const size of [[3, 2, 3], [3, 3, 2], [5, 3, 3], [3, 3, 3], [4, 4, 4]]) {
+    const byLaw = new Cuboid({ size, shapeShift: true, blocking: true }).legalMoves();
+    const byPolicy = new Cuboid({ size }).legalMoves();
+    assertEqual(byLaw.join(" "), byPolicy.join(" "), `${size.join("×")}`);
+  }
+});
+
+test("blocking takes nothing away from a puzzle that is not bandaged", () => {
+  for (const [label, make] of [
+    ["3×3", () => new Cube({ blocking: true })],
+    ["5×5", () => new Cube({ size: 5, blocking: true })],
+    ["Skewb", () => new Skewb({ blocking: true })],
+    ["Megaminx", () => new Megaminx({ blocking: true })],
+  ]) {
+    const p = make();
+    const vocab = p.def.tokens || Object.keys(p.def.moves || {});
+    assertEqual(p.legalMoves().length, vocab.length, `${label} keeps every move`);
+    const seq = p.scramble();
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label} still inverts`);
+  }
+});
+
+test("fused bodies have to line up cubie to cubie", () => {
+  let threw = false;
+  try {
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [1.4, 0, 0] },
+      ],
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "a body off the shared lattice is an error, not a sliced neighbour");
+});
+
+// ── Deformation ─────────────────────────────────────────────────────────────
+
+test("a deformation is a way of looking, so it composes with everything", () => {
+  for (const [label, make] of [
+    ["cube", () => new Cube({ deform: squash(0.6) })],
+    ["5×5", () => new Cube({ size: 5, deform: squash(0.55) })],
+    ["megaminx", () => new Megaminx({ deform: squash(0.6) })],
+    ["siamese", () => new Siamese({ deform: squash(0.6) })],
+    ["stretched", () => new Cube({ deform: squash(1.6) })],
+    ["with a paint", () => new Cube({ paint: tetrisPaint, deform: squash(0.6) })],
+    ["with a decal", () => new Cube({ decal: dicePips, deform: squash(0.6) })],
+  ]) {
+    const p = make();
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    assert(p.isSolved(), `${label} starts solved`);
+  }
+});
+
+test("a deformation changes the picture and nothing else", () => {
+  const plain = new Cube({ camera: { type: "orthographic", angle: 20, pitch: 55 } });
+  const bent = new Cube({
+    camera: { type: "orthographic", angle: 20, pitch: 55 },
+    deform: squash(0.6),
+  });
+  assert(plain.toSVG() !== bent.toSVG(), "it is visible");
+  assertEqual(plain.getState(), bent.getState(), "and the state is untouched");
+});
+
+test("a stretch is given room rather than clipped", () => {
+  // The frame is sized on the undeformed points, so a map that stretches
+  // would push the puzzle out of it.
+  const svg = new Cube({ deform: squash(1.8) }).toSVG({ fitSphere: true });
+  const vb = svg.match(/viewBox="([^"]*)"/)[1].split(" ").map(Number);
+  let over = 0;
+  for (const m of svg.matchAll(/points="([^"]*)"/g))
+    for (const q of m[1].trim().split(" ")) {
+      const [x, y] = q.split(",").map(Number);
+      over = Math.max(over, vb[0] - x, x - (vb[0] + vb[2]), vb[1] - y, y - (vb[1] + vb[3]));
+    }
+  assert(over <= 0.01, `nothing leaves the frame (worst ${over.toFixed(2)}px)`);
+});
+
+// ── Decals ──────────────────────────────────────────────────────────────────
+
+test("a decal is printed on the cubie, not painted on the position", () => {
+  // The distinction is the whole point. Deciding a mark at draw time nails it
+  // to a place on the face, so a scramble would shuffle the colours and leave
+  // the marks sitting still. Mark exactly one sticker and follow it.
+  const one = { decal: ({ face, index }) => (face === "U" && index === 0 ? "<circle/>" : null) };
+  const p = new Cube(one);
+  assertEqual((p.toSVG().match(/data-part="decal"/g) || []).length, 1, "one mark");
+  // U0 is the UBL corner; y' brings it round to a face that is still in view,
+  // and the mark has to come with it
+  p.move("y'");
+  assertEqual(
+    (p.toSVG().match(/data-part="decal"/g) || []).length,
+    1,
+    "the mark travelled with its cubie",
+  );
+});
+
+test("marks on one face all read the same way up", () => {
+  // Each cubie's polygon is wound by the slicing, not by the reading order,
+  // so taking the transform from the corner order gives four different
+  // orientations on one face. The basis comes from the face's own reading
+  // directions instead; on a solved face every mark must therefore share one
+  // orientation.
+  const p = new Cube({ decal: () => "<circle/>" });
+  const svg = p.toSVG();
+  const byFace = {};
+  for (const m of svg.matchAll(
+    /data-face="([A-Z])"[^>]*\/>\s*<g transform="matrix\(([^)]*)\)"/g,
+  )) {
+    const [a, b] = m[2].trim().split(/\s+/).map(Number);
+    (byFace[m[1]] ||= []).push(`${Math.round(a)},${Math.round(b)}`);
+  }
+  const faces = Object.keys(byFace);
+  assert(faces.length >= 3, `found ${faces.length} faces`);
+  for (const f of faces)
+    assertEqual(new Set(byFace[f]).size, 1, `face ${f} has one orientation`);
+});
+
+test("every cubie of the dice cube is a die, and opposites sum to seven", () => {
+  // The real puzzle prints a whole die on EVERY sticker, so a solved face is
+  // nine identical dice — not one die spread across nine stickers, which is
+  // the tidier version and is not what the thing looks like.
+  const pips = {};
+  new Cube({
+    decal: (ctx) => {
+      const mark = dicePips(ctx);
+      if (!mark) return mark;
+      const n = (mark.match(/<circle/g) || []).length;
+      (pips[ctx.face] ||= new Set()).add(n);
+      return mark;
+    },
+  });
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assertEqual(pips[f].size, 1, `every sticker of ${f} shows the same die`);
+  const n = (f) => [...pips[f]][0];
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assert(n(f) >= 1 && n(f) <= 6, `${f} is a real die face (${n(f)})`);
+  for (const [a, b] of [["U", "D"], ["R", "L"], ["F", "B"]])
+    assertEqual(n(a) + n(b), 7, `${a}+${b}`);
+  assert(new Cube(DICE_CUBE).toSVG().includes('data-part="decal"'), "and it renders");
+});
+
+test("the printings carry their own colour, because that is what they are", () => {
+  for (const [label, make, ink] of [
+    ["dice", () => new Cube(DICE_CUBE), "#f4efe7"],
+    ["sudoku", () => new Cube(SUDOKU_CUBE), "#17110c"],
+    ["domino", () => new Domino(DOMINO_PRINT), "#17110c"],
+  ]) {
+    const svg = make().toSVG();
+    assert(svg.includes('data-part="decal"'), `${label} prints`);
+    assert(svg.includes(ink), `${label} marks read against their own ground`);
+  }
+});
+
+test("the sudokube reads one to nine on every face", () => {
+  const digits = {};
+  new Cube({
+    decal: (ctx) => {
+      const mark = sudokuDigits(ctx);
+      if (mark) (digits[ctx.face] ||= []).push(mark.replace(/.*>(\d+)<.*/, "$1"));
+      return mark;
+    },
+  });
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assertEqual(digits[f].join(""), "123456789", `face ${f}`);
+});
+
+test("the Domino wears its spots, and only where a face is square", () => {
+  // Rubik's 1978 puzzle prints one to nine on its two 3×3 faces; the 3×2
+  // sides have no square to lay a pip grid on and stay bare.
+  const seen = {};
+  new Domino({
+    decal: (ctx) => {
+      const mark = dominoPips(ctx);
+      seen[ctx.face] = (seen[ctx.face] || 0) + (mark ? 1 : 0);
+      return mark;
+    },
+  });
+  assertEqual(seen.U, 9, "U carries nine");
+  assertEqual(seen.D, 9, "D carries nine");
+  for (const f of ["R", "L", "F", "B"]) assertEqual(seen[f], 0, `${f} stays bare`);
+});
+
+test("a decal skips a sticker it cannot sit on", () => {
+  // A Skewb's faces are triangles and squares, a Megaminx's are kites: there
+  // is no unit square to map, so those are left bare rather than smeared.
+  const skewb = new Skewb({ decal: () => "<circle/>" });
+  const svg = skewb.toSVG();
+  const marks = (svg.match(/data-part="decal"/g) || []).length;
+  const stickers = (svg.match(/data-part="sticker"/g) || []).length;
+  assert(marks < stickers, `${marks} marks on ${stickers} stickers`);
+  assert(svg.startsWith("<svg"), "and it still renders");
+});
+
+test("decals compose with paint, subtraction and welding", () => {
+  for (const [label, make] of [
+    ["paint", () => new Cube({ paint: tetrisPaint, decal: sudokuDigits })],
+    ["subtraction", () => new Cube({ remove: "centers", decal: dicePips })],
+    ["welding", () => new Siamese({ decal: dicePips })],
+    ["bandaging", () =>
+      new Cube({
+        bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "b" : null),
+        decal: dicePips,
+      })],
+  ]) {
+    const p = make();
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    const seq = p.scramble(8);
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label}: inverse of "${seq}"`);
+  }
+});
+
+// ── Bandaging ───────────────────────────────────────────────────────────────
+
+test("bandaging glues cubies, and the glue is what blocks the turns", () => {
+  // The Fused Cube: a 2×2×2 block set into a 3×3. The block reaches the
+  // middle layer on all three axes, so U, R and F all try to take part of
+  // it and cannot — leaving the three faces furthest from it. That is the
+  // real puzzle, and again nothing here lists the blocked moves.
+  const block = { bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "block" : null) };
+  const p = new Cube(block);
+  assertEqual(p.pieces.length, 20, "seven cubies became one");
+  assertEqual(
+    p.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "D L B",
+    "free faces",
+  );
+  assert(p.isSolved(), "starts solved");
+  assert(!p.getState().includes("?"), "a glued sticker still knows its own slot");
+  const q = new Cube(block);
+  const seq = q.scramble(15);
+  q.move(Twisty.inverse(seq));
+  assert(q.isSolved(), `inverse of "${seq}"`);
+});
+
+test("bandaging takes a list of slots as readily as a rule", () => {
+  // Glue the U centre to the UF edge: the pair straddles the F layer, so F
+  // is gone and nothing else is.
+  const p = new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]] });
+  assertEqual(p.pieces.length, 25, "two cubies became one");
+  assertEqual(
+    p.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "U R D L B",
+    "F is the only casualty",
+  );
+});
+
+test("a bandaged block wears one sticker per face, not a grid", () => {
+  // Grouped stickers are what make the glue visible. It does not remove any
+  // tiles or change how much colour is on show — each facet keeps its area
+  // and simply moves in until it meets its neighbour, so the block reads as
+  // one piece. Measure exactly that: corners shared between tiles.
+  const corners = (svg) => {
+    const seen = new Map();
+    for (const m of svg.matchAll(/<polygon points="([^"]*)"[^>]*data-part="sticker"/g))
+      for (const p of new Set(m[1].trim().split(" ")))
+        seen.set(p, (seen.get(p) || 0) + 1);
+    return [...seen.values()].filter((n) => n > 1).length;
+  };
+  const opt = { bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "b" : null) };
+  assertEqual(corners(new Cube().toSVG()), 0, "a plain cube shares none");
+  assertEqual(corners(new Cube(opt).toSVG()), 0, "nor does a bandaged one left loose");
+  assertEqual(corners(new Cube({ stickerGroup: true }).toSVG()), 0, "nor grouping alone");
+  assert(
+    corners(new Cube({ ...opt, stickerGroup: true }).toSVG()) > 0,
+    "but a grouped bandaged block does",
+  );
+});
+
+test("bandage refuses a shape it does not understand", () => {
+  for (const bad of ["corners", [[[0, 1, 1]]], 7]) {
+    let threw = false;
+    try {
+      new Cube({ bandage: bad });
+    } catch {
+      threw = true;
+    }
+    assert(threw, `${JSON.stringify(bad)} is an error, not a silently plain cube`);
+  }
+});
+
+test("an animated turn lands exactly where the move leaves it", () => {
+  // The weld forced every piece's placement to carry a translation as well as a
+  // rotation, because each body turns about its own centre. If that
+  // transport were wrong the animation would drift away from the state.
+  const pointsOf = (svg) =>
+    svg
+      .match(/points="[^"]*"/g)
+      .map((s) => s.replace(/[\d.]+/g, (m) => Math.round(+m)))
+      .sort()
+      .join(";");
+  for (const [label, make, mv] of [
+    ["3×3", () => new Cube(), "U"],
+    ["Skewb", () => new Skewb(), "R"],
+    ["Siamese", () => new Siamese(), "BU"],
+    ["Siamese half", () => new Siamese(), "AL2"],
+  ]) {
+    const a = make();
+    a.move(mv);
+    const b = make();
+    assertEqual(
+      pointsOf(a.toSVG({ fitSphere: true })),
+      pointsOf(b.toSVG({ fitSphere: true, turn: { move: mv, progress: 1 } })),
+      `${label} animation endpoint`,
+    );
+  }
+});
+
+// ── Position, patterns and the vocabulary ───────────────────────────────────
+
+test("every puzzle can say what moves it has", () => {
+  for (const C of [
+    Cube, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher,
+    Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist,
+    MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Fused,
+    Siamese,
+  ]) {
+    const p = new C();
+    const open = p.legalMoves();
+    assert(open.length > 0, `${p.def.name} enumerates no moves`);
+    for (const t of open) assert(p.canMove(t), `${p.def.name} listed ${t} but refuses it`);
+  }
+});
+
+test("a position saves and restores the puzzle exactly", () => {
+  // A facelet string cannot do this: two placements can wear the same face.
+  // A position is the placement itself, so it comes back bit for bit.
+  for (const make of [
+    () => new Cube({ size: 3 }), () => new Cube({ size: 5 }), () => new Megaminx(),
+    () => new Skewb(), () => new Fisher(), () => new Siamese(), () => new Mirror(),
+  ]) {
+    const p = make();
+    p.scramble();
+    const pos = p.getPosition();
+    const q = make().setPosition(pos);
+    assertEqual(q.getState(), p.getState(), `${p.def.name} state`);
+    assertEqual(q.getPosition(), pos, `${p.def.name} position`);
+    assertEqual(q.toSVG(), p.toSVG(), `${p.def.name} drawing`);
+  }
+});
+
+test("a bad position is refused, and refused whole", () => {
+  const v = new Void();
+  const intact = v.getPosition();
+  let refused = 0;
+  for (const bad of [
+    new Cube({ size: 3 }).getPosition(), // right shape, wrong puzzle
+    "", "nope", "e1:20:", "e1:20:1,2:0.0.0", "e1:99:0:0.0.0",
+  ]) {
+    try {
+      v.setPosition(bad);
+    } catch {
+      refused++;
+    }
+  }
+  assertEqual(refused, 6, "every bad position refused");
+  assertEqual(v.getPosition(), intact, "and the puzzle was left alone");
+});
+
+test("distance to a pattern falls as the pattern comes together", () => {
+  const target = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").getState();
+  const c = new Cube({ size: 3 });
+  // the checkerboard swaps the twelve edges and nothing else
+  assertEqual(c.distanceTo(target), 24, "solved to checkerboard");
+  const seen = [];
+  for (const m of ["U2", "D2", "F2", "B2", "L2", "R2"]) seen.push(c.move(m).distanceTo(target));
+  assertEqual(seen[seen.length - 1], 0, "arrives at zero");
+  assert(c.matches(target), "and matches");
+  assert(!c.isSolved(), "a pattern is not the solved puzzle");
+});
+
+test("a pattern is the same pattern held another way up", () => {
+  const target = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").getState();
+  const c = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2");
+  assertEqual(new Cube({ size: 3 }).orientations().length, 24, "24 ways to hold a cube");
+  for (const held of ["y", "x2", "z' y", "x y'"]) {
+    const q = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").move(held);
+    assert(q.matches(target), `checkerboard held ${held}`);
+    assert(!q.matches(target, { anyOrientation: false }), `strictly, ${held} is a different string`);
+  }
+  assert(!c.move("R").matches(target), "one turn later it is gone");
+  // a puzzle that cannot be held every way up says so instead of guessing
+  assertEqual(new Domino().orientations().length, 1, "a Domino tips into a different puzzle");
+  assertEqual(new Megaminx().orientations().length, 1, "a Megaminx lists none");
+});
+
+test("asking for the orientations does not disturb the puzzle", () => {
+  const c = new Cube({ size: 3 });
+  c.scramble();
+  const pos = c.getPosition();
+  const history = c.history.join(" ");
+  c.orientations();
+  assertEqual(c.getPosition(), pos, "position");
+  assertEqual(c.history.join(" "), history, "history");
+});
+
+test("mid-turn, the turning layer is ordered by its own cut plane", () => {
+  // A turn grabs the pieces on one side of a cut and turns them about its
+  // normal, so a turning piece and a resting one keep to their own sides for
+  // the whole sweep and the plane between them settles the draw order
+  // exactly. Before that plane was used, these pairs fell through to a guess
+  // — draw whatever is moving on top — and a shape-shifter's blocks came out
+  // cutting through each other. These are the orders the plane gives.
+  for (const [label, make, seq, mv, progress, order] of [
+    ["Fisher", () => new Fisher(), "U R2 F' D", "U", 0.6,
+      "2,22,5,10,8,9,21,12,3,7,25,1,0,19,11,13,4,16,24,17,15,20,18,6"],
+    ["Axis", () => new Axis(), "R U2 F", "U", 0.6,
+      "9,1,3,17,4,10,12,20,18,24,11,2,6,13,22,21,19,5,15,14,16,25,7,8"],
+    ["Skewb", () => new Skewb(), "R U L'", "U", 0.6,
+      "8,9,1,4,13,2,0,6,7,11,3,5,12"],
+    ["SkewbDiamond", () => new SkewbDiamond(), "R U", "U", 0.6,
+      "10,5,7,9,13,0,1,11,8,3,12"],
+    ["Helicopter", () => new Helicopter(), "FU RU BU", "FU", 0.6,
+      "4,2,0,9,8,23,1,12,20,13,6,21,29,16,19,17,18,7,3,14,26,15,10,11,22,27,24,28,25,30,31"],
+    ["Siamese", () => new Siamese(), "AD AD' AD2", "AD", 0.6,
+      "2,1,11,6,0,10,19,20,9,18,4,12,7,14,5,17,8,15,13,32,16,21,23,22,26,27,24,34,39,28,38,29,35,36,30,33,37,40,42,41,44,43,45,46,47"],
+    ["3×3", () => new Cube({ size: 3 }), "R U R' F2", "R", 0.85,
+      "9,23,8,4,10,12,6,24,20,7,22,16,14,15,2,21,13,17,25,11,5,18,19"],
+  ]) {
+    const p = make().move(seq);
+    const drawn = [];
+    for (const f of p.getFaces({ move: mv, progress }))
+      if (drawn[drawn.length - 1] !== f.piece) drawn.push(f.piece);
+    assertEqual(drawn.join(","), order, `${label} paint order mid-turn`);
+    // and each piece is drawn all at once, never split around another
+    assertEqual(new Set(drawn).size, drawn.length, `${label} draws every piece once`);
+  }
+});
+
+test("the frame holds every state, and wastes no room on the Mirror", () => {
+  // fitSphere reserves one frame for every state a puzzle can reach, so the
+  // viewBox never resizes as you scramble. Two things must hold: nothing
+  // ever escapes it, and it is not bigger than it has to be. The Mirror is
+  // the case that tests the second, since its mechanism sits off the middle
+  // of its shell; framed on the shell it reserved a fifth it could not use.
+  const measure = (svg) => {
+    const vb = svg.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number);
+    const nums = [...svg.matchAll(/points="([^"]+)"/g)].flatMap((m) =>
+      m[1].trim().split(/[\s,]+/).map(Number),
+    );
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < nums.length; i += 2) {
+      x0 = Math.min(x0, nums[i]); x1 = Math.max(x1, nums[i]);
+      y0 = Math.min(y0, nums[i + 1]); y1 = Math.max(y1, nums[i + 1]);
+    }
+    return {
+      escapes:
+        x0 < vb[0] - 0.5 || y0 < vb[1] - 0.5 ||
+        x1 > vb[0] + vb[2] + 0.5 || y1 > vb[1] + vb[3] + 0.5,
+      fill: Math.max((x1 - x0) / vb[2], (y1 - y0) / vb[3]),
+    };
+  };
+  for (const [label, make] of [
+    ["Mirror", () => new Mirror()],
+    ["3×3", () => new Cube({ size: 3 })],
+    ["Fisher", () => new Fisher()],
+    ["Megaminx", () => new Megaminx()],
+  ]) {
+    const p = make();
+    let best = 0;
+    for (let k = 0; k < 60; k++) {
+      const open = p.legalMoves();
+      const mv = open[k % open.length];
+      for (const progress of [0, 0.5]) {
+        const m = measure(
+          p.toSVG({ fitSphere: true, turn: progress ? { move: mv, progress } : undefined }),
+        );
+        assert(!m.escapes, `${label} escaped its frame after ${k} turns`);
+        best = Math.max(best, m.fill);
+      }
+      p.move(mv);
+    }
+    // A puzzle that can only ever fill half its frame is drawing itself
+    // small for no reason.
+    assert(best > 0.66, `${label} never fills more than ${(best * 100) | 0}% of its frame`);
+  }
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

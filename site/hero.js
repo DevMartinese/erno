@@ -1,4 +1,6 @@
 import {
+  generateRamp,
+  schemeFrom,
   Skewb,
   Penrose,
   Mirror,
@@ -6,17 +8,15 @@ import {
   Pyraminx,
   Twist,
   Cuboid,
-  schemeFrom,
-  generateRamp,
 } from "../src/erno.js";
 
 /**
- * Constructive hero — heerichdots-style monoliths built from puzzles.
+ * Constructive hero: heerichdots-style monoliths built from puzzles.
  *
  * Each scene is ONE monumental abstract voxel artwork (a grid with holes,
  * an organic growth, a stack of shifting slabs…) on a 3-unit lattice where
  * every voxel is a real puzzle: mostly 3×3 cubes, with skewbs, penroses,
- * ghosts and mirrors as texture accents — their cut patterns play the role
+ * ghosts and mirrors as texture accents, and their cut patterns play the role
  * of heerichdots' triangulated faces. One tight color ramp per scene,
  * sampled by height, keeps the mass reading as a single work.
  *
@@ -24,7 +24,14 @@ import {
  * holds, dissolves, and the next work begins. Click to skip ahead.
  */
 export function initHero(container) {
-  const INSTANT = location.search.includes("instant");
+  /**
+   * Someone who asks for less motion gets the finished sculpture rather than
+   * the seven-second assembly, and it never dissolves into the next one.
+   * The work is the point, the building of it is the flourish. Read live, so
+   * changing the system setting takes effect without a reload.
+   */
+  const stillness = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const INSTANT = location.search.includes("instant") || stillness.matches;
   const FREEZE = parseFloat(new URLSearchParams(location.search).get("progress"));
   let animationId = 0;
   let scene = null;
@@ -37,7 +44,7 @@ export function initHero(container) {
   /**
    * Plan the lattice from the hero's proportions. Under this projection
    * world X runs almost straight across the picture while Z spends half its
-   * length going down, and height is pure vertical — so a square plan can
+   * length going down, and height is pure vertical, so a square plan can
    * never out-run its own height on screen, and a wide hero is only filled
    * by a plan stretched along X and kept low. (Stretching Z instead would
    * make the mass taller as fast as it makes it wider.)
@@ -54,7 +61,7 @@ export function initHero(container) {
 
   // ── shape grammars: cell lists on an integer lattice ──────────────────
   const GRAMMARS = [
-    // grid with holes — denser toward the core, floating bits at the rim
+    // grid with holes, denser toward the core, floating bits at the rim
     function grid(plan) {
       const nx = plan.nx;
       const ny = plan.ny;
@@ -111,7 +118,7 @@ export function initHero(container) {
       }
       return cells;
     },
-    // shifting slabs — shrinking plates, each nudged off-axis
+    // shifting slabs: shrinking plates, each nudged off-axis
     function slabs(plan) {
       const cells = [];
       let w = plan.nx + 1;
@@ -145,7 +152,7 @@ export function initHero(container) {
    * Keep the work reading as one body: take the largest connected group of
    * cells and re-admit only the strays hovering close to it. A cell marooned
    * out at the rim reads as a mistake, and it also stretches the bounding
-   * box the whole composition is scaled to fit — one stray in a corner
+   * box the whole composition is scaled to fit, and one stray in a corner
    * shrinks everything else and hands the hero back its empty margins.
    */
   function tidy(cells) {
@@ -190,7 +197,7 @@ export function initHero(container) {
 
   // ── fusion: weld adjacent cells into ONE continuous puzzle ────────────
   // A fused pair becomes a single 6×3×3 (or 3×6×3 / 3×3×6) cuboid whose
-  // sticker grid runs unbroken across both cells — the engine's arbitrary
+  // sticker grid runs unbroken across both cells, the engine's arbitrary
   // cuboid support turned into sculpture.
   function fuseCells(cells, rate) {
     const seen = new Set(cells.map(key));
@@ -241,11 +248,11 @@ export function initHero(container) {
     pyra: ["F", "L", "R", "D"],
   };
   // The Twist's body is wrung about the vertical axis, so only turns about
-  // that axis leave its shape intact — a side turn sends the twisted slabs
+  // that axis leave its shape intact. A side turn sends the twisted slabs
   // across orientations and it bursts out of its cell.
   const TWIST_MOVES = ["U", "U'", "U2", "D", "D'", "E", "E'"];
 
-  // The Pyraminx never joins the mass — a tetrahedron inside a cubic
+  // The Pyraminx never joins the mass, since a tetrahedron inside a cubic
   // lattice reads as a hole. It only ever caps an exposed top cell, where
   // its apex turns that column into a roof. In its view frame the base
   // sits at y = -0.866 and the apex at +2.598, and the footprint leans
@@ -253,7 +260,7 @@ export function initHero(container) {
   const PYRA_BASE = 0.866;
   const PYRA_ZOFF = 0.612;
 
-  /** Cells with nothing above them, highest first — candidate roofs. */
+  /** Cells with nothing above them, highest first: candidate roofs. */
   function crownCells(cells) {
     const occ = new Set(cells.map(key));
     // a roof only works where the apex clears its surroundings: nothing
@@ -292,7 +299,7 @@ export function initHero(container) {
    * A curved scene pays for it twice over, so it runs smaller: the twist
    * costs about five times a plain cube to draw and the hero redraws a
    * block once per cubie it reveals, and welding neighbours into long
-   * cuboids would put plain cubes back in the majority — hence the much
+   * cuboids would put plain cubes back in the majority, hence the much
    * lower fusion rate as well.
    */
   const CASTS = [
@@ -325,6 +332,41 @@ export function initHero(container) {
     return "cube";
   }
 
+  /**
+   * The scene's whole colour vocabulary, read off the page's own custom
+   * properties so the stylesheet stays the single source of truth: if the
+   * palette is retuned in CSS, the sculptures follow without a code change.
+   * Paper and ink are in the set, because in a linocut the paper is a colour too.
+   */
+  function readUnitPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    const of = (name, fallback) =>
+      (cs.getPropertyValue(name) || "").trim() || fallback;
+    return [
+      of("--red", "#cc2823"),
+      of("--blue", "#00489f"),
+      of("--yellow", "#f6ba00"),
+      of("--paper", "#f4efe7"),
+      of("--ink", "#17110c"),
+      of("--red", "#cc2823"),
+    ];
+  }
+
+  /**
+   * Deal the unit colours onto one block's faces. The rotation is driven by
+   * height and index rather than randomness, so a column shifts hue-by-hue
+   * as it rises and neighbours never land on the same deal: variation
+   * without ever leaving the five colours.
+   */
+  function permuteUnit(unit, letters, level, index) {
+    const shift = level * 2 + index;
+    const scheme = {};
+    letters.forEach((L, i) => {
+      scheme[L] = unit[(i + shift) % unit.length];
+    });
+    return scheme;
+  }
+
   // ── scene lifecycle ───────────────────────────────────────────────────
   function buildScene() {
     const W = container.clientWidth;
@@ -336,7 +378,7 @@ export function initHero(container) {
     const cast = pickCast();
     let cells = tidy(GRAMMARS[grammarIdx](planFor(W, H)));
 
-    // budget: keep the piece count tractable — the hero redraws a block once
+    // budget: keep the piece count tractable, since the hero redraws a block once
     // per cubie it reveals, so this bounds the work of a whole build
     while (cells.length > cast.budget)
       cells.splice(Math.floor(Math.random() * cells.length), 1);
@@ -379,29 +421,46 @@ export function initHero(container) {
         crown: true,
         R: 2.6,
       });
-    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-    for (const b of blocks) {
-      const su = b.x * ex[0] + b.z * ez[0];
-      const sv = b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1];
-      u0 = Math.min(u0, su - b.R); u1 = Math.max(u1, su + b.R);
-      v0 = Math.min(v0, sv - b.R); v1 = Math.max(v1, sv + b.R);
-    }
+    const uOf = (b) => b.x * ex[0] + b.z * ez[0];
+    const vOf = (b) => b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1];
 
-    // fit the work to the hero band — monumental, near full-bleed
-    const k = Math.max(14, Math.min((W * 0.97) / (u1 - u0), (H * 0.94) / (v1 - v0), 72));
-    const cx = W / 2 - ((u0 + u1) / 2) * k;
-    const cy = H * 0.485 - ((v0 + v1) / 2) * k;
+    /** Screen bounds of a set of blocks, and the fit that frames them. */
+    const frame = (set) => {
+      let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+      for (const b of set) {
+        const su = uOf(b), sv = vOf(b);
+        u0 = Math.min(u0, su - b.R); u1 = Math.max(u1, su + b.R);
+        v0 = Math.min(v0, sv - b.R); v1 = Math.max(v1, sv + b.R);
+      }
+      // monumental, near full-bleed
+      const k = Math.max(14, Math.min((W * 0.97) / (u1 - u0), (H * 0.94) / (v1 - v0), 72));
+      return {
+        u0, u1, v0, v1, k,
+        cx: W / 2 - ((u0 + u1) / 2) * k,
+        cy: H * 0.485 - ((v0 + v1) / 2) * k,
+      };
+    };
 
     // every so often the work is built from original Rubik's-colored,
-    // scrambled cubes — the icon itself as raw material
-    const classic = location.search.includes("classic") || Math.random() < 0.28;
+    // scrambled cubes, the icon itself as raw material
+    const forceGenerative = location.search.includes("generative");
+    const classic =
+      !forceGenerative &&
+      (location.search.includes("classic") || Math.random() < 0.28);
 
-    // one tight color story: a ramp sampled by height level
-    const character = pick(["muted", "deep", "vivid", "pale"]);
+    // And every so often again, the colour is GENERATED rather than dealt
+    // from the page's five. Taken out of the unit's share, never the
+    // classic's, so how often a scene comes up in Rubik colours is exactly
+    // what it was.
+    const generative = forceGenerative || (!classic && Math.random() < 0.34);
+
+    // The colour story is Vasarely's Plastic Unit: constant forms and a
+    // fixed set of homogeneous colours, varied only by PERMUTATION. Hue
+    // never wanders, so however many blocks a scene holds it still reads
+    // as one composition, and the palette is read straight off the page's
+    // own tokens, so the work and the page are painted from one pot.
     const maxLevel = Math.max(...blocks.map((b) => b.level));
-    const ramp = classic
-      ? null
-      : generateRamp(maxLevel + 2, { character, hueCycles: rand(0.45, 0.7) });
+    const unit = readUnitPalette();
 
     // keep the title legible: carve cells over the h1, heerich-style
     let reserved = null;
@@ -418,6 +477,46 @@ export function initHero(container) {
         };
     }
 
+    // Carve the title zone FIRST, then reframe. The fit has to be measured
+    // on the blocks that actually survive: sizing the frame around the whole
+    // composition and only then dropping the ones over the masthead leaves
+    // the survivors sitting off-centre, with the carved side reading as dead
+    // space. A provisional fit is needed to test the zone in screen space,
+    // so the frame is simply taken twice.
+    // Carving and framing chase each other: the zone can only be tested in
+    // screen space, screen space depends on the fit, and the fit depends on
+    // which blocks survive the carve. Testing once against a draft fit,
+    // which is what this did, lets a block that was clear under the draft
+    // land on the masthead under the final one. So iterate until the set
+    // stops changing, then carve once more WITHOUT reframing: the title is
+    // then clear by construction, at the cost of a frame a hair wider than
+    // its contents.
+    const intrudes = (b, fit) => {
+      const sx = fit.cx + uOf(b) * fit.k;
+      const sy = fit.cy + vOf(b) * fit.k;
+      const rp = b.R * fit.k;
+      return (
+        sx + rp > reserved.x0 &&
+        sx - rp < reserved.x1 &&
+        sy + rp > reserved.y0 &&
+        sy - rp < reserved.y1
+      );
+    };
+    let kept = blocks;
+    let fit = frame(blocks);
+    if (reserved) {
+      for (let pass = 0; pass < 4; pass++) {
+        const next = kept.filter((b) => !intrudes(b, fit));
+        if (!next.length || next.length === kept.length) break;
+        kept = next;
+        fit = frame(kept);
+      }
+      const last = kept.filter((b) => !intrudes(b, fit));
+      if (last.length) kept = last;
+    }
+    if (!kept.length) return;
+    const { u0, u1, v0, v1, k, cx, cy } = fit;
+
     // Build order: outward from the middle of the composition, so the work
     // grows from its centre toward the edges. Measured on screen rather than
     // in the world, so the ripple spreads evenly in the picture whatever the
@@ -425,27 +524,67 @@ export function initHero(container) {
     // bottom-up and lands a pyraminx roof right after the cell it caps.
     const midU = (u0 + u1) / 2;
     const midV = (v0 + v1) / 2;
-    for (const b of blocks)
-      b.spread = Math.hypot(
-        b.x * ex[0] + b.z * ez[0] - midU,
-        b.x * ex[1] + b.z * ez[1] + b.y * eyUp[1] - midV,
-      );
-    blocks.sort((a, b) => a.spread - b.spread || a.y - b.y);
+    for (const b of kept)
+      b.spread = Math.hypot(uOf(b) - midU, vOf(b) - midV);
+    kept.sort((a, b) => a.spread - b.spread || a.y - b.y);
+
+    /**
+     * The generated colour is a FIELD over the sculpture, not a colour per
+     * block. One ramp is generated for the scene and sampled along a
+     * direction taken across the picture, so a block's colour comes from
+     * where it stands: the mass reads as a single sweep instead of a
+     * hundred unrelated decisions. Sampling in SCREEN space rather than in
+     * the world means the sweep runs across the composition whatever the
+     * camera angle.
+     *
+     * Each block then derives its six faces from its own place in the ramp,
+     * with the hue held on a short leash: enough that the facets separate,
+     * not enough for the block to leave the field. Two blocks at the same
+     * step get the same deal, which is what makes it read as one work; the
+     * cache below is that fact, not an optimisation.
+     */
+    const RAMP_STEPS = 9;
+    let fieldColors = null;
+    if (generative) {
+      const ramp = generateRamp(RAMP_STEPS, {
+        character: pick(["pale", "muted", "deep", "vivid"]),
+      });
+      const th = Math.random() * Math.PI * 2;
+      const dx = Math.cos(th);
+      const dy = Math.sin(th);
+      const along = (b) => uOf(b) * dx + vOf(b) * dy;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const b of kept) {
+        const t = along(b);
+        if (t < lo) lo = t;
+        if (t > hi) hi = t;
+      }
+      const span = hi - lo || 1;
+      const cache = new Map();
+      fieldColors = (b, letters) => {
+        const step = Math.min(
+          RAMP_STEPS - 1,
+          Math.floor(((along(b) - lo) / span) * RAMP_STEPS),
+        );
+        const key = `${step}|${letters.length}`;
+        if (!cache.has(key))
+          cache.set(key, schemeFrom(ramp[step], letters, { hueCycles: 0.3 }));
+        return cache.get(key);
+      };
+    }
 
     const AXIS_MOVES = [["R", "L"], ["U", "D"], ["F", "B"]];
     const items = [];
-    for (const blk of blocks) {
-      const sx = cx + (blk.x * ex[0] + blk.z * ez[0]) * k;
-      const sy = cy + (blk.x * ex[1] + blk.z * ez[1] + blk.y * eyUp[1]) * k;
-      const rp = blk.R * k;
-      if (reserved && sx + rp > reserved.x0 && sx - rp < reserved.x1 && sy + rp > reserved.y0 && sy - rp < reserved.y1)
-        continue;
+    for (const blk of kept) {
       const type = blk.crown ? "pyra" : blk.fused ? "cube" : pickType(cast);
       const letters = LETTERS[type];
       const colors =
         classic || !letters
           ? undefined // engine defaults ARE the original scheme
-          : schemeFrom(ramp[blk.level], letters, { hueCycles: 0.3 });
+          : generative
+            ? fieldColors(blk, letters)
+            : permuteUnit(unit, letters, blk.level, items.length);
       const inst = blk.fused
         ? new Cuboid({ camera, stickerInset: 0.12, colors, size: blk.size })
         : mk[type]({ camera, stickerInset: 0.12, colors });
@@ -458,7 +597,7 @@ export function initHero(container) {
           );
         else inst.scramble(3 + Math.floor(Math.random() * 4));
       }
-      // some blocks hold a frozen mid-turn — sculpture with puzzle tension
+      // some blocks hold a frozen mid-turn, sculpture with puzzle tension
       let turn;
       if (blk.fused && Math.random() < 0.14) {
         // fused cuboids only allow quarter turns about their long axis
@@ -529,24 +668,12 @@ export function initHero(container) {
         it.el.style.zIndex = zi + 1;
       });
 
-    // one soft ground shadow under the mass
-    const shadows = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    shadows.setAttribute("width", W);
-    shadows.setAttribute("height", H);
-    shadows.style.cssText =
-      "position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 1.4s ease;";
-    const gx = cx + ((u0 + u1) / 2) * k;
-    const gy = cy + v1 * k + 8;
-    const grx = ((u1 - u0) / 2) * k * 0.82;
-    shadows.innerHTML =
-      `<defs><radialGradient id="hero-sh"><stop offset="0%" stop-color="rgba(0,0,0,0.12)"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient></defs>` +
-      `<ellipse cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" rx="${grx.toFixed(1)}" ry="${(grx * 0.16).toFixed(1)}" fill="url(#hero-sh)"/>`;
-    container.appendChild(shadows);
-    requestAnimationFrame(() => (shadows.style.opacity = "1"));
+    // No ground shadow. A soft radial gradient is the one thing on this
+    // page pretending to depth, and picture-architecture "absorbs all into
+    // a flat plane". The work sits ON the paper, it does not hover above it.
 
     scene = {
       items,
-      shadows,
       buildSpan,
       holdMs: rand(4500, 7500),
       dissolveMs: 1600,
@@ -600,7 +727,6 @@ export function initHero(container) {
       if (rel > s.holdMs && !INSTANT) {
         s.phase = "dissolve";
         s.phaseStart = now;
-        s.shadows.style.opacity = "0";
       }
     } else if (s.phase === "dissolve") {
       // dissolve in reverse: later-built blocks leave first
@@ -625,11 +751,15 @@ export function initHero(container) {
     animationId = requestAnimationFrame(frame);
   }
 
+  // Clicking still swaps the work when motion is reduced. The person asked
+  // for no unprompted animation, not for no interaction, so it just cuts
+  // straight to the next one instead of dissolving into it.
   container.addEventListener("click", () => {
-    if (scene && scene.phase !== "dissolve") {
+    if (!scene) return;
+    if (INSTANT) start();
+    else if (scene.phase !== "dissolve") {
       scene.phase = "dissolve";
       scene.phaseStart = performance.now();
-      scene.shadows.style.opacity = "0";
     }
   });
   let resizeTimer = 0;

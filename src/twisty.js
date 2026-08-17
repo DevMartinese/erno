@@ -153,7 +153,21 @@ const IDENT = [
   [0, 0, 1],
 ];
 
+const ORIGIN = [0, 0, 0];
+
 const matVec = (m, v) => [dot(m[0], v), dot(m[1], v), dot(m[2], v)];
+
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+
+/**
+ * Offset of a rotation that turns about `center` instead of the origin:
+ * p → M·p + t with t = center − M·center. Every puzzle here used to turn
+ * about one global point, which a single matrix per piece can carry. A
+ * fused puzzle cannot — each welded body turns about its own centre — so
+ * a piece's placement is a matrix AND a translation.
+ */
+const offsetFor = (M, center) =>
+  center === ORIGIN ? ORIGIN : sub(center, matVec(M, center));
 
 function matMul(a, b) {
   const r = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
@@ -299,6 +313,122 @@ export function slicePieces(solidFaces, planes) {
   return cells;
 }
 
+/**
+ * Normalise the `remove` option into one predicate.
+ *
+ * - a function: `({ slot, stickers, piece, centroid }) => boolean`
+ * - `"centers"`: the face centres, which is what makes a Void
+ * - `{ box: [[x0,y0,z0], [x1,y1,z1]] }`: everything inside that region of
+ *   slot space, the closest thing here to heerich's subtract
+ */
+/**
+ * Internal walls between fragments of one rigid piece (coincident plastic
+ * faces) can never be seen — hide them from rendering while keeping them
+ * for the fragment hulls.
+ */
+/** The slot a sticker calls home — its piece's, unless bandaging moved it. */
+const homeSlot = (piece, face) =>
+  face.slotShift ? add(piece.slotPoint, face.slotShift) : piece.slotPoint;
+
+/**
+ * The affine transform that lays a unit square onto a projected sticker.
+ *
+ * Every camera here but the perspective one is a PARALLEL projection, so a
+ * flat square comes out a parallelogram and three corners fix the map
+ * exactly. Corner 0 is the origin, corner 1 the x edge, corner 3 the y edge.
+ * Returns null for anything that is not a quadrilateral.
+ */
+function unitSquareTo(points, u, v) {
+  if (!points || points.length !== 8 || !u || !v) return null;
+  const px = (i) => [points[i * 2], points[i * 2 + 1]];
+  const p0 = px(0);
+  const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
+  const eA = sub2(px(1), p0);
+  const eB = sub2(px(3), p0);
+  // The sticker is a parallelogram, so its two edges ARE the basis — reading
+  // the corners into a bounding box instead inflates it wherever the two
+  // directions are not square on screen, which on a cube's top face is
+  // always: +x and +z both lean, and the mark spills off its own tile.
+  let col = Math.abs(dot2(eA, u)) >= Math.abs(dot2(eB, u)) ? eA : eB;
+  let row = col === eA ? eB : eA;
+  let ox = p0[0],
+    oy = p0[1];
+  if (dot2(col, u) < 0) {
+    ox += col[0];
+    oy += col[1];
+    col = [-col[0], -col[1]];
+  }
+  if (dot2(row, v) < 0) {
+    ox += row[0];
+    oy += row[1];
+    row = [-row[0], -row[1]];
+  }
+  return `matrix(${t4(col[0])} ${t4(col[1])} ${t4(row[0])} ${t4(row[1])} ${t4(ox)} ${t4(oy)})`;
+}
+
+/** Screen-space unit vector of a world direction, as this piece now sits. */
+function screenDir(dir, M, view, at, proj) {
+  const w = matVec(view, matVec(M, dir));
+  const r = [at[0] + w[0], at[1] - w[1], at[2] - w[2]];
+  const a = proj.point(at[0], at[1], at[2]);
+  const b = proj.point(r[0], r[1], r[2]);
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  return len < 1e-9 ? null : [dx / len, dy / len];
+}
+
+function hideInnerWalls(piece) {
+  if (piece.fragments.length < 2) return;
+  const counts = new Map();
+  const faceKey = (f) => f.pts.map(keyOf).sort().join("|");
+  for (const f of piece.faces)
+    if (!f.letter) counts.set(faceKey(f), (counts.get(faceKey(f)) || 0) + 1);
+  for (const f of piece.faces)
+    if (!f.letter && counts.get(faceKey(f)) > 1) f.hidden = true;
+}
+
+/**
+ * Normalise the `bandage` option into one grouping function: pieces that
+ * answer with the same non-null key are welded into a single rigid piece.
+ *
+ * - a function: `({ slot, piece, centroid }) => key | null`
+ * - a list of slot groups: `[[[1,1,1],[1,1,0]], ...]`
+ */
+function normalizeBandage(bandage) {
+  if (!bandage) return null;
+  if (typeof bandage === "function") return bandage;
+  if (Array.isArray(bandage)) {
+    const groupOf = new Map();
+    bandage.forEach((group, gi) => {
+      if (!Array.isArray(group) || group.length < 2)
+        throw new Error(`erno: bandage group ${gi} needs at least two slots`);
+      for (const slot of group) groupOf.set(keyOf(slot), `g${gi}`);
+    });
+    return ({ slot }) => groupOf.get(keyOf(slot)) ?? null;
+  }
+  throw new Error(
+    `erno: bandage takes a list of slot groups, or ({ slot }) => group key`,
+  );
+}
+
+function normalizeRemove(remove) {
+  if (!remove) return null;
+  if (typeof remove === "function") return remove;
+  if (remove === "centers")
+    // a face centre is the only piece with two zero slot coordinates
+    return ({ slot }) => slot.filter((v) => Math.abs(v) < 1e-6).length >= 2;
+  if (remove === "core") return ({ stickers }) => stickers === 0;
+  if (remove && Array.isArray(remove.box)) {
+    const [lo, hi] = remove.box;
+    return ({ slot }) => slot.every((v, i) => v >= lo[i] - 1e-6 && v <= hi[i] + 1e-6);
+  }
+  throw new Error(
+    `erno: remove takes a function, "centers", or { box: [[x,y,z],[x,y,z]] }`,
+  );
+}
+
 // ── The engine ──────────────────────────────────────────────────────────────
 
 export class Twisty {
@@ -332,12 +462,84 @@ export class Twisty {
     this.plastic = options.plastic || def.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
+    // Subtraction, the sibling of heerich's removeGeometry: drop whole
+    // pieces and the engine draws the interior walls they leave behind, so
+    // the holes go all the way through. A predicate, a named region, or a
+    // box in slot space.
+    this._remove = normalizeRemove(options.remove);
+    // Grouped stickers: several facets of one piece drawn as a single tile.
+    // Curved bodies need it (the Twist cube's strips); so does a bandaged
+    // block, where it is what makes the glue visible — the welded cubies
+    // wear one sticker per face instead of a grid pretending they can come
+    // apart.
+    // A DEFORMATION: a linear map applied to the whole puzzle as it is
+    // drawn. It bends the picture, not the mechanism — a squashed Megaminx
+    // is still a Megaminx — so it is a way of looking, in the same sense
+    // that paint is not a mechanism. The state is untouched, which is why
+    // scramble and inverse still come back bit for bit.
+    this._deform = options.deform || null;
+    this._stickerGroup =
+      options.stickerGroup === undefined
+        ? !!def.stickerGroup
+        : !!options.stickerGroup;
+    // A decal is a MARK on a sticker, where paint is a colour. Dice pips,
+    // sudoku digits and the Domino's spots are all the same puzzle
+    // underneath and differ only in what is printed on the plastic, so they
+    // are a decoration rather than a mechanism — the same argument that made
+    // Tetris a paint. The callback returns SVG drawn in a unit square and
+    // the engine lays it onto the sticker, so a mark turns with its piece
+    // exactly as a printed one does.
+    this._decal =
+      typeof options.decal === "object" && options.decal !== null
+        ? ({ face, index }) => {
+            const row = options.decal[face];
+            return Array.isArray(row) ? row[index] : row;
+          }
+        : options.decal || null;
+    this._bandage = normalizeBandage(
+      options.bandage === undefined ? def.bandage : options.bandage,
+    );
+    // Blocking: refuse a turn whose layer would not come back to itself. A
+    // definition asks for it — a Siamese cube is nothing but its blocked
+    // turns — and bandaging is pointless without it, since the whole point
+    // of a glued pair is the turns it forbids. A caller can force it either
+    // way.
+    this._blocking =
+      options.blocking === undefined
+        ? !!def.blocking || !!this._bandage
+        : !!options.blocking;
+    // `paint` may be a callback, or — for painting by hand — a plain map of
+    // face letter to colours in the same reading order getState() uses, with
+    // a hole anywhere a sticker should keep its face colour.
+    this._paint =
+      typeof options.paint === "object" && options.paint !== null
+        ? ({ face, index }) => {
+            const row = options.paint[face];
+            return Array.isArray(row) ? row[index] : row;
+          }
+        : options.paint || null;
     this._styleFn = null;
     this._styleObj = null;
     if (options.style) this.style(options.style);
 
     this._build();
     this.reset();
+
+    // A painted puzzle is solved by its PATTERN, not by its facelets: with
+    // solid-coloured cubies, two pieces of the same colour are
+    // interchangeable and orientation stops mattering — exactly like the
+    // real Tetris cube. Remember the factory pattern so isSolved() can
+    // compare against it.
+    if (this._paint || def.paint) {
+      this._solvedTints = this.getTints().join();
+      // One character per distinct colour, fixed now and never rebuilt. A
+      // turn permutes the stickers but cannot invent or destroy one, so
+      // every colour the puzzle will ever show is on it at rest.
+      this._tintCode = new Map();
+      for (const tint of this.getTints())
+        if (tint != null && !this._tintCode.has(tint))
+          this._tintCode.set(tint, String.fromCodePoint(97 + this._tintCode.size));
+    }
     this.setCamera(options.camera || def.camera || { type: "isometric", angle: 30 });
   }
 
@@ -363,13 +565,63 @@ export class Twisty {
       });
     });
 
-    // Circumradius about the origin: rotating about the pivot keeps every
-    // point within |pivot| + max distance-from-pivot.
-    let reach = 0;
-    for (const solid of solids)
-      for (const f of solid)
-        for (const p of f.pts) reach = Math.max(reach, vlen(sub(p, this._pivot)));
-    this._radius = vlen(this._pivot) + reach;
+    // THE FRAME: where the drawing is centred, and how far it can ever reach
+    // from there. It has to hold every state the puzzle can get into, or the
+    // viewBox would resize as you scramble and the puzzle would appear to
+    // breathe.
+    //
+    // Every state lies inside ONE BALL. A turn rotates a layer about the
+    // mechanism centre, so no point ever leaves its own distance from that
+    // centre, however long you scramble. The smallest sphere holding every
+    // state is therefore the one centred ON the mechanism, and centring
+    // anywhere else pays the offset twice: once to reach out past the far
+    // side, and again as empty paper on the near one.
+    //
+    // The Mirror is where this shows, because it is the one puzzle whose
+    // mechanism is not the middle of its shell. Framed on the shell it
+    // reserved a fifth more room than it can ever use, and drew a fifth
+    // smaller than every other cube on the page for it.
+    //
+    // Welded puzzles are the exception and keep the old reckoning: they turn
+    // about several centres, no single ball is tight, and they sit off to
+    // one side of the origin, so the frame takes the composition's own
+    // middle with room enough for each body.
+    const verts = [];
+    for (const solid of solids) for (const f of solid) verts.push(...f.pts);
+    const reachFrom = (c) => {
+      let reach = 0;
+      for (const p of verts) reach = Math.max(reach, vlen(sub(p, c)));
+      return reach;
+    };
+    let radius = 0;
+    if (def.turnCenters) {
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const p of verts)
+        for (let i = 0; i < 3; i++) {
+          if (p[i] < lo[i]) lo[i] = p[i];
+          if (p[i] > hi[i]) hi[i] = p[i];
+        }
+      const mid = [0, 1, 2].map((i) => (lo[i] + hi[i]) / 2);
+      this._viewCenter = mid.every((v) => Math.abs(v) < 1e-9) ? ORIGIN : mid;
+      for (const c of [this._pivot, ...def.turnCenters])
+        radius = Math.max(radius, vlen(sub(c, this._viewCenter)) + reachFrom(c));
+    } else {
+      this._viewCenter = this._pivot.every((v) => Math.abs(v) < 1e-9)
+        ? ORIGIN
+        : this._pivot;
+      radius = reachFrom(this._pivot);
+    }
+    // A deformation that STRETCHES would push the puzzle out of a frame sized
+    // on its undeformed points, so the reach grows by the map's largest
+    // stretch. A squash only shrinks and costs nothing here.
+    if (this._deform) {
+      let most = 0;
+      for (const axis of [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        most = Math.max(most, vlen(matVec(this._deform, axis)));
+      radius *= Math.max(1, most);
+    }
+    this._radius = radius;
 
     // normal → position face letter
     this._faceOfNormal = new Map();
@@ -377,7 +629,42 @@ export class Twisty {
       for (const f of solid)
         if (f.letter) this._faceOfNormal.set(keyOf(polygonNormal(f.pts)), f.letter);
 
-    const cells = solids.flatMap((solid) => slicePieces(solid, def.cuts));
+    // Fusion — the union, and the sibling of `remove`'s subtraction. Where
+    // two bodies overlap, the wall between them is not a wall: a lettered
+    // facet buried inside another body was never on the outside, so it
+    // stops being a sticker, and a cell both bodies produce is one cell
+    // rather than two coincident ones. Bodies that merely touch — the Twist
+    // cube's stacked strips — are left alone, because nothing of theirs
+    // lies strictly inside anything.
+    const planesOf = solids.map((s) =>
+      s.map((f) => ({ n: polygonNormal(f.pts), p0: f.pts[0] })),
+    );
+    const buried = (p, self) =>
+      planesOf.some(
+        (planes, k) =>
+          k !== self && planes.every((pl) => dot(sub(p, pl.p0), pl.n) < -1e-6),
+      );
+
+    const cells = [];
+    const seenCell = new Set();
+    solids.forEach((solid, si) => {
+      for (const cell of slicePieces(solid, def.cuts)) {
+        if (solids.length === 1) {
+          cells.push(cell);
+          continue;
+        }
+        const key = cell.flatMap((f) => f.pts.map(keyOf)).sort().join("|");
+        if (seenCell.has(key)) continue;
+        seenCell.add(key);
+        cells.push(
+          cell.map((f) =>
+            f.letter && buried(centroidOf(f.pts), si)
+              ? { ...f, letter: undefined }
+              : f,
+          ),
+        );
+      }
+    });
 
     // One convex cell per slot is the common case, but a puzzle built from
     // several solids (e.g. the Twist cube's thin curved strips) produces
@@ -420,24 +707,68 @@ export class Twisty {
       if (stickers.length === 0) continue; // interior core
       if (def.keepPiece && !def.keepPiece(piece.slotPoint, stickers.length))
         continue;
+      if (
+        this._remove &&
+        this._remove({
+          slot: piece.slotPoint,
+          stickers: stickers.length,
+          piece,
+          centroid: centroidOf(piece.allVerts),
+        })
+      )
+        continue;
       piece.centroid = centroidOf(piece.allVerts);
-      delete piece.allVerts;
-      // Internal walls between fragments of one rigid piece (coincident
-      // plastic faces) can never be seen — hide them from rendering while
-      // keeping them for the fragment hulls.
-      if (piece.fragments.length > 1) {
-        const counts = new Map();
-        const faceKey = (f) => f.pts.map(keyOf).sort().join("|");
-        for (const f of piece.faces)
-          if (!f.letter) counts.set(faceKey(f), (counts.get(faceKey(f)) || 0) + 1);
-        for (const f of piece.faces)
-          if (!f.letter && counts.get(faceKey(f)) > 1) f.hidden = true;
-      }
+      hideInnerWalls(piece);
       this.pieces.push(piece);
     }
 
-    // Optional per-piece decoration: lets a puzzle tint stickers by piece
-    // (solid-colored cubies like Rubik's Tetris) rather than by face.
+    // Bandaging: weld neighbouring cubies into one rigid piece. Fusion joins
+    // whole bodies; this joins cubies inside one, which is the other way a
+    // twisty puzzle gets its blocked turns — a bandaged 3×3 is an ordinary
+    // 3×3 whose glued pair straddles two layers, so neither can turn without
+    // the other. The piece keeps a slot per cubie it fills; everything
+    // downstream reads a sticker's own slot rather than its piece's.
+    if (this._bandage) {
+      const lead = new Map();
+      const kept = [];
+      for (const piece of this.pieces) {
+        const group =
+          this._bandage({ slot: piece.slotPoint, piece, centroid: piece.centroid }) ??
+          null;
+        const host = group === null ? null : lead.get(group);
+        if (!host) {
+          if (group !== null) {
+            lead.set(group, piece);
+            piece.slotShifts = [ORIGIN];
+          }
+          kept.push(piece);
+          continue;
+        }
+        const shift = sub(piece.slotPoint, host.slotPoint);
+        const base = host.faces.length;
+        for (const f of piece.faces) {
+          f.slotShift = shift;
+          host.faces.push(f);
+        }
+        for (const [s, e] of piece.fragments) host.fragments.push([base + s, base + e]);
+        host.allVerts.push(...piece.allVerts);
+        host.slotShifts.push(shift);
+      }
+      for (const piece of kept)
+        if (piece.slotShifts && piece.slotShifts.length > 1) {
+          piece.centroid = centroidOf(piece.allVerts);
+          hideInnerWalls(piece);
+        }
+      this.pieces = kept;
+    }
+    for (const piece of this.pieces) delete piece.allVerts;
+
+    // Per-piece decoration, tinting stickers by piece rather than by face —
+    // solid-colored cubies like Rubik's Tetris. A definition can bake one in
+    // (`def.paint`, given the whole piece list), and a caller can supply one
+    // per instance (`options.paint`, called once per sticker). Nothing about
+    // this is specific to Tetris: it is a paint job, so any mechanism in the
+    // library can wear any paint.
     if (def.paint) def.paint(this.pieces);
 
     // Canonical facelet order: by face, then reading order within the face.
@@ -465,7 +796,7 @@ export class Twisty {
     this._faceRanges = [];
     let rangeStart = 0;
     stickers.forEach((s, idx) => {
-      const key = `${keyOf(this.pieces[s.piece].slotPoint)}|${keyOf(s.face.normal)}`;
+      const key = `${keyOf(homeSlot(this.pieces[s.piece], s.face))}|${keyOf(s.face.normal)}`;
       this._faceletIndex.set(key, { index: idx, posLetter: s.face.letter });
       if (idx > 0 && s.face.letter !== stickers[idx - 1].face.letter) {
         this._faceRanges.push([rangeStart, idx]);
@@ -473,6 +804,95 @@ export class Twisty {
       }
     });
     this._faceRanges.push([rangeStart, stickers.length]);
+
+    // Painting runs here, after the facelet order is known, so a paint can
+    // address a sticker the way getState() does — by its face and its place
+    // within that face — instead of by an internal piece number. `row`/`col`
+    // are offered only when a face is square; a Skewb face holds five
+    // stickers and a Megaminx eleven, where a grid would be a lie.
+    if (this._paint) {
+      const faceStart = {};
+      for (const [start, end] of this._faceRanges)
+        faceStart[stickers[start].face.letter] = { start, size: end - start };
+      stickers.forEach((s, i) => {
+        const f = s.face;
+        const { start, size } = faceStart[f.letter];
+        const within = i - start;
+        const side = Math.sqrt(size);
+        const square = Number.isInteger(side);
+        const tint = this._paint({
+          face: f.letter,
+          index: within,
+          row: square ? Math.floor(within / side) : undefined,
+          col: square ? within % side : undefined,
+          letter: f.letter,
+          piece: this.pieces[s.piece],
+          pieceIndex: s.piece,
+          slot: homeSlot(this.pieces[s.piece], f),
+          normal: f.normal,
+        });
+        // returning nothing leaves the sticker its face colour, so a paint
+        // can decorate a few stickers without restating the rest
+        if (tint) f.tint = tint;
+      });
+    }
+
+    // Decals are PRINTED, at the same moment and by the same addressing as a
+    // paint. Deciding them at draw time instead would nail every mark to a
+    // position, so a scramble would shuffle the colours and leave the pips
+    // hanging in place — which is not what a printed cube does.
+    if (this._decal) {
+      const faceStart = {};
+      for (const [start, end] of this._faceRanges)
+        faceStart[stickers[start].face.letter] = { start, size: end - start };
+      stickers.forEach((s, i) => {
+        const f = s.face;
+        const { start, size } = faceStart[f.letter];
+        const within = i - start;
+        const side = Math.sqrt(size);
+        const square = Number.isInteger(side);
+        const mark = this._decal({
+          face: f.letter,
+          index: within,
+          row: square ? Math.floor(within / side) : undefined,
+          col: square ? within % side : undefined,
+          size: square ? side : undefined,
+          letter: f.letter,
+          piece: this.pieces[s.piece],
+          pieceIndex: s.piece,
+          slot: homeSlot(this.pieces[s.piece], f),
+          normal: f.normal,
+          fill: f.tint || this.colors[f.letter],
+        });
+        if (mark) f.decal = mark;
+      });
+    }
+  }
+
+  /**
+   * The face's two reading directions, projected into the screen as this
+   * piece currently sits: the same directions getState() sorts by, so a
+   * decal lands the way the face reads and turns with its cubie.
+   */
+  _decalBasis(face, M, view, pts3, proj) {
+    if (!this._decal) return null;
+    const dirs = this.def.faceSortDirs[face.letter];
+    if (!dirs) return null;
+    let cx = 0,
+      cy = 0,
+      cz = 0;
+    for (const q of pts3) {
+      cx += q[0];
+      cy += q[1];
+      cz += q[2];
+    }
+    const at = [cx / pts3.length, cy / pts3.length, cz / pts3.length];
+    // secondary runs along a row (the x of the unit square), primary down
+    // the rows (its y) — the order getState() sorts in
+    return {
+      decalU: screenDir(dirs[1], M, view, at, proj),
+      decalV: screenDir(dirs[0], M, view, at, proj),
+    };
   }
 
   _faceletAt(slotPoint, normal) {
@@ -484,12 +904,28 @@ export class Twisty {
   /** Reset to the solved state and clear the move history. */
   reset() {
     this._rot = this.pieces.map(() => IDENT);
+    // Translations accumulated by turns about an off-origin centre, kept
+    // separately for the two spaces: slot space is the logical grid the
+    // state lives on, body space is where the geometry is drawn. They part
+    // company on shape-shifters, whose mechanism centre (`pivot`) is not
+    // the origin of their logical grid.
+    this._slotT = this.pieces.map(() => ORIGIN);
+    this._bodyT = this.pieces.map(() => ORIGIN);
     this.history = [];
     return this;
   }
 
+  /** Where piece `i` currently sits on the logical grid. */
+  _slotOf(i) {
+    return add(matVec(this._rot[i], this.pieces[i].slotPoint), this._slotT[i]);
+  }
+
   /** True if every face is a single color. */
   isSolved() {
+    // Painted puzzles are judged on the visible pattern — see the note in
+    // the constructor.
+    if (this._solvedTints !== undefined)
+      return this.getTints().join() === this._solvedTints;
     const s = this.getState();
     for (const [start, end] of this._faceRanges)
       for (let i = start; i < end; i++) {
@@ -511,10 +947,11 @@ export class Twisty {
     for (let i = 0; i < this.pieces.length; i++) {
       const piece = this.pieces[i];
       const rot = this._rot[i];
-      const slot = matVec(rot, piece.slotPoint);
+      const slot = this._slotOf(i);
       for (const f of piece.faces) {
         if (!f.letter) continue;
-        const pos = this._faceletAt(slot, matVec(rot, f.normal));
+        const at = f.slotShift ? add(slot, matVec(rot, f.slotShift)) : slot;
+        const pos = this._faceletAt(at, matVec(rot, f.normal));
         if (pos) letters[pos.index] = f.letter;
       }
     }
@@ -526,19 +963,180 @@ export class Twisty {
    * null where a sticker carries no tint. Solid-colored-piece puzzles use
    * this for their visual solved check.
    */
+  /** @returns {(string|null)[]} */
   getTints() {
     const tints = new Array(this._faceletCount).fill(null);
     for (let i = 0; i < this.pieces.length; i++) {
       const piece = this.pieces[i];
       const rot = this._rot[i];
-      const slot = matVec(rot, piece.slotPoint);
+      const slot = this._slotOf(i);
       for (const f of piece.faces) {
         if (!f.letter) continue;
-        const pos = this._faceletAt(slot, matVec(rot, f.normal));
+        const at = f.slotShift ? add(slot, matVec(rot, f.slotShift)) : slot;
+        const pos = this._faceletAt(at, matVec(rot, f.normal));
         if (pos) tints[pos.index] = f.tint || null;
       }
     }
     return tints;
+  }
+
+  // ── Position: saving, restoring, and patterns ────────────────────────────
+
+  /**
+   * The placement of every piece, as a string. Where getState() reads the
+   * puzzle from outside — what colour lies on which facelet — this reads it
+   * from inside: where each piece sits and how it is turned. That is the
+   * whole of the state, so it round-trips exactly, which a facelet string
+   * cannot promise: two different placements can wear the same face.
+   *
+   * Save a game with it, put it in a URL, hand a position to someone else.
+   * @returns {string}
+   */
+  getPosition() {
+    const dict = [];
+    const seen = new Map();
+    // Rotations repeat — a cube has 24 of them across hundreds of pieces —
+    // so name each distinct triple once and refer to it by number.
+    // Written at full precision, not rounded: a Megaminx turns by irrational
+    // amounts and a Fisher by halves of a root, and a position that came back
+    // almost right would draw a puzzle with hairline seams. JavaScript prints
+    // the shortest string that reads back as the same double, so this is
+    // exact and still short.
+    const id = (nums) => {
+      const key = nums.map((v) => (Math.abs(v) < 1e-12 ? 0 : v)).join(",");
+      let at = seen.get(key);
+      if (at === undefined) {
+        at = dict.length;
+        seen.set(key, at);
+        dict.push(key);
+      }
+      return at;
+    };
+    const rows = this.pieces.map((_, i) => {
+      const [r0, r1, r2] = this._rot[i];
+      return [
+        id([...r0, ...r1, ...r2]),
+        id(this._slotT[i]),
+        id(this._bodyT[i]),
+      ].join(".");
+    });
+    return `e1:${this.pieces.length}:${dict.join(";")}:${rows.join(" ")}`;
+  }
+
+  /**
+   * Restore a position saved by getPosition(). Throws rather than half-load:
+   * a position from a different puzzle would leave this one in a state no
+   * sequence of moves could produce.
+   * @param {string} position
+   * @returns {Twisty} this (chainable)
+   */
+  setPosition(position) {
+    const m = /^e1:(\d+):([^:]*):(.*)$/.exec(String(position).trim());
+    if (!m) throw new Error("erno: not a position string");
+    const count = parseInt(m[1], 10);
+    if (count !== this.pieces.length)
+      throw new Error(
+        `erno: that position holds ${count} pieces, ${this.def.name} has ${this.pieces.length}`,
+      );
+    const dict = m[2] ? m[2].split(";").map((s) => s.split(",").map(Number)) : [];
+    const rows = m[3] ? m[3].split(" ").filter(Boolean) : [];
+    if (rows.length !== count) throw new Error("erno: position is truncated");
+    const entry = (k, n) => {
+      const v = dict[k];
+      if (!v || v.length !== n || v.some((x) => !Number.isFinite(x)))
+        throw new Error("erno: position is corrupt");
+      return v;
+    };
+    // Build it all before assigning any of it, so a bad string leaves the
+    // puzzle exactly as it was.
+    const rot = [];
+    const slotT = [];
+    const bodyT = [];
+    for (const row of rows) {
+      const [ri, si, bi] = row.split(".").map(Number);
+      const r = entry(ri, 9);
+      rot.push([r.slice(0, 3), r.slice(3, 6), r.slice(6, 9)]);
+      slotT.push(entry(si, 3));
+      bodyT.push(entry(bi, 3));
+    }
+    this._rot = rot;
+    this._slotT = slotT;
+    this._bodyT = bodyT;
+    this.history = [];
+    return this;
+  }
+
+  /**
+   * What the puzzle LOOKS like, one character per facelet. On a plain puzzle
+   * that is the facelet string; on a painted one it is the colours, because
+   * two cubies of the same colour are interchangeable and nobody looking at
+   * it could tell them apart. Patterns are compared on this, not on
+   * getState(), so a painted puzzle is judged by eye like the real thing.
+   * @returns {string}
+   */
+  getPattern() {
+    if (!this._tintCode) return this.getState();
+    const tints = this.getTints();
+    const state = this.getState();
+    let out = "";
+    for (let i = 0; i < tints.length; i++)
+      out += tints[i] == null ? state[i] : this._tintCode.get(tints[i]) || "?";
+    return out;
+  }
+
+  /**
+   * How many facelets disagree with `target`, a string from getPattern().
+   * Zero means the puzzle is wearing that pattern. A game shows this as
+   * progress: it falls as the pattern comes together, which "solved or not"
+   * cannot.
+   * @param {string} target
+   * @returns {number}
+   */
+  distanceTo(target) {
+    const here = this.getPattern();
+    if (typeof target !== "string" || target.length !== here.length)
+      throw new Error(
+        `erno: ${this.def.name} has ${here.length} facelets, that target has ${target && target.length}`,
+      );
+    let d = 0;
+    for (let i = 0; i < here.length; i++) if (here[i] !== target[i]) d++;
+    return d;
+  }
+
+  /**
+   * Every pattern string that is this same position held a different way up,
+   * from `def.orientations`: the sequences that move the whole puzzle and
+   * nothing within it. A definition that lists none gets back the one string
+   * it is wearing, which is the honest answer rather than a wrong one.
+   * @returns {string[]}
+   */
+  orientations() {
+    const seqs = this.def.orientations;
+    if (!seqs || !seqs.length) return [this.getPattern()];
+    const home = this.getPosition();
+    const history = this.history;
+    const out = new Set();
+    for (const seq of seqs) {
+      this.setPosition(home);
+      if (seq) this.move(seq);
+      out.add(this.getPattern());
+    }
+    this.setPosition(home);
+    this.history = history;
+    return [...out];
+  }
+
+  /**
+   * Is the puzzle wearing `target`? A pattern turned in your hands is the
+   * same pattern, so by default any orientation counts; pass
+   * {anyOrientation: false} to demand the one it was captured in.
+   * @param {string} target - a string from getPattern()
+   * @param {Object} [options]
+   * @returns {boolean}
+   */
+  matches(target, options = {}) {
+    if (options.anyOrientation === false) return this.getPattern() === target;
+    return this.orientations().includes(target);
   }
 
   // ── Moves ────────────────────────────────────────────────────────────────
@@ -551,26 +1149,124 @@ export class Twisty {
     const spec = m && def.moves[m[1]];
     if (!spec) throw new Error(`erno: bad ${def.name} move '${token}'`);
     const times = (m[2] ? parseInt(m[2], 10) : 1) * (m[3] ? -1 : 1);
-    return { axis: spec.axis, angle: spec.angle * times, min: spec.min, max: spec.max };
+    return {
+      axis: spec.axis,
+      angle: spec.angle * times,
+      min: spec.min,
+      max: spec.max,
+      center: spec.center,
+    };
+  }
+
+  /** Every slot piece `i` currently fills — more than one only if bandaged. */
+  _slotsOf(i) {
+    const base = this._slotOf(i);
+    const shifts = this.pieces[i].slotShifts;
+    if (!shifts || shifts.length < 2) return [base];
+    const rot = this._rot[i];
+    return shifts.map((s) => add(base, matVec(rot, s)));
+  }
+
+  _inLayer(slot, spec) {
+    const d = dot(slot, spec.axis);
+    return d > spec.min && (spec.max === undefined || d < spec.max);
   }
 
   _selected(i, spec) {
-    const cur = matVec(this._rot[i], this.pieces[i].slotPoint);
-    const d = dot(cur, spec.axis);
-    return d > spec.min && (spec.max === undefined || d < spec.max);
+    // A glued piece goes wherever any part of it is grabbed; whether that is
+    // allowed is _turnFits' business, not this one's.
+    const shifts = this.pieces[i].slotShifts;
+    if (!shifts || shifts.length < 2)
+      return this._inLayer(this._slotOf(i), spec);
+    return this._slotsOf(i).some((s) => this._inLayer(s, spec));
+  }
+
+  /**
+   * Does this turn's layer map onto itself?
+   *
+   * The shell symmetry law, narrowed from the whole puzzle to one layer: a
+   * layer can only turn if the region it occupies comes back to the region
+   * it occupied, because whatever is left behind is still in the way. On an
+   * ordinary cube every layer passes and the test costs nothing. It earns
+   * its keep on welded puzzles, where a layer of one body reaches into
+   * another and the two no longer add up to a shape that spins — which is
+   * exactly what makes a Siamese cube hard, and exactly what the mechanism
+   * refuses to do in your hands.
+   */
+  _turnFits(spec) {
+    if (spec.angle === 0) return true;
+    const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
+    const center = spec.center || ORIGIN;
+    const t = offsetFor(M, center);
+    const here = new Set();
+    const moving = [];
+    for (let i = 0; i < this.pieces.length; i++)
+      if (this._selected(i, spec))
+        for (const s of this._slotsOf(i)) {
+          here.add(keyOf(s));
+          moving.push(s);
+        }
+    for (const s of moving) if (!here.has(keyOf(add(matVec(M, s), t)))) return false;
+    return true;
+  }
+
+  /**
+   * Can this move be made from the current position? False both for turns
+   * the puzzle's notation refuses outright (a Domino has no quarter turn
+   * about x) and, on a blocking puzzle, for turns the pieces are in the way
+   * of right now.
+   */
+  /**
+   * @param {string} token
+   * @returns {boolean}
+   */
+  canMove(token) {
+    let spec;
+    try {
+      spec = this.parseMove(token);
+    } catch {
+      // a puzzle whose policy refuses a turn outright refuses it here too,
+      // so one question answers for both kinds of impossibility
+      return false;
+    }
+    return !this._blocking || this._turnFits(spec);
+  }
+
+  /**
+   * The moves available from here, out of `def.tokens` (the puzzle's full
+   * vocabulary). On a blocking puzzle this shrinks as pieces move.
+   * @returns {string[]}
+   */
+  legalMoves() {
+    const vocab = this.def.tokens || Object.keys(this.def.moves || {});
+    return vocab.filter((t) => this.canMove(t));
   }
 
   /**
    * Apply a sequence of moves in the puzzle's notation.
+   * @param {string} sequence - one or more tokens, space separated
    * @returns {Twisty} this (chainable)
    */
   move(sequence) {
     for (const token of tokenize(sequence)) {
       const spec = this.parseMove(token);
+      if (this._blocking && !this._turnFits(spec))
+        throw new Error(
+          `erno: ${this.def.name} cannot turn '${token}' from here — the layer does not come back to itself`,
+        );
       if (spec.angle !== 0) {
         const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
+        // Slot space turns about the origin, body space about the mechanism
+        // pivot, unless the move names its own centre — a welded puzzle's
+        // bodies each turn about themselves, in both spaces alike.
+        const sT = offsetFor(M, spec.center || ORIGIN);
+        const bT = offsetFor(M, spec.center || this._pivot);
         for (let i = 0; i < this.pieces.length; i++)
-          if (this._selected(i, spec)) this._rot[i] = matMul(M, this._rot[i]);
+          if (this._selected(i, spec)) {
+            this._slotT[i] = add(matVec(M, this._slotT[i]), sT);
+            this._bodyT[i] = add(matVec(M, this._bodyT[i]), bT);
+            this._rot[i] = matMul(M, this._rot[i]);
+          }
       }
       this.history.push(token);
     }
@@ -579,15 +1275,36 @@ export class Twisty {
 
   /**
    * Scramble with the puzzle's standard random-move scramble.
+   * @param {number} [length] - how many moves; the puzzle's own default if omitted
    * @returns {string} the scramble sequence applied
    */
   scramble(length) {
+    // A blocking puzzle cannot be handed a sequence written in advance: what
+    // is legal depends on where the pieces are, so the scramble has to be
+    // walked one move at a time, picking from whatever is open. A puzzle
+    // that never wrote a scrambler gets the same walk for free.
+    if (this._blocking || !this.def.scramble) {
+      const n = length || this.def.scrambleLength || 25;
+      const tokens = [];
+      for (let k = 0; k < n; k++) {
+        const open = this.legalMoves();
+        if (!open.length) break;
+        const token = open[Math.floor(Math.random() * open.length)];
+        this.move(token);
+        tokens.push(token);
+      }
+      return tokens.join(" ");
+    }
     const seq = this.def.scramble(Math.random, length);
     this.move(seq);
     return seq;
   }
 
-  /** Invert a move sequence (same token grammar across all puzzles). */
+  /**
+   * Invert a move sequence (same token grammar across all puzzles).
+   * @param {string} sequence
+   * @returns {string}
+   */
   static inverse(sequence) {
     return inverseSequence(sequence);
   }
@@ -630,25 +1347,35 @@ export class Twisty {
    */
   getFaces(turn, pieceFilter) {
     const proj = this._project();
-    const view = this.def.view || IDENT;
+    // `view` orients a definition (the Pyraminx sits in a cube frame);
+    // `deform` is the caller's, and composes on top of it.
+    const view = this._deform
+      ? matMul(this._deform, this.def.view || IDENT)
+      : this.def.view || IDENT;
     const R = this._radius;
     let spin = null;
     if (turn && turn.progress) {
       const spec = this.parseMove(turn.move);
-      spin = { spec, mat: rotationMatrix(spec.axis, spec.angle * turn.progress) };
+      const mat = rotationMatrix(spec.axis, spec.angle * turn.progress);
+      // The turn axis carried into render space. A layer is bounded by cut
+      // planes perpendicular to it, so this direction is the one along which
+      // a turning piece and a resting one are guaranteed to come apart —
+      // see _paintOrder, which uses it to order them exactly.
+      const va = matVec(view, spec.axis);
+      spin = {
+        spec,
+        mat,
+        off: offsetFor(mat, spec.center || this._pivot),
+        renderAxis: [va[0], -va[1], -va[2]], // toRender flips y and z
+      };
     }
 
     const inset = Math.max(0, Math.min(0.45, this.stickerInset));
-    const pivot = this._pivot;
-    const toRender = (p) => [p[0] + R, R - p[1], R - p[2]];
-    // physical placement: rotate about the mechanism pivot, then orient for
-    // display — p' = V · (M·(p − pivot) + pivot)
-    const place = (M, p) => {
-      const q = matVec(M, sub(p, pivot));
-      return toRender(
-        matVec(view, [q[0] + pivot[0], q[1] + pivot[1], q[2] + pivot[2]]),
-      );
-    };
+    const C = this._viewCenter;
+    const toRender = (p) => [p[0] - C[0] + R, R - (p[1] - C[1]), R - (p[2] - C[2])];
+    // physical placement, then orient for display — p' = V · (M·p + T),
+    // where T carries every turn taken about a centre other than the origin
+    const place = (M, T, p) => toRender(matVec(view, add(matVec(M, p), T)));
 
     // Pass 0 — place every piece's facets, and find the plastic walls lying
     // flush against a neighbouring piece's. Such a pair hides itself however
@@ -665,14 +1392,16 @@ export class Twisty {
       const piece = this.pieces[i];
       const rot = this._rot[i];
       let M = rot;
+      let T = this._bodyT[i];
       let moving = false;
       if (spin && this._selected(i, spin.spec)) {
         M = matMul(spin.mat, rot);
+        T = add(matVec(spin.mat, T), spin.off);
         moving = true;
       }
       const placed = piece.faces.map((f) => ({
         f,
-        pts3: f.pts.map((p) => place(M, p)),
+        pts3: f.pts.map((p) => place(M, T, p)),
       }));
       for (const u of placed) {
         if (u.f.letter || u.f.hidden) continue;
@@ -682,7 +1411,7 @@ export class Twisty {
         if (list) list.push(u);
         else wallsAt.set(key, [u]);
       }
-      staged.push({ i, piece, rot, M, moving, placed });
+      staged.push({ i, piece, rot, M, T, moving, placed });
     }
     // The walls must face each other for the pair to be solid: mid-turn two
     // pieces can slide until their walls coincide while both keep their
@@ -697,8 +1426,8 @@ export class Twisty {
     // Pass 1 — project every piece, keeping its faces grouped and its full
     // 3D hull (planes + vertices, culled faces included) for ordering.
     const rendered = [];
-    for (const { i, piece, rot, M, moving, placed } of staged) {
-      const slot = matVec(rot, piece.slotPoint);
+    for (const { i, piece, rot, M, T, moving, placed } of staged) {
+      const slot = this._slotOf(i);
       const units = [];
       let minX = Infinity,
         minY = Infinity,
@@ -717,7 +1446,7 @@ export class Twisty {
         return { verts, planes };
       });
 
-      // Curved stickers (def.stickerGroup) span several facets per piece;
+      // Grouped stickers span several facets per piece (curved bodies,
       // Grouped (curved multi-facet) tiles: shrinking every facet toward the
       // shared group centroid keeps their common edges coincident, so the
       // inset border only appears around the whole tile. The center is
@@ -725,7 +1454,7 @@ export class Twisty {
       // sinking beneath its own ridges.
       let groupCenter = null;
       let grouped = null;
-      if (this.def.stickerGroup) {
+      if (this._stickerGroup) {
         const acc = {};
         for (const { f, pts3 } of placed)
           if (f.letter && !f.hidden) (acc[f.letter] ||= []).push(...pts3);
@@ -781,6 +1510,7 @@ export class Twisty {
           letter: f.letter,
           piece: i,
           tint: f.tint,
+          decal: f.decal,
         };
         if (inset > 0) {
           const c = groupCenter ? groupCenter[f.letter] : centroidOf(pts3);
@@ -799,7 +1529,13 @@ export class Twisty {
           } else {
             const polys = [{ ...meta, part: "plastic", ...projected }];
             if (sticker)
-              polys.push({ ...meta, part: "sticker", ...sticker, depth: projected.depth - 1e-6 });
+              polys.push({
+                ...meta,
+                part: "sticker",
+                ...sticker,
+                ...this._decalBasis(f, M, view, pts3, proj),
+                depth: projected.depth - 1e-6,
+              });
             units.push({ depth: projected.depth, polys });
           }
         } else {
@@ -817,7 +1553,7 @@ export class Twisty {
         units.push({ depth, polys: [...grouped.backs, ...grouped.sticks] });
       }
 
-      const c = place(M, piece.centroid);
+      const c = place(M, T, piece.centroid);
       rendered.push({
         units,
         hulls,
@@ -833,7 +1569,7 @@ export class Twisty {
     // interleaving artifacts a per-face centroid sort produces when blocks
     // protrude past each other (Mirror cube, mid-turn layers).
     const out = [];
-    for (const idx of this._paintOrder(rendered, proj.eye)) {
+    for (const idx of this._paintOrder(rendered, proj.eye, spin && spin.renderAxis)) {
       const r = rendered[idx];
       r.units.sort((a, b) => b.depth - a.depth);
       for (const u of r.units) out.push(...u.polys);
@@ -842,10 +1578,18 @@ export class Twisty {
   }
 
   /** Topological back-to-front piece order via separating-plane tests. */
-  _paintOrder(rendered, eye) {
+  _paintOrder(rendered, eye, turnAxis) {
     const n = rendered.length;
     const after = Array.from({ length: n }, () => []);
     const indeg = new Array(n).fill(0);
+
+    // Which side of a plane the camera sits on. `m` is the plane normal and
+    // `t` its offset (m·p = t for p on the plane); positive means the camera
+    // is on the +m side, so whatever lies there is in front.
+    const cameraSide = (m, t) =>
+      eye && eye.type === "point"
+        ? dot(m, eye.v) - t
+        : -dot(m, eye ? eye.v : [0, 0, 1]);
 
     // -1: hull hp drawn first (behind hq), +1: hq first, 0: undetermined
     const sepConvex = (hp, hq) => {
@@ -857,10 +1601,7 @@ export class Twisty {
           if (minSide < -1e-7) break;
         }
         if (minSide >= -1e-7) {
-          const camSide =
-            eye && eye.type === "point"
-              ? dot(m, sub(eye.v, p0))
-              : -dot(m, eye ? eye.v : [0, 0, 1]);
+          const camSide = cameraSide(m, dot(m, p0));
           if (Math.abs(camSide) < 1e-9) continue; // plane edge-on to the view
           return camSide > 0 ? -1 : 1; // camera on hq's side → hp is behind
         }
@@ -891,6 +1632,46 @@ export class Twisty {
       return agreed;
     };
 
+    // THE LAYER PLANE. A turn grabs the pieces whose slot coordinate along
+    // the turn axis lies in a range, and that range is bounded by cut planes
+    // perpendicular to the axis. Turning about the axis leaves that
+    // coordinate untouched, so a turning piece and a resting one keep to
+    // their own side of the boundary for the whole sweep: their extents
+    // along the axis never overlap, and the plane in the gap separates them
+    // exactly. It is the one ordering that is provable mid-turn, and it is
+    // precisely where the general search gives up — a shape-shifter's blocks
+    // protrude past each other, so no face plane of either piece separates
+    // them and the pair used to fall through to a guess, which is what made
+    // a turning layer look like it was cutting into the body.
+    const spans = new Array(n).fill(null);
+    const spanOf = (i) => {
+      if (spans[i]) return spans[i];
+      let lo = Infinity,
+        hi = -Infinity;
+      for (const h of rendered[i].hulls)
+        for (const v of h.verts) {
+          const s = dot(turnAxis, v);
+          if (s < lo) lo = s;
+          if (s > hi) hi = s;
+        }
+      return (spans[i] = [lo, hi]);
+    };
+    const layerSide = (a, b) => {
+      const [alo, ahi] = spanOf(a);
+      const [blo, bhi] = spanOf(b);
+      let m, t;
+      if (ahi <= blo + 1e-7) {
+        m = turnAxis; // b sits on the +axis side of a
+        t = (ahi + blo) / 2;
+      } else if (bhi <= alo + 1e-7) {
+        m = [-turnAxis[0], -turnAxis[1], -turnAxis[2]];
+        t = -(bhi + alo) / 2;
+      } else return 0; // extents overlap — not a layer boundary after all
+      const camSide = cameraSide(m, t);
+      if (Math.abs(camSide) < 1e-9) return 0; // plane edge-on to the view
+      return camSide > 0 ? -1 : 1; // camera on b's side → a is behind
+    };
+
     for (let a = 0; a < n; a++) {
       if (!rendered[a].units.length) continue;
       const [ax0, ay0, ax1, ay1] = rendered[a].bbox;
@@ -898,13 +1679,14 @@ export class Twisty {
         if (!rendered[b].units.length) continue;
         const [bx0, by0, bx1, by1] = rendered[b].bbox;
         if (ax1 < bx0 || bx1 < ax0 || ay1 < by0 || by1 < ay0) continue;
-        let rel = relate(rendered[a], rendered[b]);
-        // Mid-turn on a shape-shifted puzzle, the sweeping layer can pass
-        // through protruding static pieces — no consistent order exists, so
-        // draw the moving piece on top: the eye reads the turning layer as
-        // being in front, instead of a hatched interleave.
-        if (rel === 0 && rendered[a].moving !== rendered[b].moving)
-          rel = rendered[a].moving ? 1 : -1;
+        const split = turnAxis && rendered[a].moving !== rendered[b].moving;
+        let rel = split ? layerSide(a, b) : 0;
+        if (rel === 0) rel = relate(rendered[a], rendered[b]);
+        // Only a puzzle whose layers genuinely interleave gets here — the
+        // Twist cube's curved seams, where no plane separates anything. Draw
+        // the moving piece on top: the eye reads the turning layer as being
+        // in front, instead of a hatched interleave.
+        if (rel === 0 && split) rel = rendered[a].moving ? 1 : -1;
         if (rel === -1) {
           after[a].push(b);
           indeg[b]++;
@@ -945,8 +1727,17 @@ export class Twisty {
     let vb;
     if (options.viewBox) vb = options.viewBox;
     else if (options.fitSphere) {
-      const R = this._radius;
-      vb = sphereViewBox(this._project(), R, R, R, R, pad);
+      // A number frames to that radius instead of the puzzle's own, so a set
+      // of puzzles can share one frame. Two 3×3s draw the same geometry but
+      // reserve different room — a Mirror shape-shifts and needs it — and
+      // side by side in one control the difference reads as the puzzle
+      // changing size when only the frame did.
+      // The centre is where toRender placed the puzzle — always its own
+      // radius — while the RADIUS may be borrowed. Passing the borrowed one
+      // as the centre too slides the puzzle off its own frame.
+      const C = this._radius;
+      const R = typeof options.fitSphere === "number" ? options.fitSphere : C;
+      vb = sphereViewBox(this._project(), C, C, C, R, pad);
     } else vb = boundsViewBox(faces, pad);
 
     const parts = [openSvgTag(vb)];
@@ -971,7 +1762,7 @@ export class Twisty {
       let style = { fill: face.tint || this.colors[face.letter] };
       // grouped (curved) stickers: self-colored stroke hides the seams
       // between the facets that make up one tile
-      if (this.def.stickerGroup) {
+      if (this._stickerGroup) {
         style.stroke = style.fill;
         style.strokeWidth = 1;
       }
@@ -989,6 +1780,14 @@ export class Twisty {
       parts.push(
         `<polygon points="${pa}"${buildSvgAttributes(style)} data-part="sticker" data-face="${face.face}" data-index="${face.index}" data-color="${face.letter}" data-piece="${face.piece}" />`,
       );
+      if (face.decal) {
+        const mark = face.decal;
+        const t = unitSquareTo(face.points, face.decalU, face.decalV);
+        // A decal needs a quadrilateral to sit on. Four-sided stickers are
+        // every cube and cuboid; a Skewb's pentagon or a Megaminx's kite has
+        // no unit square to map, so it is left bare rather than smeared.
+        if (mark && t) parts.push(`<g transform="${t}" data-part="decal">${mark}</g>`);
+      }
     }
 
     if (options.append) parts.push(options.append);

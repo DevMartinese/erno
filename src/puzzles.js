@@ -19,6 +19,8 @@
 import {
   Twisty,
   CUBE_COLORS,
+  FACES,
+  FACE_AXIS,
   parseCubeMove,
   parseBoxMove,
   rotationMatrix,
@@ -94,6 +96,22 @@ const CUBE_SORT_DIRS = {
   B: [[0, -1, 0], [-1, 0, 0]],
 };
 
+// The whole move vocabulary of a three-layer cube in face notation. A
+// definition declares it so legalMoves() can enumerate what is available
+// from here; without it the puzzle can still be turned, but nothing can ask
+// it what its moves are.
+const CUBE3_TOKENS = ["U", "R", "F", "D", "L", "B"].flatMap((f) =>
+  ["", "'", "2"].map((s) => f + s),
+);
+
+// The 24 ways of holding a cube: pick which face is up (six choices, and the
+// six sequences below are one per face), then spin about the vertical (four).
+// A definition lists these so a pattern can be recognised however the puzzle
+// is held, which is what a player means by "the same pattern".
+const CUBE_ORIENTATIONS = ["", "x", "x2", "x'", "z", "z'"].flatMap((tip) =>
+  ["", "y", "y2", "y'"].map((spin) => [tip, spin].filter(Boolean).join(" ")),
+);
+
 // ── Shared scramblers ───────────────────────────────────────────────────────
 
 function pickScramble(rand, letters, suffixes, count) {
@@ -114,11 +132,14 @@ function pickScramble(rand, letters, suffixes, count) {
 // face, i.e. -90° right-handed about the outward axis. Slot points live on
 // the uniform grid of cell centers, so layers [lo..hi] span the open
 // interval (lo - N/2, hi + 1 - N/2).
-//
-// On a cuboid, a quarter turn is only legal about an axis whose cross
-// section is square — everywhere else the shape (and the slot grid) only
-// returns to itself after a half turn, so odd quarter counts are rejected.
-function makeBoxParser(dims) {
+/**
+ * A quarter turn about an axis whose cross-section is not square leaves a
+ * cuboid misshapen. Both answers to that are real puzzles: some cuboids are
+ * built so the move simply cannot be made, and others — a 3×3×5, a 2×3×4 —
+ * are sold precisely because it can, and shape-shifting is the point. So it
+ * is a policy, not a law: `shapeShift` picks which puzzle you are holding.
+ */
+function makeBoxParser(dims, shapeShift = false) {
   const square = [
     dims[1] === dims[2],
     dims[0] === dims[2],
@@ -126,9 +147,9 @@ function makeBoxParser(dims) {
   ];
   return (token) => {
     const { axis, lo, hi, quarters } = parseBoxMove(token, dims);
-    if (!square[axis] && ((quarters % 2) + 2) % 2 !== 0)
+    if (!shapeShift && !square[axis] && ((quarters % 2) + 2) % 2 !== 0)
       throw new Error(
-        `erno: '${token}' would leave this cuboid misshapen — only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2)`,
+        `erno: '${token}' would leave this cuboid misshapen — only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2), or build it with { shapeShift: true }`,
       );
     const u = [0, 0, 0];
     u[axis] = 1;
@@ -142,6 +163,19 @@ function makeBoxParser(dims) {
 }
 
 const cubeParse3 = makeBoxParser([3, 3, 3]);
+
+/**
+ * Several puzzles are built at one fixed size. Passing `size` to them used to
+ * do nothing at all — you asked for a 5×5 Void and got a 3×3 without a word,
+ * which is worse than an error because the result looks plausible. Say so
+ * instead, and name the ones that do take a size.
+ */
+function fixedSize(name, options) {
+  if (options.size)
+    throw new Error(
+      `erno: ${name} is built at 3×3 only — for other sizes use Erno or Cuboid, which take { size }`,
+    );
+}
 
 // ── Skewb ───────────────────────────────────────────────────────────────────
 
@@ -183,6 +217,7 @@ let _skewbDef;
 
 export class Skewb extends Twisty {
   constructor(options = {}) {
+    fixedSize("Skewb", options);
     super(_skewbDef || (_skewbDef = buildSkewbDef()), options);
   }
 }
@@ -283,6 +318,7 @@ let _skewbDiamondDef;
 /** Skewb Diamond — an octahedron on the Skewb mechanism. */
 export class SkewbDiamond extends Twisty {
   constructor(options = {}) {
+    fixedSize("SkewbDiamond", options);
     super(_skewbDiamondDef || (_skewbDiamondDef = buildSkewbDiamondDef()), options);
   }
 }
@@ -392,6 +428,7 @@ let _megaminxDef, _kilominxDef;
 /** Megaminx — the dodecahedral 3×3: 12 centres, 30 edges, 20 corners. */
 export class Megaminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Megaminx", options);
     // 0.62–0.75 all give the true 62 pieces / 11 stickers per face; sit in
     // the middle of that band so no cut lands on a vertex by rounding
     super(_megaminxDef || (_megaminxDef = buildMinxDef("megaminx", 0.68, 30)), options);
@@ -401,6 +438,7 @@ export class Megaminx extends Twisty {
 /** Kilominx — the dodecahedral 2×2: corners only, no edges. */
 export class Kilominx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Kilominx", options);
     super(_kilominxDef || (_kilominxDef = buildMinxDef("kilominx", 0.0, 20)), options);
   }
 }
@@ -529,6 +567,7 @@ let _pyraminxDef;
 
 export class Pyraminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("Pyraminx", options);
     super(_pyraminxDef || (_pyraminxDef = buildPyraminxDef()), options);
   }
 }
@@ -538,6 +577,7 @@ let _masterPyraminxDef;
 /** Master Pyraminx — the 4-layer Pyraminx: u tips, U two layers, Uw three. */
 export class MasterPyraminx extends Twisty {
   constructor(options = {}) {
+    fixedSize("MasterPyraminx", options);
     super(
       _masterPyraminxDef ||
         (_masterPyraminxDef = buildTetraTurnDef("master-pyraminx", 4)),
@@ -574,6 +614,12 @@ function buildMorphixDef(name, n) {
     faceOrder: ["F", "L", "R", "D"],
     faceSortDirs,
     colors: { ...TETRA_COLORS },
+    // A 2×2 body has no opposite-face turns to name: U, R and F reach every
+    // layer there is.
+    tokens:
+      n === 2
+        ? ["U", "R", "F"].flatMap((f) => ["", "'", "2"].map((s) => f + s))
+        : CUBE3_TOKENS,
     scramble: (rand, length) =>
       n === 2
         ? pickScramble(rand, ["U", "R", "F"], ["", "'", "2"], length || 11).join(" ")
@@ -585,6 +631,7 @@ let _pyramorphixDef, _mastermorphixDef;
 
 export class Pyramorphix extends Twisty {
   constructor(options = {}) {
+    fixedSize("Pyramorphix", options);
     super(
       _pyramorphixDef || (_pyramorphixDef = buildMorphixDef("pyramorphix", 2)),
       options,
@@ -594,6 +641,7 @@ export class Pyramorphix extends Twisty {
 
 export class Mastermorphix extends Twisty {
   constructor(options = {}) {
+    fixedSize("Mastermorphix", options);
     super(
       _mastermorphixDef ||
         (_mastermorphixDef = buildMorphixDef("mastermorphix", 3)),
@@ -614,8 +662,9 @@ export class Mastermorphix extends Twisty {
 const MIRROR_PIVOT = [0.3, -0.45, 0.15];
 
 function buildMirrorDef() {
+  const pivot = MIRROR_PIVOT;
   const cuts = [];
-  MIRROR_PIVOT.forEach((c, axis) => {
+  pivot.forEach((c, axis) => {
     const u = [0, 0, 0];
     u[axis] = 1;
     cuts.push({ n: u, d: c - 0.5 }, { n: u, d: c + 0.5 });
@@ -625,7 +674,7 @@ function buildMirrorDef() {
   // classify the physical centroid per axis, then snap to {-1, 0, 1}.
   const slotPointOf = (centroid) =>
     centroid.map((c, axis) => {
-      const p = MIRROR_PIVOT[axis];
+      const p = pivot[axis];
       return c < p - 0.5 ? -1 : c < p + 0.5 ? 0 : 1;
     });
 
@@ -634,12 +683,14 @@ function buildMirrorDef() {
     name: "mirror",
     solid: cubeSolid(1.5),
     cuts,
-    pivot: MIRROR_PIVOT,
+    pivot,
     parseMove: cubeParse3,
     slotPointOf,
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { U: silver, R: silver, F: silver, D: silver, L: silver, B: silver },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -649,6 +700,7 @@ let _mirrorDef;
 
 export class Mirror extends Twisty {
   constructor(options = {}) {
+    fixedSize("Mirror", options);
     super(_mirrorDef || (_mirrorDef = buildMirrorDef()), options);
   }
 }
@@ -676,6 +728,8 @@ function buildVoidDef() {
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -685,6 +739,7 @@ let _voidDef;
 
 export class Void extends Twisty {
   constructor(options = {}) {
+    fixedSize("Void", options);
     super(_voidDef || (_voidDef = buildVoidDef()), options);
   }
 }
@@ -696,7 +751,7 @@ export class Void extends Twisty {
 // cross section, half turns everywhere — so the puzzle always stays a box.
 // The classics: Domino 3×2×3 (Rubik's pre-cube 1978 puzzle), Tower 2×3×2,
 // Floppy 3×1×3 (only 180° flips exist).
-function buildCuboidDef(dims) {
+function buildCuboidDef(dims, shapeShift = false) {
   const [nx, ny, nz] = dims;
   const cuts = [];
   for (let axis = 0; axis < 3; axis++) {
@@ -709,10 +764,16 @@ function buildCuboidDef(dims) {
   const AXIS_OF = { R: 0, L: 0, U: 1, D: 1, F: 2, B: 2 };
 
   return {
-    name: `cuboid-${nx}x${ny}x${nz}`,
+    name: `cuboid-${nx}x${ny}x${nz}${shapeShift ? "-shift" : ""}`,
     solid: boxSolid(nx / 2, ny / 2, nz / 2),
     cuts,
-    parseMove: makeBoxParser(dims),
+    // the face-turn vocabulary, so legalMoves() can answer on a box too
+    tokens: FACES.flatMap((f) => ["", "'", "2"].map((s) => f + s)),
+    // Only a cube can be held every way up. Tip a Domino onto its side and
+    // the layer counts no longer match the axes, so the rotation is not a
+    // way of holding the puzzle — it is a different puzzle.
+    orientations: nx === ny && ny === nz ? CUBE_ORIENTATIONS : undefined,
+    parseMove: makeBoxParser(dims, shapeShift),
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
@@ -727,7 +788,9 @@ function buildCuboidDef(dims) {
         if (f === last || dims[axis] === 1) continue;
         last = f;
         tokens.push(
-          square[axis] ? f + ["", "'", "2"][Math.floor(rand() * 3)] : f + "2",
+          square[axis] || shapeShift
+            ? f + ["", "'", "2"][Math.floor(rand() * 3)]
+            : f + "2",
         );
       }
       return tokens.join(" ");
@@ -742,15 +805,19 @@ export class Cuboid extends Twisty {
    * @param {Object} [options] - Twisty options plus:
    * @param {[number,number,number]} [options.size=[3,2,3]] - layers per axis
    *   (x = R–L, y = U–D, z = F–B)
+   * @param {boolean} [options.shapeShift=false] - allow the quarter turns
+   *   that leave the box misshapen. Off, the puzzle refuses them the way a
+   *   Domino's mechanism does; on, it shifts shape the way a 3×3×5 does.
    */
   constructor(options = {}) {
     const dims = (options.size || [3, 2, 3]).map((v) => Math.round(v));
     if (dims.length !== 3 || dims.some((v) => v < 1 || v > 8))
       throw new Error(`erno: bad cuboid size [${dims}] (1–8 layers per axis)`);
-    const key = dims.join("x");
+    // the flag changes the definition, so it has to key the cache too
+    const key = dims.join("x") + (options.shapeShift ? "+shift" : "");
     let def = _cuboidDefs.get(key);
     if (!def) {
-      def = buildCuboidDef(dims);
+      def = buildCuboidDef(dims, !!options.shapeShift);
       _cuboidDefs.set(key, def);
     }
     super(def, options);
@@ -776,6 +843,336 @@ export class Tower extends Cuboid {
 export class Floppy extends Cuboid {
   constructor(options = {}) {
     super({ ...options, size: [3, 1, 3] });
+  }
+}
+
+/**
+ * A plain cube on the piece engine — the thing you want when a 3×3 has to
+ * carry a paint, since `Erno` is the facelet representation and has no
+ * pieces to paint. `Cuboid` could stand in, but only written out as
+ * `new Cuboid({ size: [3, 3, 3] })`: its own default is a 3×2×3, which
+ * nobody would guess.
+ *
+ *   new Cube({ paint: tetrisPaint })   // the Tetris cube, from a plain 3×3
+ */
+export class Cube extends Cuboid {
+  /**
+   * @param {Object} [options] - Cuboid options, except `size` is a single
+   *   number: the cube's dimension (default 3).
+   */
+  constructor(options = {}) {
+    const n = options.size === undefined ? 3 : options.size;
+    if (typeof n !== "number")
+      throw new Error(
+        `erno: Cube takes a single number for size, not [${n}] — use Cuboid for uneven sides`,
+      );
+    super({ ...options, size: [n, n, n] });
+  }
+}
+
+// ── Deformation ─────────────────────────────────────────────────────────────
+
+/**
+ * A compression along `axis` by factor `k` — the linear map that turns a cube
+ * into a rhombohedron.
+ *
+ * `I + (k − 1)·nnᵀ` leaves everything perpendicular to the axis alone and
+ * scales what lies along it, so the six faces become rhombi and the cubies
+ * parallelepipeds while the 3×3 structure is untouched. Pass it as `deform`.
+ *
+ *   new Cube({ deform: squash(0.6) })
+ */
+export function squash(k, axis = [1, 1, 1]) {
+  const len = Math.hypot(...axis) || 1;
+  const n = axis.map((v) => v / len);
+  const m = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++) m[i][j] += (k - 1) * n[i] * n[j];
+  return m;
+}
+
+// ── Printed faces: dice, dominoes, sudoku ───────────────────────────────────
+
+// Three more puzzles that are not puzzles. A dice cube, a Sudokube and the
+// spots on Ernő's own Domino are the same mechanisms underneath, printed
+// differently — the argument that made Tetris a paint, one step further: a
+// paint sets a sticker's colour, a decal puts a MARK on it. Marks are
+// printed at build time, so they belong to the cubie and travel with it.
+
+// Pip positions on a 3×3 grid, 1 through 9. Six and up are the domino
+// patterns; a die stops at six.
+const PIPS = {
+  1: [[1, 1]],
+  2: [[0, 0], [2, 2]],
+  3: [[0, 0], [1, 1], [2, 2]],
+  4: [[0, 0], [0, 2], [2, 0], [2, 2]],
+  5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]],
+  6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
+  7: [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 2]],
+  8: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]],
+  9: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]],
+};
+
+// Opposite faces of a die sum to seven, so the cube's own opposites carry it.
+const DIE_FACE = { U: 1, D: 6, F: 2, B: 5, R: 3, L: 4 };
+
+/** Ink or paper, whichever the sticker underneath can carry. */
+function inkOn(fill) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(fill || "").trim());
+  if (!m) return "#17110c";
+  const n = parseInt(m[1], 16);
+  const lum =
+    (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum > 0.5 ? "#17110c" : "#f4efe7";
+}
+
+/** A cluster of `n` pips laid out inside one sticker. */
+function pipCluster(n, fill, r = 0.082, spread = 0.64) {
+  const c = inkOn(fill);
+  const lo = (1 - spread) / 2;
+  return (PIPS[n] || [])
+    .map(
+      ([row, k]) =>
+        `<circle cx="${(lo + ((k + 0.5) / 3) * spread).toFixed(3)}" cy="${(
+          lo +
+          ((row + 0.5) / 3) * spread
+        ).toFixed(3)}" r="${r}" fill="${c}"/>`,
+    )
+    .join("");
+}
+
+/**
+ * The dice cube: every cubie IS a die, so every sticker carries a whole face
+ * of one — not one die spread across nine stickers, which is the version
+ * that looks tidier and is not the puzzle. Each little die reads its home
+ * face's number, and the cube's opposite faces sum to seven exactly as a
+ * die's do, so a solved face is nine identical dice and a scrambled one is
+ * the jumble of counts you see on the real thing.
+ *
+ *   new Cube(DICE_CUBE)              // with its black-and-white printing
+ *   new Cube({ decal: dicePips })    // the marks alone
+ */
+export function dicePips({ face, row, fill }) {
+  const n = DIE_FACE[face];
+  if (!n || row === undefined) return null;
+  return pipCluster(n, fill, 0.115, 0.72);
+}
+
+/**
+ * Ernő Rubik's Domino (1978), printed the way it shipped: its two square
+ * faces carry the numbers one to nine as domino pips. The 3×2 sides stay
+ * bare, which is why this asks for a square face and passes on the rest.
+ *
+ *   new Domino({ decal: dominoPips })
+ */
+export function dominoPips({ index, row, fill }) {
+  if (row === undefined) return null;
+  return pipCluster(index + 1, fill);
+}
+
+/**
+ * The Sudokube: one to nine on every face, so a solved face reads 1–9 and
+ * the colours stop being the puzzle. Set it on any square-faced mechanism.
+ *
+ *   new Cube({ decal: sudokuDigits })
+ */
+export function sudokuDigits({ index, row, fill }) {
+  if (row === undefined) return null;
+  return `<text x="0.5" y="0.54" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, monospace" font-size="0.62" font-weight="700" fill="${inkOn(
+    fill,
+  )}">${index + 1}</text>`;
+}
+
+/**
+ * The printings. A dice cube is black with white pips, a Sudokube white with
+ * black numerals, the Domino cream tiles on black — the colour is not a
+ * scheme choice on these, it is what the puzzle looks like. Spread one into
+ * the constructor.
+ *
+ *   new Cube(DICE_CUBE)
+ *   new Cube(SUDOKU_CUBE)
+ *   new Domino(DOMINO_PRINT)
+ */
+const allFaces = (fill) =>
+  Object.fromEntries(FACES.map((f) => [f, fill]));
+
+export const DICE_CUBE = {
+  colors: allFaces("#1b1b1b"),
+  plastic: "#0a0a0a",
+  decal: dicePips,
+};
+
+export const SUDOKU_CUBE = {
+  colors: allFaces("#f2f0eb"),
+  plastic: "#141414",
+  decal: sudokuDigits,
+};
+
+export const DOMINO_PRINT = {
+  colors: { U: "#efdfba", D: "#efdfba", R: "#1b1b1b", L: "#1b1b1b", F: "#1b1b1b", B: "#1b1b1b" },
+  plastic: "#0a0a0a",
+  decal: dominoPips,
+};
+
+// ── Fused puzzles ───────────────────────────────────────────────────────────
+
+// Fusion is the union, the sibling of `remove`'s subtraction: two or more
+// boxes welded into one body. The classics are the Siamese cubes — two 3×3s
+// sharing a bar of cubies — and the corner-mounted odd sizes people build by
+// gluing a 2×2 onto a 3×3.
+//
+// The geometry is the easy half. What makes a Siamese cube a puzzle rather
+// than a diorama is which turns it REFUSES: a layer of one cube reaches into
+// the other, and the two together no longer add up to a shape that spins. The
+// engine already knows the law that decides this — a turn is only possible if
+// its layer comes back to itself — so the definitions below just switch it
+// on, and the blocked moves fall out. Nothing here enumerates them.
+//
+// Bodies must share one unit lattice; otherwise a body's wall would slice its
+// neighbour's cubies in half, and the result would be a shape, not a puzzle.
+const BODY_LETTERS = "ABCDEFGH";
+const FUSED_RE = /^([A-H])([URFDLB])(\d*)('?)$/;
+
+function buildFusedDef(name, bodies) {
+  bodies.forEach((b, i) => {
+    if (!Array.isArray(b.size) || b.size.length !== 3)
+      throw new Error(`erno: body ${i} needs a size [nx,ny,nz]`);
+    if (b.size.some((v) => !Number.isInteger(v) || v < 1 || v > 8))
+      throw new Error(`erno: body ${i} has a bad size [${b.size}] (1–8 layers)`);
+  });
+  // shared lattice check: every body's grid must land on the same integers
+  const originOf = (b, ax) => b.at[ax] - b.size[ax] / 2;
+  for (let ax = 0; ax < 3; ax++)
+    for (let i = 1; i < bodies.length; i++) {
+      const shift = originOf(bodies[i], ax) - originOf(bodies[0], ax);
+      if (Math.abs(shift - Math.round(shift)) > 1e-9)
+        throw new Error(
+          `erno: body ${i} is off the shared lattice on axis ${"xyz"[ax]} by ${shift.toFixed(3)} — fused bodies must line up cubie to cubie`,
+        );
+    }
+
+  const solids = bodies.map((b) =>
+    boxSolid(b.size[0] / 2, b.size[1] / 2, b.size[2] / 2).map((f) => ({
+      ...f,
+      pts: f.pts.map((p) => [p[0] + b.at[0], p[1] + b.at[1], p[2] + b.at[2]]),
+    })),
+  );
+
+  // Every layer boundary of every body, walls included, so a cut of one body
+  // also parts its neighbour where they overlap.
+  const cuts = [];
+  const seenCut = new Set();
+  for (const b of bodies)
+    for (let ax = 0; ax < 3; ax++)
+      for (let k = 0; k <= b.size[ax]; k++) {
+        const d = originOf(b, ax) + k;
+        const key = `${ax}:${Math.round(d * 1e5)}`;
+        if (seenCut.has(key)) continue;
+        seenCut.add(key);
+        const n = [0, 0, 0];
+        n[ax] = 1;
+        cuts.push({ n, d });
+      }
+
+  const letters = BODY_LETTERS.slice(0, bodies.length);
+  const tokens = [];
+  for (const L of letters)
+    for (const f of FACES) for (const s of ["", "'", "2"]) tokens.push(L + f + s);
+
+  return {
+    name,
+    solids,
+    cuts,
+    blocking: true,
+    tokens,
+    // each body turns about itself, so the frame has to allow for all of them
+    turnCenters: bodies.map((b) => b.at),
+    parseMove(token) {
+      const m = FUSED_RE.exec(token);
+      const bi = m ? letters.indexOf(m[1]) : -1;
+      if (bi < 0)
+        throw new Error(
+          `erno: bad ${name} move '${token}' — bodies are ${letters.split("").join("/")}, as in ${letters[0]}U or ${letters[0]}R2`,
+        );
+      const [ax, dir] = FACE_AXIS[m[2]];
+      const count = (m[3] ? parseInt(m[3], 10) : 1) * (m[4] ? -1 : 1);
+      const u = [0, 0, 0];
+      u[ax] = dir;
+      const body = bodies[bi];
+      // A turn cleaves the whole assembly at the plane one layer in from
+      // that face and spins everything beyond it about the body's own axis.
+      return {
+        axis: u,
+        angle: -(Math.PI / 2) * count,
+        min: dir * body.at[ax] + body.size[ax] / 2 - 1,
+        center: body.at,
+      };
+    },
+    faceOrder: ["U", "R", "F", "D", "L", "B"],
+    faceSortDirs: CUBE_SORT_DIRS,
+    colors: { ...CUBE_COLORS },
+    scrambleLength: 20,
+  };
+}
+
+const _fusedDefs = new Map();
+
+/**
+ * Two or more boxes welded into one puzzle.
+ *
+ * @param {Object} [options] - Twisty options plus:
+ * @param {Array} [options.bodies] - `[{ size: [nx,ny,nz], at: [x,y,z] }]` —
+ *   each body's layer counts and the position of its centre, in cubies. The
+ *   bodies must share a unit lattice.
+ *
+ * Notation prefixes the face with the body's letter: `AU`, `BR'`, `AF2`.
+ * Turns that would tear the weld throw; `legalMoves()` lists what is left.
+ */
+export class Fused extends Twisty {
+  constructor(options = {}) {
+    const bodies = options.bodies || [
+      { size: [3, 3, 3], at: [0, 0, 0] },
+      { size: [3, 3, 3], at: [2, 2, 0] },
+    ];
+    const key = bodies.map((b) => `${b.size}@${b.at}`).join("+");
+    let def = _fusedDefs.get(key);
+    if (!def) {
+      def = buildFusedDef(`fused-${key}`, bodies);
+      _fusedDefs.set(key, def);
+    }
+    super(def, options);
+    this.bodies = bodies;
+  }
+}
+
+/**
+ * The Siamese cube: two cubes sharing a block of cubies.
+ *
+ * @param {Object} [options] - Fused options plus:
+ * @param {number} [options.size=3] - layers per side of each cube
+ * @param {[number,number,number]} [options.offset=[2,2,0]] - how far the
+ *   second cube is displaced, in cubies. The shared block is what is left
+ *   where they overlap: the default gives the classic 1×1×3 bar, `[1,2,0]`
+ *   the 2×1×3, `[2,0,0]` the 1×3×3 slab (which is really a 5×3×3 cuboid,
+ *   and turns like one).
+ */
+export class Siamese extends Fused {
+  constructor(options = {}) {
+    const n = options.size === undefined ? 3 : options.size;
+    const at = options.offset || [2, 2, 0];
+    if (at.some((v) => !Number.isInteger(v) || Math.abs(v) > n))
+      throw new Error(
+        `erno: Siamese offset [${at}] must be whole cubies, no further than ${n}`,
+      );
+    if (at.every((v) => v === 0))
+      throw new Error(`erno: a Siamese offset of [0,0,0] is one cube, not two`);
+    super({
+      ...options,
+      bodies: [
+        { size: [n, n, n], at: [0, 0, 0] },
+        { size: [n, n, n], at },
+      ],
+    });
   }
 }
 
@@ -819,6 +1216,27 @@ const TETRIS_CUBIES = {
   // white: UB edge ("1,2,0") and UFR corner ("2,2,2")
 };
 
+/**
+ * The Tetris layout as a reusable paint. Mechanically the Tetris cube is an
+ * ordinary 3×3 — same solid, same cuts, same notation — and everything that
+ * makes it Tetris is this tinting. So it is published as a paint rather
+ * than locked inside one class: `new Mirror({ paint: tetrisPaint })` works,
+ * and so does any other 3×3 mechanism.
+ *
+ * The layout itself is a hand-found exact-cover solution: one tetromino per
+ * face wrapped around its centre, no I piece, two white fillers. It does
+ * NOT generalise to other sizes by formula — a 4×4 would need the search
+ * run again — so this paint leaves anything outside the 3×3 grid untinted.
+ */
+export function tetrisPaint({ slot }) {
+  const key = slot.map((v) => Math.round(v) + 1).join(",");
+  const shape = TETRIS_CUBIES[key];
+  return shape ? TETRIS_COLORS[shape] : TETRIS_COLORS.W;
+}
+
+/** The Tetris palette, keyed by tetromino letter. */
+export const TETRIS_PALETTE = { ...TETRIS_COLORS };
+
 function buildTetrisDef() {
   const cuts = [];
   for (let axis = 0; axis < 3; axis++) {
@@ -849,6 +1267,8 @@ function buildTetrisDef() {
       L: TETRIS_COLORS.Z,
       B: TETRIS_COLORS.O,
     },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -858,6 +1278,7 @@ let _tetrisDef;
 
 export class Tetris extends Twisty {
   constructor(options = {}) {
+    fixedSize("Tetris", options);
     super(_tetrisDef || (_tetrisDef = buildTetrisDef()), options);
     this._solvedTints = this.getTints().join();
   }
@@ -929,6 +1350,7 @@ let _fisherDef, _windmillDef, _axisDef, _ghostDef;
 /** Fisher Cube — 3×3 mechanism yawed 45°; R/L/F/B name the diagonal faces. */
 export class Fisher extends Twisty {
   constructor(options = {}) {
+    fixedSize("Fisher", options);
     super(_fisherDef || (_fisherDef = buildConjugatedDef("fisher", rotY(45))), options);
   }
 }
@@ -936,6 +1358,7 @@ export class Fisher extends Twisty {
 /** Windmill Cube — same idea at yaw 30°, pinwheel-shaped layers. */
 export class Windmill extends Twisty {
   constructor(options = {}) {
+    fixedSize("Windmill", options);
     super(_windmillDef || (_windmillDef = buildConjugatedDef("windmill", rotY(30))), options);
   }
 }
@@ -943,6 +1366,7 @@ export class Windmill extends Twisty {
 /** Axis Cube — mechanism rotated 60° about a corner diagonal. */
 export class Axis extends Twisty {
   constructor(options = {}) {
+    fixedSize("Axis", options);
     super(
       _axisDef ||
         (_axisDef = buildConjugatedDef(
@@ -961,6 +1385,7 @@ export class Axis extends Twisty {
  */
 export class Ghost extends Twisty {
   constructor(options = {}) {
+    fixedSize("Ghost", options);
     if (!_ghostDef) {
       const pale = "#eceae4";
       _ghostDef = buildConjugatedDef(
@@ -1027,6 +1452,7 @@ let _dinoDef, _compyDef, _masterSkewbDef;
 
 export class Dino extends Twisty {
   constructor(options = {}) {
+    fixedSize("Dino", options);
     super(
       _dinoDef || (_dinoDef = buildCornerTurnDef("dino", 1.5 / Math.sqrt(3), 1.0, 14)),
       options,
@@ -1037,6 +1463,7 @@ export class Dino extends Twisty {
 /** Compy Cube — shallow corner turner: caps, wings and big plus centers. */
 export class Compy extends Twisty {
   constructor(options = {}) {
+    fixedSize("Compy", options);
     super(
       _compyDef || (_compyDef = buildCornerTurnDef("compy", 1.15, 1.27, 12)),
       options,
@@ -1047,6 +1474,7 @@ export class Compy extends Twisty {
 /** Master Skewb — deep corner turner: corners, petals, edges and centers. */
 export class MasterSkewb extends Twisty {
   constructor(options = {}) {
+    fixedSize("MasterSkewb", options);
     super(
       _masterSkewbDef ||
         (_masterSkewbDef = buildCornerTurnDef("master-skewb", 0.52, 0.62, 16)),
@@ -1089,6 +1517,7 @@ let _heliDef;
 
 export class Helicopter extends Twisty {
   constructor(options = {}) {
+    fixedSize("Helicopter", options);
     super(_heliDef || (_heliDef = buildHeliDef()), options);
   }
 }
@@ -1178,6 +1607,8 @@ function buildPenroseDef() {
       Z: [[0, 0, 1], [-1, 0, 0]],
     },
     colors: { X: "#f0c419", Y: "#2f6fce", Z: "#d9463e" },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -1187,6 +1618,7 @@ let _penroseDef;
 
 export class Penrose extends Twisty {
   constructor(options = {}) {
+    fixedSize("Penrose", options);
     super(_penroseDef || (_penroseDef = buildPenroseDef()), options);
   }
 }
@@ -1307,6 +1739,8 @@ function buildTwistDef() {
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -1316,6 +1750,7 @@ let _twistDef;
 
 export class Twist extends Twisty {
   constructor(options = {}) {
+    fixedSize("Twist", options);
     super(_twistDef || (_twistDef = buildTwistDef()), options);
   }
 }
@@ -1340,3 +1775,137 @@ export const SCHEMES = {
   silver: { U: "#c9ccd1", R: "#c9ccd1", F: "#c9ccd1", D: "#c9ccd1", L: "#c9ccd1", B: "#c9ccd1" },
   gold: { U: "#d9b64c", R: "#d9b64c", F: "#d9b64c", D: "#d9b64c", L: "#d9b64c", B: "#d9b64c" },
 };
+
+// ── Building a puzzle from scratch ──────────────────────────────────────────
+
+/**
+ * Every definition in this file is the same three things: a convex solid, a
+ * set of cut planes, and a set of moves that rotate whatever sits beyond a
+ * plane. The families differ only in WHICH AXES they turn about and by how
+ * much — and the angle is not a free choice either, it is a full turn
+ * divided by the rotational order of that axis. A cube's faces are 4-fold,
+ * its corners 3-fold, its edges 2-fold; a dodecahedron's faces are 5-fold.
+ *
+ * So the twenty-six puzzles above are configurations, not kinds. This is the
+ * builder that says so: pick a solid, pick which axes turn, pick how deep the
+ * cuts go, and the rest follows.
+ */
+
+const SQ3 = Math.sqrt(3);
+
+/** Axis families per solid, with the rotational order that sets the angle. */
+const AXIS_FAMILIES = {
+  cube: {
+    faces: {
+      order: 4,
+      axes: [["U", [0, 1, 0]], ["R", [1, 0, 0]], ["F", [0, 0, 1]],
+             ["D", [0, -1, 0]], ["L", [-1, 0, 0]], ["B", [0, 0, -1]]],
+    },
+    corners: {
+      order: 3,
+      axes: CORNER_TOKENS.map((t) => [
+        [...t].sort().join(""),
+        norm([t.includes("R") ? 1 : -1, t[0] === "U" ? 1 : -1, t.includes("F") ? 1 : -1]),
+      ]),
+    },
+    edges: {
+      order: 2,
+      axes: HELI_TOKENS.map((t) => {
+        const V = { U: [0, 1, 0], D: [0, -1, 0], R: [1, 0, 0], L: [-1, 0, 0], F: [0, 0, 1], B: [0, 0, -1] };
+        const [a, b] = [V[t[0]], V[t[1]]];
+        return [[...t].sort().join(""), norm([a[0] + b[0], a[1] + b[1], a[2] + b[2]])];
+      }),
+    },
+  },
+};
+
+/**
+ * Compose a puzzle definition from a description.
+ *
+ * @param {Object} spec
+ * @param {string} [spec.shape="cube"] - "cube" | "box" | "octahedron" |
+ *   "dodecahedron"
+ * @param {number[]} [spec.size] - box dimensions, e.g. [3,2,3]
+ * @param {string} [spec.turn="faces"] - which axis family turns:
+ *   "faces" | "corners" | "edges"
+ * @param {number} [spec.depth] - how far each cut sits from the centre, as a
+ *   fraction of the distance from the centre to the solid's furthest point
+ *   along that axis. 1 leaves nothing to turn, 0 cuts through the middle.
+ * @param {number} [spec.angle] - degrees per turn; defaults to a full turn
+ *   divided by the axis family's rotational order, which is the only angle
+ *   that maps the solid back onto itself
+ * @param {Object} [spec.colors] - face letter → fill
+ * @returns {Object} a definition, ready for `new Twisty(def)` or `Puzzle`
+ */
+export function buildPuzzle(spec = {}) {
+  const {
+    shape = "cube",
+    size,
+    turn = "faces",
+    depth = 0.5,
+    angle,
+    colors,
+    name = `${shape}-${turn}`,
+  } = spec;
+
+  // A box, or a cube of any size, is the layered face-turning case the
+  // cuboid builder already covers exactly.
+  if (shape === "box" || (shape === "cube" && turn === "faces")) {
+    const dims = size || [3, 3, 3];
+    const def = buildCuboidDef(dims);
+    return { ...def, name, ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  if (shape === "dodecahedron") {
+    // reach is measured from the centre outward, the opposite sense of depth
+    return { ...buildMinxDef(name, 1 - depth, 30), ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  if (shape === "octahedron") {
+    return { ...buildSkewbDiamondDef(), name, ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  const family = AXIS_FAMILIES.cube[turn];
+  if (!family)
+    throw new Error(
+      `erno: a cube turns about "faces", "corners" or "edges", not "${turn}"`,
+    );
+
+  const h = 1.5;
+  // How far the solid reaches along an axis of this family — a corner sits
+  // at h√3, an edge at h√2, a face at h — so `depth` means the same fraction
+  // of the available material whichever family is chosen.
+  const reach = turn === "corners" ? h * SQ3 : turn === "edges" ? h * Math.SQRT2 : h;
+  const d = reach * depth;
+  const step = ((angle === undefined ? 360 / family.order : angle) * Math.PI) / 180;
+
+  const cuts = [];
+  const moves = {};
+  for (const [token, u] of family.axes) {
+    cuts.push({ n: u, d });
+    // select everything beyond the cut, nudged off the plane itself
+    moves[token] = { axis: u, angle: -step, min: d + 1e-3 };
+  }
+
+  const tokens = family.axes.map(([t]) => t);
+  return {
+    name,
+    solid: cubeSolid(h),
+    cuts,
+    moves,
+    parseMove: namedMoveParser(name, moves),
+    faceOrder: ["U", "R", "F", "D", "L", "B"],
+    faceSortDirs: CUBE_SORT_DIRS,
+    colors: { ...(colors || CUBE_COLORS) },
+    scramble: (rand, length) =>
+      pickScramble(rand, tokens, family.order > 2 ? ["", "'"] : [""], length || 16).join(" "),
+  };
+}
+
+/** A puzzle built from a description rather than picked off the shelf. */
+export class Puzzle extends Twisty {
+  constructor(spec = {}, options = {}) {
+    super(buildPuzzle(spec), options);
+    this.spec = spec;
+  }
+}

@@ -2,21 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>erno — puzzle gallery</title>
+    <title>erno · puzzle gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      body { font-family: system-ui, sans-serif; margin: 24px; }
+      /* Képarchitektúra tokens, kept in step with site.css */
+      :root {
+        --paper: #f4efe7;
+        --ink: #17110c;
+        --red: #cc2823;
+        --blue: #00489f;
+        --yellow: #f6ba00;
+        --sans: "Archivo", system-ui, sans-serif;
+        --mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      body { font-family: var(--sans); margin: 24px; }
       h1 { font-size: 20px; }
-      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 1400px; }
-      figure { margin: 0; border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px; }
-      figcaption { font-size: 12px; color: #737373; text-align: center; margin-top: 4px; font-family: ui-monospace, monospace; }
+      /* `1fr` is minmax(auto, 1fr), so a column cannot shrink below its
+         content: one long caption widened its column and pushed the sheet
+         off a phone. Tracks that fit the width instead, four on a desktop and
+         two on a phone, with captions that may break mid-word. */
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 22vw, 260px), 1fr)); gap: 16px; max-width: 1400px; }
+      figure { margin: 0; border: 1px solid color-mix(in oklab, var(--ink) 12%, var(--paper)); border-radius: 6px; padding: 8px; }
+      figcaption { overflow-wrap: anywhere; font-size: 12px; color: color-mix(in oklab, var(--ink) 55%, var(--paper)); text-align: center; margin-top: 4px; font-family: var(--mono); }
       .cell { aspect-ratio: 1; }
     </style>
   </head>
   <body>
-    <h1>erno — puzzle gallery (visual test page)</h1>
+    <h1>erno · puzzle gallery (visual test page)</h1>
     <div class="grid" id="grid"></div>
     <script type="module">
-      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, SCHEMES } from "../src/erno.js";
+      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, SCHEMES } from "../src/erno.js";
 
       const grid = document.getElementById("grid");
       const show = (label, svg) => {
@@ -87,6 +107,37 @@
       show("megaminx mid-turn A 50%", new Megaminx().toSVG({ fitSphere: true, turn: { move: "A", progress: 0.5 } }));
       show("kilominx solved", new Kilominx().toSVG({ fitSphere: true }));
       show("kilominx D' H", new Kilominx().move("D' H").toSVG({ fitSphere: true }));
+
+      // Welded puzzles are framed to their own outline: blocking keeps the
+      // silhouette still, and a staircase fills a tenth of its circumsphere.
+      const staircase = () => new Fused({ bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [2, 2, 0] },
+        { size: [3, 3, 3], at: [4, 4, 0] },
+      ] });
+      const bandaged = (rule) => new Cube({ bandage: rule, stickerGroup: true });
+      show("siamese solved", new Siamese().toSVG());
+      show("siamese AL BU2 BR", new Siamese().move("AL BU2 BR").toSVG());
+      show("siamese mid-turn BU 50%", new Siamese().toSVG({ turn: { move: "BU", progress: 0.5 } }));
+      show("siamese 2x1x3", new Siamese({ offset: [1, 2, 0] }).toSVG());
+      show("2x2 on a 3x3", new Fused({ bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+      ] }).toSVG());
+      show("three in a staircase", staircase().toSVG());
+      show("staircase BF2", staircase().move("BF2").toSVG());
+      show("siamese hollowed", new Siamese({ remove: "centers" }).toSVG());
+      show("fused cube (2x2x2 glued)", bandaged(({ slot }) => slot.every((v) => v >= 0) ? "block" : null).toSVG());
+      show("fused cube D L2 B", bandaged(({ slot }) => slot.every((v) => v >= 0) ? "block" : null).move("D L2 B").toSVG());
+      show("bandaged column", bandaged(({ slot }) => slot[0] === 1 && slot[2] === 1 ? "col" : null).toSVG());
+      // Printed faces: the same mechanisms, decorated.
+      show("dice cube", new Cube(DICE_CUBE).toSVG());
+      show("dice cube scrambled", (() => { const p = new Cube(DICE_CUBE); p.move("R U F' L2 D"); return p.toSVG(); })());
+      show("sudokube", new Cube(SUDOKU_CUBE).toSVG());
+      show("sudokube R U'", new Cube(SUDOKU_CUBE).move("R U'").toSVG());
+      show("domino with its spots", new Domino(DOMINO_PRINT).toSVG());
+      show("domino R2 U F2", new Domino(DOMINO_PRINT).move("R2 U F2").toSVG());
+      show("bandaged pair", new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]], stickerGroup: true }).toSVG());
     </script>
   </body>
 </html>

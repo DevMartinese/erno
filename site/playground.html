@@ -3,21 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>erno — Rubik's cubes to SVG</title>
+    <title>erno · Rubik's cubes to SVG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      /* Képarchitektúra tokens, kept in step with site.css */
       :root {
-        --ink: #0a0a0a;
-        --paper: #ffffff;
-        --line: #e5e5e5;
-        --muted: #737373;
+        --paper: #f4efe7;
+        --ink: #17110c;
+        --red: #cc2823;
+        --blue: #00489f;
+        --yellow: #f6ba00;
+        --sans: "Archivo", system-ui, sans-serif;
+        --mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      :root {
+        --line: color-mix(in oklab, var(--ink) 12%, var(--paper));
+        --muted: color-mix(in oklab, var(--ink) 55%, var(--paper));
       }
       * {
         box-sizing: border-box;
         margin: 0;
       }
       body {
-        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-          system-ui, sans-serif;
+        font-family: var(--sans);
         font-size: 16px;
         line-height: 1.5;
         color: var(--ink);
@@ -33,9 +46,21 @@
       }
       h1 {
         font-size: 56px;
-        font-weight: 700;
-        letter-spacing: -0.02em;
+        font-weight: 900;
+        font-stretch: 125%;
+        letter-spacing: -0.045em;
         line-height: 1.1;
+      }
+      /* same drawn-on double acute as the guide's wordmark */
+      h1 .o-acute {
+        position: relative;
+      }
+      h1 .o-acute::after {
+        content: "˝";
+        position: absolute;
+        left: 0.09em;
+        top: -0.03em;
+        color: var(--red);
       }
       header p {
         margin-top: 8px;
@@ -101,9 +126,14 @@
         color: var(--paper);
       }
       .moves button {
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         padding: 6px 0;
         text-align: center;
+      }
+      /* `display: flex` on a class outranks the [hidden] attribute's own
+         `display: none`, so a hidden row keeps showing. */
+      [hidden] {
+        display: none !important;
       }
       .row {
         display: flex;
@@ -115,7 +145,7 @@
       }
       input[type="text"] {
         flex: 1;
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         min-width: 0;
       }
       input[type="range"] {
@@ -133,7 +163,7 @@
         color: var(--muted);
       }
       #history {
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-family: var(--mono);
         font-size: 14px;
         color: var(--muted);
         margin-top: 16px;
@@ -147,10 +177,10 @@
   <body>
     <div class="wrap">
       <header>
-        <h1>erno</h1>
+        <h1>ern<span class="o-acute">o</span></h1>
         <p>
           A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb,
-          Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners — moves, scrambles, layer animation and
+          Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners: moves, scrambles, layer animation and
           per-sticker styling. No WebGL, no canvas, just
           <code>&lt;svg&gt;</code>. Sibling of
           <a href="https://github.com/meodai/heerich">heerich</a>.
@@ -188,6 +218,40 @@
             <p class="hint">Shift-click for the inverse (R&thinsp;&rarr;&thinsp;R&#8242;).</p>
           </section>
 
+          <section id="builder" hidden>
+            <h2>Build</h2>
+            <div class="row">
+              <label for="b-shape">Shape</label>
+              <select id="b-shape">
+                <option value="cube">cube</option>
+                <option value="box">cuboid</option>
+                <option value="dodecahedron">dodecahedron</option>
+                <option value="octahedron">octahedron</option>
+              </select>
+            </div>
+            <div class="row" id="b-turn-row">
+              <label for="b-turn">Turns</label>
+              <select id="b-turn">
+                <option value="faces">faces</option>
+                <option value="corners" selected>corners</option>
+                <option value="edges">edges</option>
+              </select>
+            </div>
+            <div class="row" id="b-depth-row">
+              <label for="b-depth">Depth</label>
+              <input type="range" id="b-depth" min="0" max="0.85" step="0.01" value="0.33" />
+              <span id="b-depth-val">0.33</span>
+            </div>
+            <div class="row" id="b-size-row" hidden>
+              <label for="b-size">Size</label>
+              <input type="text" id="b-size" value="3,2,3" spellcheck="false" />
+            </div>
+            <p class="hint" id="b-note">
+              Depth 0 cuts through the middle; 0.33 is a Dino, 0.5 a
+              Helicopter. Most values are puzzles nobody makes.
+            </p>
+          </section>
+
           <section>
             <h2>Puzzle</h2>
             <div class="row">
@@ -222,6 +286,16 @@
                 <option value="skewbdiamond">Skewb Diamond</option>
                 <option value="megaminx">Megaminx</option>
                 <option value="kilominx">Kilominx</option>
+                <option value="siamese">Siamese cube</option>
+                <option value="siamese2">Siamese 2×1×3</option>
+                <option value="corner2x2">2×2 on a 3×3</option>
+                <option value="staircase">Three in a staircase</option>
+                <option value="fusedcube">Fused Cube (bandaged)</option>
+                <option value="bandagedcolumn">Bandaged column</option>
+                <option value="dicecube">Dice cube</option>
+                <option value="sudokube">Sudokube</option>
+                <option value="dominopips">Domino, with its spots</option>
+                <option value="custom">Build your own</option>
               </select>
             </div>
             <div class="row">
@@ -258,7 +332,7 @@
     </div>
 
     <script type="module">
-      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, SCHEMES } from "../src/erno.js";
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
 
       const stage = document.getElementById("stage");
       const historyEl = document.getElementById("history");
@@ -275,7 +349,7 @@
         },
         stickerless: (c) => {
           c.stickerInset = 0;
-          c.style({ stroke: "#0d0d0d", strokeWidth: 2 });
+          c.style({ stroke: "var(--ink)", strokeWidth: 2 });
         },
         cross: (c) => {
           // gray out everything except centers and the D-cross positions
@@ -288,7 +362,7 @@
               face !== "U" && face !== "D" && row === c.size - 1 && col === mid;
             return isCenter || dCross || sideBottom
               ? null
-              : { fill: "#d4d4d4" };
+              : { fill: "color-mix(in oklab, var(--ink) 20%, var(--paper))" };
           });
         },
         grayscale: (c) => {
@@ -297,7 +371,7 @@
             const pair =
               (face === "F" && row >= 1 && col === c.size - 1) ||
               (face === "R" && row >= 1 && col === 0);
-            return pair ? null : { fill: "#d4d4d4" };
+            return pair ? null : { fill: "color-mix(in oklab, var(--ink) 20%, var(--paper))" };
           });
         },
       };
@@ -449,10 +523,116 @@
           presets: ["classic", "stickerless"],
           schemes: false,
         },
+        // Welded puzzles. Their notation prefixes each face with its body's
+        // letter, and half the tokens are blocked from any given position,
+        // so the buttons for those simply do nothing, which is the puzzle.
+        siamese: {
+          make: (opts) => new Siamese(opts),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        siamese2: {
+          make: (opts) => new Siamese({ ...opts, offset: [1, 2, 0] }),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        corner2x2: {
+          make: (opts) =>
+            new Fused({
+              ...opts,
+              bodies: [
+                { size: [3, 3, 3], at: [0, 0, 0] },
+                { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+              ],
+            }),
+          moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        staircase: {
+          make: (opts) =>
+            new Fused({
+              ...opts,
+              bodies: [
+                { size: [3, 3, 3], at: [0, 0, 0] },
+                { size: [3, 3, 3], at: [2, 2, 0] },
+                { size: [3, 3, 3], at: [4, 4, 0] },
+              ],
+            }),
+          moves: ["AD", "AL", "BF", "BB", "CU", "CR"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        // Bandaged 3×3s: an ordinary cube whose glued cubies wear one tile
+        // per face, and whose glue is what kills the missing turns.
+        fusedcube: {
+          make: (opts) =>
+            new Cube({
+              ...opts,
+              bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "block" : null),
+              stickerGroup: true,
+            }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        bandagedcolumn: {
+          make: (opts) =>
+            new Cube({
+              ...opts,
+              bandage: ({ slot }) => (slot[0] === 1 && slot[2] === 1 ? "col" : null),
+              stickerGroup: true,
+            }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          fit: false,
+        },
+        // Printed faces: decoration, not mechanism, so the notation is
+        // whatever the puzzle underneath already used.
+        dicecube: {
+          make: (opts) => new Cube({ ...opts, ...DICE_CUBE }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        sudokube: {
+          make: (opts) => new Cube({ ...opts, ...SUDOKU_CUBE }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
+        dominopips: {
+          make: (opts) => new Domino({ ...opts, ...DOMINO_PRINT }),
+          moves: ["U", "R2", "F2", "D", "L2", "B2"],
+          presets: ["classic", "stickerless"],
+          schemes: false,
+        },
       };
+
+      /** Read the builder panel into a spec, and derive its move tokens. */
+      function customConfig() {
+        const shape = $("b-shape").value;
+        const turn = $("b-turn").value;
+        const depth = parseFloat($("b-depth").value);
+        const spec = { shape, turn, depth };
+        if (shape === "box") {
+          const dims = $("b-size").value.split(/[,x×\s]+/).map((n) => parseInt(n, 10));
+          spec.size = dims.length === 3 && dims.every((n) => n >= 1 && n <= 8) ? dims : [3, 3, 3];
+        }
+        // the tokens come from whatever the builder actually produced, so a
+        // corner turner offers corner names and a face turner offers faces
+        const def = buildPuzzle(spec);
+        const moves = def.moves
+          ? Object.keys(def.moves)
+          : CUBE_MOVES.filter((m) => !"MES".includes(m));
+        return { make: (opts) => new Puzzle(spec, opts), moves, presets: ["classic", "stickerless"], schemes: true };
+      }
 
       function puzzleConfig() {
         const value = $("puzzle").value;
+        if (value === "custom") return customConfig();
         if (PUZZLES[value]) return PUZZLES[value];
         const size = parseInt(value, 10);
         return {
@@ -524,7 +704,11 @@
       }
 
       function render(turn) {
-        stage.innerHTML = cube.toSVG({ fitSphere: true, turn });
+        // A welded puzzle is a poor sphere: the staircase fills a tenth of
+        // one, and it does not need it. Blocking keeps its silhouette
+        // still, so its own outline is a frame that cannot jump.
+        const fitSphere = PUZZLES[$("puzzle").value]?.fit !== false;
+        stage.innerHTML = cube.toSVG({ fitSphere, turn });
         historyEl.textContent = cube.history.join(" ");
       }
 
@@ -592,7 +776,33 @@
         cube.reset();
         render();
       });
-      $("puzzle").addEventListener("change", buildCube);
+      /** Show the builder only when it is being used, and keep its own
+          controls consistent: a dodecahedron has no axis family to pick, a
+          cuboid has no cut depth, and only a cuboid needs dimensions. */
+      function syncBuilder() {
+        const custom = $("puzzle").value === "custom";
+        $("builder").hidden = !custom;
+        if (!custom) return;
+        const shape = $("b-shape").value;
+        const box = shape === "box";
+        const cube = shape === "cube";
+        $("b-turn-row").hidden = !cube;
+        $("b-size-row").hidden = !box;
+        $("b-depth-row").hidden = box || shape === "octahedron";
+        $("b-depth-val").textContent = parseFloat($("b-depth").value).toFixed(2);
+      }
+
+      for (const id of ["b-shape", "b-turn", "b-depth", "b-size"])
+        $(id).addEventListener(id === "b-size" ? "change" : "input", () => {
+          syncBuilder();
+          buildCube();
+        });
+
+      $("puzzle").addEventListener("change", () => {
+        syncBuilder();
+        buildCube();
+      });
+      syncBuilder();
       $("scheme").addEventListener("change", buildCube);
       $("preset").addEventListener("change", () => {
         PRESETS[$("preset").value](cube);

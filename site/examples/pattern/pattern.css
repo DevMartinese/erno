@@ -1,0 +1,239 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Pattern: the example's own layout, on the site's programme.
+
+   Nothing here invents a token. Type sizes, spacing and colour all come from
+   site.css; what this file adds is the arrangement of one page and the two
+   things the guide has no use for: a code box you type into, and a verdict
+   chip next to it.
+   ───────────────────────────────────────────────────────────────────── */
+
+body.example {
+  max-width: none;
+  padding: 0;
+}
+
+/* ── The head ────────────────────────────────────────────────────────── */
+
+.example-head {
+  padding: var(--space-6) var(--space-4) var(--space-8);
+  border-bottom: var(--rule) solid var(--ink);
+}
+.example-back {
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: var(--rule) solid var(--ink);
+  padding-bottom: 2px;
+}
+.example-kind {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-1);
+  background: var(--red);
+  color: var(--on-red);
+  font-family: var(--mono);
+  font-size: var(--size-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.example-head h1 {
+  font-size: var(--size-5xl);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.example-lede {
+  max-width: var(--medida);
+  font-size: var(--size-lg);
+}
+.example-note {
+  max-width: var(--medida);
+  font-size: var(--size-sm);
+  color: color-mix(in oklab, var(--text) 55%, var(--bg));
+}
+
+/* ── The plates ──────────────────────────────────────────────────────── */
+
+.example-plate {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: stretch;
+  border-bottom: var(--rule) solid var(--ink);
+}
+.example-text {
+  grid-column: span 6;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+.example-demo {
+  grid-column: span 6;
+  border-left: var(--rule) solid var(--ink);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  /* The cube is the constant of the page, so its plane keeps one height
+     whatever the state. A canvas that resizes on every turn makes the whole
+     column jump, and the eye reads the jump before it reads the cube. */
+  min-height: min(78vh, 44rem);
+}
+.example-plate--flip .example-text {
+  order: 1;
+}
+.example-plate--flip .example-demo {
+  order: 0;
+  border-left: none;
+  border-right: var(--rule) solid var(--ink);
+}
+.example-text h2 {
+  font-size: var(--size-3xl);
+  margin: 0 0 var(--space-3);
+}
+.example-text p {
+  max-width: var(--medida);
+}
+.example-canvas {
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+.example-canvas svg {
+  width: 100%;
+  height: auto;
+  max-height: min(66vh, 38rem);
+}
+
+@media (max-width: 62rem) {
+  .example-text,
+  .example-demo {
+    grid-column: 1 / -1;
+  }
+  .example-demo {
+    border-left: none;
+    border-top: var(--rule) solid var(--ink);
+    min-height: 0;
+  }
+  .example-plate--flip .example-text {
+    order: 0;
+  }
+  .example-plate--flip .example-demo {
+    order: 1;
+    border-right: none;
+  }
+}
+
+/* ── The editor ──────────────────────────────────────────────────────── */
+
+.example-editor {
+  margin: var(--space-4) 0 var(--space-2);
+}
+.example-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  font-family: var(--mono);
+  font-size: var(--size-xs);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-1);
+}
+#write-code {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+  line-height: var(--lh);
+  color: var(--ink);
+  background: var(--code-bg);
+  border: var(--rule) solid var(--ink);
+  border-radius: 0;
+  padding: var(--space-1-5);
+  resize: vertical;
+}
+#write-code:focus {
+  outline: 3px solid var(--red);
+  outline-offset: 4px;
+}
+/* A function that does not parse yet is the normal state of a text box
+   someone is typing in, so it is marked rather than replaced by an error. */
+#write-code[data-bad] {
+  border-color: var(--red);
+  background: color-mix(in oklab, var(--red) 8%, var(--paper));
+}
+
+.example-verdict {
+  padding: 2px var(--space-1);
+  border: var(--rule) solid var(--ink);
+  letter-spacing: 0.1em;
+}
+.example-verdict[data-state="flat"] {
+  background: var(--red);
+  color: var(--on-red);
+  border-color: var(--red);
+}
+.example-verdict[data-state="ok"] {
+  background: var(--yellow);
+  color: var(--on-yellow);
+  border-color: var(--ink);
+}
+
+.example-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-0-5);
+  margin: var(--space-2) 0 0;
+}
+.example-presets button {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-stretch: 100%;
+  font-size: var(--size-sm);
+  padding: 0.35em 0.7em;
+}
+
+/* ── The goal ────────────────────────────────────────────────────────── */
+
+.example-goal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-2);
+  padding: var(--space-2);
+  border: var(--rule) solid var(--ink);
+}
+.example-goal-art {
+  flex: 0 0 auto;
+  width: calc(var(--space-unit) * 14);
+}
+.example-goal-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.example-goal-text {
+  flex: 1;
+  min-width: 0;
+}
+.example-progress {
+  width: 100%;
+  margin: var(--space-1) 0 0;
+  cursor: default;
+}
+
+/* Won: the plate takes the colour rather than growing a badge, so nothing
+   moves and nothing is added. */
+#play-panel[data-won] .example-goal {
+  background: var(--yellow);
+}
+#play-panel[data-won] .example-demo {
+  background: color-mix(in oklab, var(--yellow) 22%, var(--paper));
+}
+
+/* ── The foot ────────────────────────────────────────────────────────── */
+
+.example-foot {
+  padding: var(--space-5) var(--space-4) var(--space-8);
+  font-size: var(--size-sm);
+}
+.example-foot p {
+  max-width: var(--medida);
+}
