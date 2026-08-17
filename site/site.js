@@ -30,6 +30,9 @@ import {
   schemeFrom,
   generateRamp,
   tetrisPaint,
+  dicePips,
+  dominoPips,
+  sudokuDigits,
   Puzzle,
   Cube,
   Fused,
@@ -285,6 +288,12 @@ variantDemo("demo-void", () => new Void());
    can never be unsolved. */
 const PAINTS = {
   tetris: () => new Tetris(),
+  // A decal is the other half of the idea: paint sets a sticker's colour, a
+  // decal puts a mark on it — and the mark is printed on the cubie, so it
+  // travels when you scramble.
+  dice: () => new Cube({ decal: dicePips }),
+  sudoku: () => new Cube({ decal: sudokuDigits }),
+  domino: () => new Domino({ decal: dominoPips }),
   mirror: () => new Mirror({ paint: tetrisPaint }),
   // paint belongs to the piece engine, so a painted 3×3 is a Cuboid — the
   // facelet Erno is a different representation and carries no pieces

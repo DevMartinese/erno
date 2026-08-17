@@ -330,6 +330,55 @@ export function slicePieces(solidFaces, planes) {
 const homeSlot = (piece, face) =>
   face.slotShift ? add(piece.slotPoint, face.slotShift) : piece.slotPoint;
 
+/**
+ * The affine transform that lays a unit square onto a projected sticker.
+ *
+ * Every camera here but the perspective one is a PARALLEL projection, so a
+ * flat square comes out a parallelogram and three corners fix the map
+ * exactly. Corner 0 is the origin, corner 1 the x edge, corner 3 the y edge.
+ * Returns null for anything that is not a quadrilateral.
+ */
+function unitSquareTo(points, u, v) {
+  if (!points || points.length !== 8 || !u || !v) return null;
+  const px = (i) => [points[i * 2], points[i * 2 + 1]];
+  const p0 = px(0);
+  const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const dot2 = (a, b) => a[0] * b[0] + a[1] * b[1];
+  const eA = sub2(px(1), p0);
+  const eB = sub2(px(3), p0);
+  // The sticker is a parallelogram, so its two edges ARE the basis — reading
+  // the corners into a bounding box instead inflates it wherever the two
+  // directions are not square on screen, which on a cube's top face is
+  // always: +x and +z both lean, and the mark spills off its own tile.
+  let col = Math.abs(dot2(eA, u)) >= Math.abs(dot2(eB, u)) ? eA : eB;
+  let row = col === eA ? eB : eA;
+  let ox = p0[0],
+    oy = p0[1];
+  if (dot2(col, u) < 0) {
+    ox += col[0];
+    oy += col[1];
+    col = [-col[0], -col[1]];
+  }
+  if (dot2(row, v) < 0) {
+    ox += row[0];
+    oy += row[1];
+    row = [-row[0], -row[1]];
+  }
+  return `matrix(${t4(col[0])} ${t4(col[1])} ${t4(row[0])} ${t4(row[1])} ${t4(ox)} ${t4(oy)})`;
+}
+
+/** Screen-space unit vector of a world direction, as this piece now sits. */
+function screenDir(dir, M, view, at, proj) {
+  const w = matVec(view, matVec(M, dir));
+  const r = [at[0] + w[0], at[1] - w[1], at[2] - w[2]];
+  const a = proj.point(at[0], at[1], at[2]);
+  const b = proj.point(r[0], r[1], r[2]);
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  return len < 1e-9 ? null : [dx / len, dy / len];
+}
+
 function hideInnerWalls(piece) {
   if (piece.fragments.length < 2) return;
   const counts = new Map();
@@ -427,6 +476,20 @@ export class Twisty {
       options.stickerGroup === undefined
         ? !!def.stickerGroup
         : !!options.stickerGroup;
+    // A decal is a MARK on a sticker, where paint is a colour. Dice pips,
+    // sudoku digits and the Domino's spots are all the same puzzle
+    // underneath and differ only in what is printed on the plastic, so they
+    // are a decoration rather than a mechanism — the same argument that made
+    // Tetris a paint. The callback returns SVG drawn in a unit square and
+    // the engine lays it onto the sticker, so a mark turns with its piece
+    // exactly as a printed one does.
+    this._decal =
+      typeof options.decal === "object" && options.decal !== null
+        ? ({ face, index }) => {
+            const row = options.decal[face];
+            return Array.isArray(row) ? row[index] : row;
+          }
+        : options.decal || null;
     this._bandage = normalizeBandage(
       options.bandage === undefined ? def.bandage : options.bandage,
     );
@@ -727,6 +790,63 @@ export class Twisty {
         if (tint) f.tint = tint;
       });
     }
+
+    // Decals are PRINTED, at the same moment and by the same addressing as a
+    // paint. Deciding them at draw time instead would nail every mark to a
+    // position, so a scramble would shuffle the colours and leave the pips
+    // hanging in place — which is not what a printed cube does.
+    if (this._decal) {
+      const faceStart = {};
+      for (const [start, end] of this._faceRanges)
+        faceStart[stickers[start].face.letter] = { start, size: end - start };
+      stickers.forEach((s, i) => {
+        const f = s.face;
+        const { start, size } = faceStart[f.letter];
+        const within = i - start;
+        const side = Math.sqrt(size);
+        const square = Number.isInteger(side);
+        const mark = this._decal({
+          face: f.letter,
+          index: within,
+          row: square ? Math.floor(within / side) : undefined,
+          col: square ? within % side : undefined,
+          size: square ? side : undefined,
+          letter: f.letter,
+          piece: this.pieces[s.piece],
+          pieceIndex: s.piece,
+          slot: homeSlot(this.pieces[s.piece], f),
+          normal: f.normal,
+          fill: f.tint || this.colors[f.letter],
+        });
+        if (mark) f.decal = mark;
+      });
+    }
+  }
+
+  /**
+   * The face's two reading directions, projected into the screen as this
+   * piece currently sits: the same directions getState() sorts by, so a
+   * decal lands the way the face reads and turns with its cubie.
+   */
+  _decalBasis(face, M, view, pts3, proj) {
+    if (!this._decal) return null;
+    const dirs = this.def.faceSortDirs[face.letter];
+    if (!dirs) return null;
+    let cx = 0,
+      cy = 0,
+      cz = 0;
+    for (const q of pts3) {
+      cx += q[0];
+      cy += q[1];
+      cz += q[2];
+    }
+    const at = [cx / pts3.length, cy / pts3.length, cz / pts3.length];
+    // secondary runs along a row (the x of the unit square), primary down
+    // the rows (its y) — the order getState() sorts in
+    return {
+      decalU: screenDir(dirs[1], M, view, at, proj),
+      decalV: screenDir(dirs[0], M, view, at, proj),
+    };
   }
 
   _faceletAt(slotPoint, normal) {
@@ -1159,6 +1279,7 @@ export class Twisty {
           letter: f.letter,
           piece: i,
           tint: f.tint,
+          decal: f.decal,
         };
         if (inset > 0) {
           const c = groupCenter ? groupCenter[f.letter] : centroidOf(pts3);
@@ -1177,7 +1298,13 @@ export class Twisty {
           } else {
             const polys = [{ ...meta, part: "plastic", ...projected }];
             if (sticker)
-              polys.push({ ...meta, part: "sticker", ...sticker, depth: projected.depth - 1e-6 });
+              polys.push({
+                ...meta,
+                part: "sticker",
+                ...sticker,
+                ...this._decalBasis(f, M, view, pts3, proj),
+                depth: projected.depth - 1e-6,
+              });
             units.push({ depth: projected.depth, polys });
           }
         } else {
@@ -1367,6 +1494,14 @@ export class Twisty {
       parts.push(
         `<polygon points="${pa}"${buildSvgAttributes(style)} data-part="sticker" data-face="${face.face}" data-index="${face.index}" data-color="${face.letter}" data-piece="${face.piece}" />`,
       );
+      if (face.decal) {
+        const mark = face.decal;
+        const t = unitSquareTo(face.points, face.decalU, face.decalV);
+        // A decal needs a quadrilateral to sit on. Four-sided stickers are
+        // every cube and cuboid; a Skewb's pentagon or a Megaminx's kite has
+        // no unit square to map, so it is left bare rather than smeared.
+        if (mark && t) parts.push(`<g transform="${t}" data-part="decal">${mark}</g>`);
+      }
     }
 
     if (options.append) parts.push(options.append);

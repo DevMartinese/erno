@@ -36,6 +36,9 @@ import {
   Cube,
   Fused,
   Siamese,
+  dicePips,
+  dominoPips,
+  sudokuDigits,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -967,6 +970,123 @@ test("fused bodies have to line up cubie to cubie", () => {
     threw = true;
   }
   assert(threw, "a body off the shared lattice is an error, not a sliced neighbour");
+});
+
+// ── Decals ──────────────────────────────────────────────────────────────────
+
+test("a decal is printed on the cubie, not painted on the position", () => {
+  // The distinction is the whole point. Deciding a mark at draw time nails it
+  // to a place on the face, so a scramble would shuffle the colours and leave
+  // the marks sitting still. Mark exactly one sticker and follow it.
+  const one = { decal: ({ face, index }) => (face === "U" && index === 0 ? "<circle/>" : null) };
+  const p = new Cube(one);
+  assertEqual((p.toSVG().match(/data-part="decal"/g) || []).length, 1, "one mark");
+  // U0 is the UBL corner; y' brings it round to a face that is still in view,
+  // and the mark has to come with it
+  p.move("y'");
+  assertEqual(
+    (p.toSVG().match(/data-part="decal"/g) || []).length,
+    1,
+    "the mark travelled with its cubie",
+  );
+});
+
+test("marks on one face all read the same way up", () => {
+  // Each cubie's polygon is wound by the slicing, not by the reading order,
+  // so taking the transform from the corner order gives four different
+  // orientations on one face. The basis comes from the face's own reading
+  // directions instead; on a solved face every mark must therefore share one
+  // orientation.
+  const p = new Cube({ decal: () => "<circle/>" });
+  const svg = p.toSVG();
+  const byFace = {};
+  for (const m of svg.matchAll(
+    /data-face="([A-Z])"[^>]*\/>\s*<g transform="matrix\(([^)]*)\)"/g,
+  )) {
+    const [a, b] = m[2].trim().split(/\s+/).map(Number);
+    (byFace[m[1]] ||= []).push(`${Math.round(a)},${Math.round(b)}`);
+  }
+  const faces = Object.keys(byFace);
+  assert(faces.length >= 3, `found ${faces.length} faces`);
+  for (const f of faces)
+    assertEqual(new Set(byFace[f]).size, 1, `face ${f} has one orientation`);
+});
+
+test("the dice cube is a die: opposite faces sum to seven", () => {
+  const p = new Cube({ decal: dicePips });
+  // count the pips printed on each face at rest
+  const pips = {};
+  for (const f of ["U", "R", "F", "D", "L", "B"]) pips[f] = 0;
+  const probe = new Cube({
+    decal: (ctx) => {
+      const mark = dicePips(ctx);
+      if (mark) pips[ctx.face]++;
+      return mark;
+    },
+  });
+  assert(probe.pieces.length === 26, "built");
+  for (const [a, b] of [["U", "D"], ["R", "L"], ["F", "B"]])
+    assertEqual(pips[a] + pips[b], 7, `${a}+${b}`);
+  assert(p.toSVG().includes("data-part=\"decal\""), "and it renders");
+});
+
+test("the sudokube reads one to nine on every face", () => {
+  const digits = {};
+  new Cube({
+    decal: (ctx) => {
+      const mark = sudokuDigits(ctx);
+      if (mark) (digits[ctx.face] ||= []).push(mark.replace(/.*>(\d+)<.*/, "$1"));
+      return mark;
+    },
+  });
+  for (const f of ["U", "R", "F", "D", "L", "B"])
+    assertEqual(digits[f].join(""), "123456789", `face ${f}`);
+});
+
+test("the Domino wears its spots, and only where a face is square", () => {
+  // Rubik's 1978 puzzle prints one to nine on its two 3×3 faces; the 3×2
+  // sides have no square to lay a pip grid on and stay bare.
+  const seen = {};
+  new Domino({
+    decal: (ctx) => {
+      const mark = dominoPips(ctx);
+      seen[ctx.face] = (seen[ctx.face] || 0) + (mark ? 1 : 0);
+      return mark;
+    },
+  });
+  assertEqual(seen.U, 9, "U carries nine");
+  assertEqual(seen.D, 9, "D carries nine");
+  for (const f of ["R", "L", "F", "B"]) assertEqual(seen[f], 0, `${f} stays bare`);
+});
+
+test("a decal skips a sticker it cannot sit on", () => {
+  // A Skewb's faces are triangles and squares, a Megaminx's are kites: there
+  // is no unit square to map, so those are left bare rather than smeared.
+  const skewb = new Skewb({ decal: () => "<circle/>" });
+  const svg = skewb.toSVG();
+  const marks = (svg.match(/data-part="decal"/g) || []).length;
+  const stickers = (svg.match(/data-part="sticker"/g) || []).length;
+  assert(marks < stickers, `${marks} marks on ${stickers} stickers`);
+  assert(svg.startsWith("<svg"), "and it still renders");
+});
+
+test("decals compose with paint, subtraction and welding", () => {
+  for (const [label, make] of [
+    ["paint", () => new Cube({ paint: tetrisPaint, decal: sudokuDigits })],
+    ["subtraction", () => new Cube({ remove: "centers", decal: dicePips })],
+    ["welding", () => new Siamese({ decal: dicePips })],
+    ["bandaging", () =>
+      new Cube({
+        bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "b" : null),
+        decal: dicePips,
+      })],
+  ]) {
+    const p = make();
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    const seq = p.scramble(8);
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label}: inverse of "${seq}"`);
+  }
 });
 
 // ── Bandaging ───────────────────────────────────────────────────────────────

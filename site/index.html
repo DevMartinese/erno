@@ -493,6 +493,9 @@ new Void().move("M E' S2")</code></pre>
                   <option value="face">One face red</option>
                   <option value="layers">By layer</option>
                   <option value="flat">All one colour</option>
+                  <option value="dice">Dice cube (a decal)</option>
+                  <option value="sudoku">Sudokube (a decal)</option>
+                  <option value="domino">Domino, with its spots</option>
                 </select>
               </label>
               <button data-bind="move:R">R</button>
@@ -527,6 +530,26 @@ new Mirror({ paint: tetrisPaint })</code></pre>
             <code>isSolved()</code> switches to comparing the visible
             colours on its own — and a puzzle painted a single colour can
             never be unsolved, however hard you scramble it. Try it.
+          </p>
+          <p>
+            A <strong>decal</strong> is the other half of the idea: a paint
+            sets a sticker's colour, a decal puts a <em>mark</em> on it. The
+            callback returns SVG drawn in a unit square and the engine lays
+            it onto the sticker. A dice cube, a Sudokube and the spots on
+            Ernő's own 1978 Domino are all the same mechanisms printed
+            differently, so they ship as decoration rather than as classes.
+          </p>
+          <pre><code>import { Cube, Domino, dicePips, sudokuDigits, dominoPips } from 'erno'
+
+new Cube({ decal: dicePips })       // opposite faces sum to 7, as a die does
+new Cube({ decal: sudokuDigits })   // 1–9 on every face
+new Domino({ decal: dominoPips })   // the 1978 puzzle, spots and all</code></pre>
+          <p>
+            Marks are printed at build time, so a mark belongs to its
+            <em>cubie</em> and travels with it — scramble the dice cube and
+            the pips go along, which is what a printed cube does. Each one is
+            laid on the face's own reading directions, so it sits upright
+            when solved and turns with its piece afterwards.
           </p>
         </div>
       </div>

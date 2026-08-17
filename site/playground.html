@@ -292,6 +292,9 @@
                 <option value="staircase">Three in a staircase</option>
                 <option value="fusedcube">Fused Cube (bandaged)</option>
                 <option value="bandagedcolumn">Bandaged column</option>
+                <option value="dicecube">Dice cube</option>
+                <option value="sudokube">Sudokube</option>
+                <option value="dominopips">Domino, with its spots</option>
                 <option value="custom">— Build your own —</option>
               </select>
             </div>
@@ -329,7 +332,7 @@
     </div>
 
     <script type="module">
-      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, dicePips, dominoPips, sudokuDigits, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
 
       const stage = document.getElementById("stage");
       const historyEl = document.getElementById("history");
@@ -585,6 +588,23 @@
           moves: ["U", "R", "F", "D", "L", "B"],
           presets: ["classic", "stickerless"],
           fit: false,
+        },
+        // Printed faces — decoration, not mechanism, so the notation is
+        // whatever the puzzle underneath already used.
+        dicecube: {
+          make: (opts) => new Cube({ ...opts, decal: dicePips }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+        },
+        sudokube: {
+          make: (opts) => new Cube({ ...opts, decal: sudokuDigits }),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+        },
+        dominopips: {
+          make: (opts) => new Domino({ ...opts, decal: dominoPips }),
+          moves: ["U", "R2", "F2", "D", "L2", "B2"],
+          presets: ["classic", "stickerless"],
         },
       };
 

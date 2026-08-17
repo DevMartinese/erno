@@ -839,6 +839,96 @@ export class Cube extends Cuboid {
   }
 }
 
+// ── Printed faces: dice, dominoes, sudoku ───────────────────────────────────
+
+// Three more puzzles that are not puzzles. A dice cube, a Sudokube and the
+// spots on Ernő's own Domino are the same mechanisms underneath, printed
+// differently — the argument that made Tetris a paint, one step further: a
+// paint sets a sticker's colour, a decal puts a MARK on it. Marks are
+// printed at build time, so they belong to the cubie and travel with it.
+
+// Pip positions on a 3×3 grid, 1 through 9. Six and up are the domino
+// patterns; a die stops at six.
+const PIPS = {
+  1: [[1, 1]],
+  2: [[0, 0], [2, 2]],
+  3: [[0, 0], [1, 1], [2, 2]],
+  4: [[0, 0], [0, 2], [2, 0], [2, 2]],
+  5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]],
+  6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
+  7: [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 2]],
+  8: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]],
+  9: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]],
+};
+
+// Opposite faces of a die sum to seven, so the cube's own opposites carry it.
+const DIE_FACE = { U: 1, D: 6, F: 2, B: 5, R: 3, L: 4 };
+
+/** Ink or paper, whichever the sticker underneath can carry. */
+function inkOn(fill) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(fill || "").trim());
+  if (!m) return "#17110c";
+  const n = parseInt(m[1], 16);
+  const lum =
+    (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum > 0.5 ? "#17110c" : "#f4efe7";
+}
+
+/** A cluster of `n` pips laid out inside one sticker. */
+function pipCluster(n, fill) {
+  const c = inkOn(fill);
+  return (PIPS[n] || [])
+    .map(
+      ([r, k]) =>
+        `<circle cx="${(0.18 + ((k + 0.5) / 3) * 0.64).toFixed(3)}" cy="${(
+          0.18 +
+          ((r + 0.5) / 3) * 0.64
+        ).toFixed(3)}" r="0.082" fill="${c}"/>`,
+    )
+    .join("");
+}
+
+/**
+ * The dice cube: each face is one die, its pips laid across the nine
+ * stickers rather than drawn on each. Opposite faces sum to seven, as a die
+ * does — so it is the cube's own opposite-face structure that makes it read
+ * as a die at all.
+ *
+ *   new Cube({ decal: dicePips })
+ */
+export function dicePips({ face, row, col, fill }) {
+  const n = DIE_FACE[face];
+  if (!n || row === undefined) return null;
+  return PIPS[n].some(([r, k]) => r === row && k === col)
+    ? `<circle cx="0.5" cy="0.5" r="0.3" fill="${inkOn(fill)}"/>`
+    : null;
+}
+
+/**
+ * Ernő Rubik's Domino (1978), printed the way it shipped: its two square
+ * faces carry the numbers one to nine as domino pips. The 3×2 sides stay
+ * bare, which is why this asks for a square face and passes on the rest.
+ *
+ *   new Domino({ decal: dominoPips })
+ */
+export function dominoPips({ index, row, fill }) {
+  if (row === undefined) return null;
+  return pipCluster(index + 1, fill);
+}
+
+/**
+ * The Sudokube: one to nine on every face, so a solved face reads 1–9 and
+ * the colours stop being the puzzle. Set it on any square-faced mechanism.
+ *
+ *   new Cube({ decal: sudokuDigits })
+ */
+export function sudokuDigits({ index, row, fill }) {
+  if (row === undefined) return null;
+  return `<text x="0.5" y="0.54" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, monospace" font-size="0.62" font-weight="700" fill="${inkOn(
+    fill,
+  )}">${index + 1}</text>`;
+}
+
 // ── Fused puzzles ───────────────────────────────────────────────────────────
 
 // Fusion is the union, the sibling of `remove`'s subtraction: two or more

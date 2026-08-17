@@ -342,6 +342,39 @@ the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
 is left is a real puzzle: it turns, scrambles and inverts exactly, and
 `Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
 
+## Decals
+
+A paint sets a sticker's colour; a decal puts a **mark** on it. A dice cube, a
+Sudokube and the spots on Ernő's own Domino are the same mechanisms
+underneath, printed differently — so they ship as decoration, not as classes.
+
+```js
+import { Cube, Domino, dicePips, sudokuDigits, dominoPips } from 'erno'
+
+new Cube({ decal: dicePips })       // each face is one die; opposites sum to 7
+new Cube({ decal: sudokuDigits })   // 1–9 on every face
+new Domino({ decal: dominoPips })   // the 1978 puzzle, spots and all
+```
+
+The callback is addressed exactly like `paint` —
+`({ face, index, row, col, size, letter, piece, slot, normal, fill })` — and
+returns **SVG drawn in a unit square**, which the engine lays onto the
+sticker:
+
+```js
+new Cube({
+  decal: ({ row, col, fill }) =>
+    row === col ? `<circle cx="0.5" cy="0.5" r="0.25" fill="${fill}"/>` : null,
+})
+```
+
+Two things follow from how it works. Marks are printed at build time, so a
+mark belongs to its **cubie** and travels with it — scramble the puzzle and
+the pips go along, which is what a printed cube does. And the mark is laid on
+the face's own reading directions, so it sits upright when solved and turns
+with its piece afterwards. A sticker that is not a quadrilateral — a Skewb's
+triangle, a Megaminx's kite — has no unit square to map and is left bare.
+
 ## Fusion
 
 The union, and the other half of subtraction: weld two or more boxes into one
