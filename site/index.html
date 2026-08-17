@@ -136,28 +136,48 @@
 
         <nav>
           <ol>
-            <li><a href="#setup">Creating a cube</a></li>
-            <li><a href="#moves">Moves &amp; notation</a></li>
-            <li><a href="#scramble">Scrambling</a></li>
-            <li><a href="#state">Facelet state</a></li>
-            <li><a href="#sizes">Cubes of any size</a></li>
-            <li><a href="#skewb">Skewb</a></li>
-            <li><a href="#pyraminx">Pyraminx</a></li>
-            <li><a href="#mirror">Mirror cube</a></li>
-            <li><a href="#void">Void cube</a></li>
-            <li><a href="#painting">Painting</a></li>
-            <li><a href="#decals">Decals</a></li>
-            <li><a href="#cuboids">Cuboids</a></li>
-            <li><a href="#shapemods">Shape mods</a></li>
-            <li><a href="#turners">Corner &amp; edge turners</a></li>
-            <li><a href="#solids">Beyond the cube</a></li>
-            <li><a href="#welding">Welding</a></li>
-            <li><a href="#schemes">Color schemes</a></li>
-            <li><a href="#generative">Generative color</a></li>
-            <li><a href="#styles">Functional styles</a></li>
-            <li><a href="#animation">Animating turns</a></li>
-            <li><a href="#renderstate">Stateless rendering</a></li>
-            <li><a href="#support">Credits</a></li>
+            <li class="toc-group" style="--band: var(--ink); --band-ink: var(--paper)">
+              <b class="toc-band">The cube</b>
+              <ol>
+                <li><a href="#setup">Creating a cube</a></li>
+                <li><a href="#moves">Moves &amp; notation</a></li>
+                <li><a href="#scramble">Scrambling</a></li>
+                <li><a href="#state">Facelet state</a></li>
+                <li><a href="#sizes">Cubes of any size</a></li>
+              </ol>
+            </li>
+            <li class="toc-group" style="--band: var(--red); --band-ink: var(--on-red)">
+              <b class="toc-band">The puzzles</b>
+              <ol>
+                <li><a href="#skewb">Skewb</a></li>
+                <li><a href="#pyraminx">Pyraminx</a></li>
+                <li><a href="#mirror">Mirror cube</a></li>
+                <li><a href="#void">Void cube</a></li>
+                <li><a href="#cuboids">Cuboids</a></li>
+                <li><a href="#shapemods">Shape mods</a></li>
+                <li><a href="#turners">Corner &amp; edge turners</a></li>
+                <li><a href="#solids">Beyond the cube</a></li>
+                <li><a href="#welding">Welding</a></li>
+              </ol>
+            </li>
+            <li class="toc-group" style="--band: var(--yellow); --band-ink: var(--on-yellow)">
+              <b class="toc-band">What they wear</b>
+              <ol>
+                <li><a href="#painting">Painting</a></li>
+                <li><a href="#decals">Decals</a></li>
+                <li><a href="#schemes">Color schemes</a></li>
+                <li><a href="#generative">Generative color</a></li>
+                <li><a href="#styles">Functional styles</a></li>
+              </ol>
+            </li>
+            <li class="toc-group" style="--band: var(--blue); --band-ink: var(--on-blue)">
+              <b class="toc-band">Putting it on a page</b>
+              <ol>
+                <li><a href="#animation">Animating turns</a></li>
+                <li><a href="#renderstate">Stateless rendering</a></li>
+                <li><a href="#support">Credits</a></li>
+              </ol>
+            </li>
           </ol>
         </nav>
       </div>
@@ -301,7 +321,7 @@ cube.setState(str)</code></pre>
             <div class="demo-controls">
               <label class="control-label"
                 >Size
-                <input type="range" min="2" max="6" value="4" data-bind="size" />
+                <input type="range" min="2" max="6" value="4" data-bind="size" / data-scale="choice" />
                 <span class="control-value">4</span></label
               >
               <button data-bind="scramble">Scramble</button>

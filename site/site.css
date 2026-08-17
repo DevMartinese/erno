@@ -537,6 +537,16 @@ article {
     grid-column: 1 / 8;
     padding: 0 var(--space-4);
   }
+  /* A full-width plate had its prose in seven columns and the other five
+     simply empty — not a plane, a hole, since every other plate puts a
+     puzzle there. The code takes that half. Both are text, so the plate
+     fills without inventing a demo it does not need. */
+  > pre {
+    grid-column: 8 / 13;
+    grid-row: 2 / span 20;
+    align-self: start;
+    margin-top: 0;
+  }
   > h2 {
     grid-column: 1 / 13;
     padding: var(--space-3) var(--space-4) var(--space-6);
@@ -958,6 +968,26 @@ a {
   background: var(--paper);
 }
 
+/* A choice names its values, so there is nothing to work out: the cells read
+   2 3 4 5 6 7 and the one you are on is the red one. */
+.range-wrap[data-scale="choice"] {
+  width: auto;
+}
+
+.range-wrap[data-scale="choice"] .range-cells i {
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: var(--size-xs);
+  line-height: 1;
+  color: var(--ink);
+  min-width: calc(var(--space-unit) * 3);
+}
+
+.range-wrap[data-scale="choice"] .range-cells i[data-on] {
+  color: var(--on-red);
+}
+
 /* A filled cell is ink. The strip reads left to right like a layer count,
    and the last filled cell is the value — no separate knob to look for. */
 .range-cells i[data-on] {
@@ -1055,23 +1085,34 @@ nav {
    drift into a lie. The numeral rides its own plane exactly as it does on
    the plate itself, which makes the index the composition seen from above.
    Kassák's planes at a twentieth scale. */
-nav ol {
+nav > ol {
   list-style: none;
-  counter-reset: toc;
   columns: 2;
   column-gap: var(--space-6);
+}
+
+/* A group is one block. Left to flow, the column break landed inside a group
+   and its three orphaned entries sat at the top of the next column with no
+   band to say what they were. */
+.toc-group {
+  break-inside: avoid;
+  list-style: none;
+}
+
+.toc-group ol {
+  list-style: none;
+}
+
+nav li {
+  white-space: nowrap;
 }
 
 li + li {
   margin-top: 0.5em;
 }
 
-nav li {
-  counter-increment: toc;
-  white-space: nowrap;
-  break-inside: avoid;
-  margin-top: 0;
-  margin-bottom: var(--space-0-5);
+nav .toc-group li {
+  margin: 0;
 }
 
 nav a {
@@ -1082,28 +1123,53 @@ nav a {
   color: var(--ink);
 }
 
-/* The numeral on its plane, at the size of a line. Fixed width, so the
-   titles start on one line down the column. */
+/* Colour marks the GROUP, not the entry.
+
+   A plane on every line was the first attempt and it was wrong: Kassák's
+   planes are few and large because they carry the composition, and
+   twenty-two little coloured chips carry nothing — the colour stops being
+   structure and becomes ornament, which is the one thing the manifesto rules
+   out. Worse, the eye went to the chips, and in an index the words are the
+   content.
+
+   Four planes instead, one per part of the guide, each the width of the
+   column. That is Kassák's scale, and it makes the index say something it
+   could not say as a flat list: that the guide has a shape. */
+.toc-band {
+  display: block;
+  background: var(--band);
+  color: var(--band-ink);
+  font-family: var(--sans);
+  font-weight: 900;
+  font-stretch: 118%;
+  letter-spacing: -0.01em;
+  padding: var(--space-0-5) var(--space-1);
+  margin: var(--space-3) 0 var(--space-1);
+  break-after: avoid;
+}
+
+.toc-group:first-child .toc-band {
+  margin-top: 0;
+}
+
+/* The numeral is a printed mark now, not a plane: mono, quiet, and set on a
+   fixed measure so every title starts on one line down the column. */
 nav a::before {
-  content: counter(toc, upper-roman);
+  content: attr(data-num);
   flex: 0 0 auto;
-  min-width: calc(var(--space-unit) * 5);
-  padding: 0 var(--space-0-5);
-  text-align: center;
+  min-width: 4ch;
+  text-align: right;
   font-family: var(--mono);
   font-size: var(--size-xs);
   letter-spacing: 0.08em;
   line-height: var(--lh);
-  background: var(--plate, var(--ink));
-  color: var(--plate-ink, var(--paper));
+  color: color-mix(in oklab, var(--ink) 45%, var(--paper));
 }
 
-/* Hover moves the PLANE, not the words — the same red that means live
-   everywhere else on this page. */
+/* Hover carries the band's own colour back to the line it belongs to. */
 nav a:hover::before,
 nav a:focus-visible::before {
-  background: var(--red);
-  color: var(--on-red);
+  color: var(--red);
 }
 
 nav a:hover span,
@@ -1579,12 +1645,17 @@ input[type="color"]::-webkit-color-swatch {
   position: relative;
 }
 
+/* The readout is reserved space, not space it takes when it has something to
+   say. Printing a scramble grew the demo block, and the column centres that
+   block, so the puzzle above jumped — 12px, measured. Two lines are held
+   whether or not anything is in them. */
 .demo-readout {
+  min-height: calc(var(--lh) * 2);
+  overflow-wrap: anywhere;
   font-family: var(--mono);
   font-size: var(--size-sm);
   color: color-mix(in oklab, var(--text) 55%, var(--bg));
   padding: var(--space-1) var(--space-1-5) var(--space-1-5);
-  min-height: 1.4em;
   word-spacing: 0.25em;
   overflow-wrap: break-word;
 }

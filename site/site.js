@@ -48,19 +48,37 @@ document.querySelectorAll("pre code").forEach((el) => {
 
 document.querySelector("h1 .version").textContent = version;
 
-// ─── The index reads the page ────────
-// Each entry takes the colour of the plane its plate actually wears. Read off
-// the document rather than restated in CSS, so the index cannot drift out of
-// step with the composition it maps — and the titles are wrapped so the
-// numeral plane and the words can be styled apart.
+// ─── The index ───────────────────────
+// The titles are wrapped so the numeral and the words can be styled apart.
+// The index groups the guide by subject, so its own order is not the page's
+// and a CSS counter would number the entries by where they sit in the LIST —
+// sending you to "X Cuboids" when the plate says XII. The numeral is read off
+// the page instead, the same principle as everything else here: the map does
+// not restate the territory, it reads it.
+const roman = (n) =>
+  [[10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]].reduce((out, [v, sym]) => {
+    while (n >= v) {
+      out += sym;
+      n -= v;
+    }
+    return out;
+  }, "");
+
+const plateNumber = new Map();
+let plate = 0;
+for (const section of document.querySelectorAll("article > .section-row, article > .section-full")) {
+  const heading = section.querySelector("h2");
+  if (!heading) continue;
+  plate += 1;
+  // A two-column plate carries its id on the wrapper and a full-width one on
+  // the heading itself, so both have to be asked.
+  const id = heading.id || section.id;
+  if (id) plateNumber.set(id, roman(plate));
+}
+
 for (const a of document.querySelectorAll("nav a")) {
   if (!a.querySelector("span")) a.innerHTML = `<span>${a.textContent.trim()}</span>`;
-  const target = document.querySelector(a.getAttribute("href"));
-  const heading = target && (target.matches("h2") ? target : target.querySelector("h2"));
-  if (!heading) continue;
-  const cs = getComputedStyle(heading);
-  a.style.setProperty("--plate", cs.backgroundColor);
-  a.style.setProperty("--plate-ink", cs.color);
+  a.dataset.num = plateNumber.get(a.getAttribute("href").slice(1)) || "";
 }
 
 // ─── Enhance all range inputs ────────
@@ -78,12 +96,24 @@ function enhanceRange(input) {
   const max = parseFloat(input.max) || 100;
   const step = parseFloat(input.step) || 1;
   const steps = Math.round((max - min) / step) + 1;
-  const count = Math.max(2, Math.min(24, steps));
+
+  // Two kinds, and conflating them was the mistake. An ANGLE is a quantity:
+  // filling the strip up to it reads correctly. A cube's SIZE is a choice
+  // among whole values, and filling cells 2, 3 and 4 to mean "four" reads as
+  // "two and three and four" — which is why it was impossible to tell where
+  // 2 sat versus 3. A choice marks one cell and names them all.
+  const choice = input.dataset.scale === "choice";
+  const count = choice ? steps : Math.max(2, Math.min(24, steps));
+  wrap.dataset.scale = choice ? "choice" : "quantity";
 
   const cells = document.createElement("div");
   cells.className = "range-cells";
   cells.setAttribute("aria-hidden", "true");
-  for (let i = 0; i < count; i++) cells.appendChild(document.createElement("i"));
+  for (let i = 0; i < count; i++) {
+    const cell = document.createElement("i");
+    if (choice) cell.textContent = String(min + i * step);
+    cells.appendChild(cell);
+  }
   wrap.appendChild(cells);
 
   const valueSpan = wrap
@@ -93,9 +123,10 @@ function enhanceRange(input) {
   function syncVal() {
     const val = parseFloat(input.value) || 0;
     const t = (val - min) / (max - min || 1);
-    const on = Math.max(1, Math.round(t * count));
+    // A choice lights the cell it is on. A quantity fills up to it.
+    const on = choice ? Math.round((val - min) / step) + 1 : Math.max(1, Math.round(t * count));
     [...cells.children].forEach((c, i) => {
-      if (i < on) c.setAttribute("data-on", "");
+      if (choice ? i === on - 1 : i < on) c.setAttribute("data-on", "");
       else c.removeAttribute("data-on");
       // The handle is marked here rather than in CSS: `:last-of-type` means
       // the last cell OF ITS TYPE, not the last one that happens to be
