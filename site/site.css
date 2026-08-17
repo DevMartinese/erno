@@ -374,15 +374,72 @@ article {
   padding: 6rem 2rem 5rem;
 }
 
+/* Grid items refuse to shrink below their content, and an inline <code>
+   token cannot break, so one long token in the intro was widening the whole
+   document on a phone. Let the tracks shrink and let code wrap. */
+.intro > * {
+  min-width: 0;
+}
+
+/* Inline code and long URLs are the two things that cannot break on their
+   own, so on a narrow screen either one widens the whole document. Code
+   inside <pre> is exempt: that scrolls in its own box by design. */
+:not(pre) > code,
+a {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 56rem) {
+  /* Two columns of nowrap links do not fit a phone, and nowrap defeats any
+     amount of overflow-wrap — this was the last thing widening the page. */
+  .intro nav ol {
+    columns: 1;
+  }
+
+  /* Qualified with .intro so it outranks the `nav li` rule further down the
+     sheet: a media query adds no specificity, so an equal selector placed
+     earlier simply loses on order. */
+  .intro nav li {
+    white-space: normal;
+  }
+
+  /* the panel is fixed, but its contents still have to fit a phone */
+  .settings-panel {
+    left: 1.2rem;
+    max-width: calc(100vw - 2.4rem);
+  }
+
   .section-row,
   .section-full {
     grid-template-columns: 1fr;
   }
 
+  /* Collapsing the track alone does NOT stack the plate: both planes are
+     pinned to row 1 and still ask for a span of five or more columns, so
+     grid invents implicit columns to satisfy them and the row stays side by
+     side with one plane crushed to a sliver. Both axes have to be released.
+
+     Written at .section-row .section-text rather than .section-row > * so it
+     matches the specificity of the .plate--light/-even/-heavy rules above —
+     a media query adds no specificity of its own, so a weaker selector here
+     simply loses to them and the query appears to do nothing. */
+  .section-row .section-text,
+  .section-row .section-demo,
+  .section-full > * {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
   .section-row .section-demo {
     position: static;
     order: 1;
+    border-right: none;
+    border-left: none;
+    border-top: var(--rule) solid var(--ink);
+  }
+
+  .section-row .section-text {
+    align-self: stretch;
   }
 
   .section-full {
@@ -630,6 +687,7 @@ a {
 .range-wrap {
   position: relative;
   width: 7rem;
+  max-width: 100%;
   height: 1.4rem;
   margin-left: 0.4rem;
   margin-right: 0.4rem;
