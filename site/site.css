@@ -241,9 +241,18 @@ article {
    A plate now holds the screen by itself. The height is not spent as
    margin: the demo grows with the viewport, so what would have been air
    becomes the thing you came to look at. */
-.section-row,
-.section-full {
+.section-row {
   min-height: 100vh;
+}
+
+/* A full-width plate is exempt, and was never the problem: its heading
+   plane crosses the whole format, so nothing is ambiguous about where it
+   begins even with the next plate showing beneath. Forcing a screenful on
+   three short text sections only bought half a page of empty paper — and,
+   because grid pushes leftover height into auto rows, it stretched the
+   heading plane from 79px to 202px and opened every gap with it. */
+.section-full {
+  align-content: start;
 }
 
 .section-row .section-demo {
@@ -399,11 +408,17 @@ article {
 .section-full {
   padding: 0 0 3rem;
   max-width: none;
+  /* The heading is a plane and takes the format entire. The prose is not:
+     run across twelve columns it reached about a hundred and eighty
+     characters a line, which is unreadable at any size. Seven columns puts
+     it at the same measure as the text column of a two-column plate, and
+     what is left is a plane rather than a margin. */
   > * {
-    grid-column: 1 / 13;
+    grid-column: 1 / 8;
     padding: 0 2rem;
   }
   > h2 {
+    grid-column: 1 / 13;
     padding: 1.4rem 2rem 1.6rem;
     margin: 0 0 1.5rem;
     width: auto;
@@ -460,7 +475,9 @@ a {
     white-space: normal;
   }
 
-  /* the panel is fixed, but its contents still have to fit a phone */
+  /* the panel is fixed, but its contents still have to fit a phone. Its
+     anchoring is set further down, AFTER the base rule — see the note
+     there. */
   .settings-panel {
     left: 1.2rem;
     max-width: calc(100vw - 2.4rem);
@@ -501,8 +518,7 @@ a {
 
   /* Stacked, a plate is already the only thing on screen — demanding a
      screenful on top of that would leave the demo below the fold. */
-  .section-row,
-  .section-full {
+  .section-row {
     min-height: 0;
   }
 
@@ -993,6 +1009,29 @@ button:active {
 .settings-panel.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* On a phone the panel spans the width, so pinned to the top it sat
+   permanently over whatever was at the top of the screen — which, with a
+   plate per screen, is always a heading. Anchored to the bottom it covers
+   nothing that has to be read first.
+
+   This lives here, after the base rule, and not with the other phone
+   overrides above: a media query carries no specificity of its own, so an
+   equal selector written earlier in the file loses on source order and
+   `top` simply kept its 1.2rem. With top AND bottom set the fixed box then
+   stretched the whole screen — 720px of empty paper under a closed
+   summary. */
+@media (max-width: 56rem) {
+  .settings-panel {
+    top: auto;
+    bottom: 1.2rem;
+    max-height: 80vh;
+  }
+
+  .settings-panel[open] {
+    overflow-y: auto;
+  }
 }
 
 .settings-panel summary.settings-title {

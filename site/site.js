@@ -19,6 +19,7 @@ import {
   Helicopter,
   Penrose,
   Twist,
+  MasterPyraminx,
   Pyramorphix,
   Mastermorphix,
   SkewbDiamond,
@@ -269,7 +270,14 @@ function variantDemo(id, make, options) {
 }
 
 variantDemo("demo-skewb", () => new Skewb());
-variantDemo("demo-pyraminx", () => new Pyraminx(), { scheme: false });
+// The four-layer Pyraminx belongs beside the three-layer one: same solid,
+// same axes, one more cut. Its wide turns (Uw, Rw) have no meaning on the
+// small one, which familyDemo simply ignores.
+familyDemo(
+  "demo-pyraminx",
+  { pyraminx: () => new Pyraminx(), master: () => new MasterPyraminx() },
+  { scheme: false },
+);
 variantDemo("demo-void", () => new Void());
 /* Painting is a system, not one puzzle: the same option carries the Tetris
    layout, a single face, a gradient by layer, or one flat colour — and the

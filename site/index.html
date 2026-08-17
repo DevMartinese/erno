@@ -367,6 +367,13 @@ new Skewb().move("R U' L B").toSVG()</code></pre>
           <div class="demo" id="demo-pyraminx">
             <div class="demo-canvas"></div>
             <div class="demo-controls">
+              <label class="control-label"
+                >Size
+                <select data-bind="kind">
+                  <option value="pyraminx" selected>Pyraminx</option>
+                  <option value="master">Master Pyraminx</option>
+                </select>
+              </label>
               <button data-bind="move:U">U</button>
               <button data-bind="move:L">L</button>
               <button data-bind="move:R">R</button>
@@ -375,6 +382,8 @@ new Skewb().move("R U' L B").toSVG()</code></pre>
               <button data-bind="move:l">l</button>
               <button data-bind="move:r">r</button>
               <button data-bind="move:b">b</button>
+              <button data-bind="move:Uw">Uw</button>
+              <button data-bind="move:Rw">Rw</button>
               <button data-bind="scramble">Scramble</button>
               <button data-bind="reset">Reset</button>
             </div>
