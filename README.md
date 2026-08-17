@@ -280,7 +280,34 @@ new Mirror({ paint: tetrisPaint })
 carry a paint, since `Erno` is the facelet representation and has no pieces
 to paint. It takes a single number for `size`; `Cuboid` takes the triple.
 
-The callback receives `{ piece, index, letter, slot, normal }`.
+The callback receives `{ face, index, row, col, letter, piece, pieceIndex,
+slot, normal }`. A sticker is addressed the way `getState()` addresses it —
+by its face and its place within that face, in the same reading order — so
+you can paint one and leave the rest:
+
+```js
+// the centre of U, and nothing else
+new Cube({ paint: ({ face, row, col }) =>
+  face === 'U' && row === 1 && col === 1 && '#cc2823' })
+
+// the top row of F
+new Cube({ paint: ({ face, row }) => face === 'F' && row === 0 && '#f6ba00' })
+```
+
+`row` and `col` are given only where a face is square. A Skewb face holds
+five stickers and a Megaminx eleven, so a grid there would be a lie — use
+`index` instead.
+
+To paint by hand, pass a map instead of a callback: face letter to colours in
+that same reading order, with a hole wherever a sticker should keep its face
+colour. A bare colour paints the whole face.
+
+```js
+new Cube({ paint: {
+  U: ['#c00', null, '#00f', null, '#fc0', null, null, null, '#0a0'],
+  D: '#111',
+} })
+```
 
 A painted puzzle is **solved by its pattern, not by its facelets**: with
 solid-coloured cubies two pieces of the same colour are interchangeable and

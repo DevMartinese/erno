@@ -332,7 +332,16 @@ export class Twisty {
     this.plastic = options.plastic || def.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
-    this._paint = options.paint || null;
+    // `paint` may be a callback, or — for painting by hand — a plain map of
+    // face letter to colours in the same reading order getState() uses, with
+    // a hole anywhere a sticker should keep its face colour.
+    this._paint =
+      typeof options.paint === "object" && options.paint !== null
+        ? ({ face, index }) => {
+            const row = options.paint[face];
+            return Array.isArray(row) ? row[index] : row;
+          }
+        : options.paint || null;
     this._styleFn = null;
     this._styleObj = null;
     if (options.style) this.style(options.style);
@@ -451,24 +460,6 @@ export class Twisty {
     // this is specific to Tetris: it is a paint job, so any mechanism in the
     // library can wear any paint.
     if (def.paint) def.paint(this.pieces);
-    if (this._paint) {
-      for (let i = 0; i < this.pieces.length; i++) {
-        const piece = this.pieces[i];
-        for (const f of piece.faces) {
-          if (!f.letter) continue;
-          const tint = this._paint({
-            piece,
-            index: i,
-            letter: f.letter,
-            slot: piece.slotPoint,
-            normal: f.normal,
-          });
-          // returning nothing leaves the sticker its face colour, so a paint
-          // can decorate a few stickers without restating the rest
-          if (tint) f.tint = tint;
-        }
-      }
-    }
 
     // Canonical facelet order: by face, then reading order within the face.
     const stickers = [];
@@ -503,6 +494,38 @@ export class Twisty {
       }
     });
     this._faceRanges.push([rangeStart, stickers.length]);
+
+    // Painting runs here, after the facelet order is known, so a paint can
+    // address a sticker the way getState() does — by its face and its place
+    // within that face — instead of by an internal piece number. `row`/`col`
+    // are offered only when a face is square; a Skewb face holds five
+    // stickers and a Megaminx eleven, where a grid would be a lie.
+    if (this._paint) {
+      const faceStart = {};
+      for (const [start, end] of this._faceRanges)
+        faceStart[stickers[start].face.letter] = { start, size: end - start };
+      stickers.forEach((s, i) => {
+        const f = s.face;
+        const { start, size } = faceStart[f.letter];
+        const within = i - start;
+        const side = Math.sqrt(size);
+        const square = Number.isInteger(side);
+        const tint = this._paint({
+          face: f.letter,
+          index: within,
+          row: square ? Math.floor(within / side) : undefined,
+          col: square ? within % side : undefined,
+          letter: f.letter,
+          piece: this.pieces[s.piece],
+          pieceIndex: s.piece,
+          slot: this.pieces[s.piece].slotPoint,
+          normal: f.normal,
+        });
+        // returning nothing leaves the sticker its face colour, so a paint
+        // can decorate a few stickers without restating the rest
+        if (tint) f.tint = tint;
+      });
+    }
   }
 
   _faceletAt(slotPoint, normal) {

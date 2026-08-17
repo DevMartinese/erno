@@ -729,13 +729,33 @@ test("paint reaches every granularity, down to one sticker", () => {
     new Cuboid({ size, paint: ({ letter }) => (letter === "U" ? "#c00" : undefined) })
       .getTints().filter((t) => t === "#c00").length,
     9, "one face");
-  // one sticker: a piece and a face together name exactly one
-  const probe = new Cuboid({ size });
-  const idx = probe.pieces.findIndex((p) => p.faces.some((f) => f.letter === "U"));
+  // one sticker, addressed the way getState() addresses it
   assertEqual(
-    new Cuboid({ size, paint: ({ index, letter }) => (index === idx && letter === "U" ? "#c00" : undefined) })
+    new Cube({ paint: ({ face, row, col }) => (face === "U" && row === 1 && col === 1 ? "#c00" : undefined) })
       .getTints().filter((t) => t === "#c00").length,
-    1, "one sticker");
+    1, "the centre of U, and nothing else");
+  // one row
+  assertEqual(
+    new Cube({ paint: ({ face, row }) => (face === "F" && row === 0 ? "#c00" : undefined) })
+      .getTints().filter((t) => t === "#c00").length,
+    3, "the top row of F");
+});
+
+test("paint takes a hand-written map as well as a callback", () => {
+  // the by-hand form: face letter → colours in the same reading order the
+  // state string uses, with a hole wherever a sticker keeps its face colour
+  const m = new Cube({ paint: { U: ["#c00", null, "#00f", null, "#fc0", null, null, null, "#0a0"] } });
+  assertEqual(m.getTints().filter(Boolean).length, 4, "only the four named stickers");
+  assertEqual(m.getTints().filter((t) => t === "#c00").length, 1, "the first one");
+
+  // a bare colour paints the whole face
+  assertEqual(new Cube({ paint: { U: "#111" } }).getTints().filter((t) => t === "#111").length,
+    9, "a face given one colour takes it whole");
+
+  // row/col are withheld where a grid would be a lie: a Skewb face holds five
+  const seen = new Set();
+  new Skewb({ paint: ({ face, row }) => { seen.add(row); return undefined; } });
+  assert(seen.size === 1 && seen.has(undefined), "no row/col on a non-square face");
 });
 
 test("Cube is the piece-based 3×3, and a paint turns it into any pattern", () => {
