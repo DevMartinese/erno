@@ -33,6 +33,8 @@ import {
   DICE_CUBE,
   SUDOKU_CUBE,
   DOMINO_PRINT,
+  Squished,
+  squash,
   Puzzle,
   Cube,
   Fused,
@@ -468,6 +470,51 @@ familyDemo("demo-solids", {
   megaminx: () => new Megaminx(),
   kilominx: () => new Kilominx(),
   skewbdiamond: () => new SkewbDiamond(),
+});
+
+/* ─── 9g. Deformation ─────────────────
+   The readout is the argument: a bent puzzle's facelets are compared with a
+   plain 3×3's as you turn it, and they never part. Saying so in prose is
+   cheap; showing the two strings agree is not. */
+const BENDS = {
+  squished: () => new Squished(),
+  hard: () => new Squished({ squash: 0.42 }),
+  stretched: () => new Cube({ deform: squash(1.7), camera: { type: "perspective", distance: 26 } }),
+  minx: () => new Megaminx({ deform: squash(0.6), camera: { type: "perspective", distance: 26 } }),
+  weld: () => new Siamese({ deform: squash(0.6), camera: { type: "perspective", distance: 34 } }),
+  none: () => new Cube({ camera: { type: "perspective", distance: 24 } }),
+};
+
+setupDemo("demo-deform", (v, ctx, t) => {
+  if (!ctx.p || ctx.kind !== v.kind) {
+    ctx.p = BENDS[v.kind]();
+    ctx.twin = /squished|hard|stretched|none/.test(v.kind) ? new Cube() : null;
+    ctx.kind = v.kind;
+  }
+  if (t && isMove(t)) {
+    const token = moveToken(t);
+    try {
+      ctx.p.move(token);
+      if (ctx.twin) ctx.twin.move(token);
+    } catch {
+      // a token the puzzle underneath does not have — the Megaminx turns A–L
+    }
+  }
+  if (t && t.key === "scramble") {
+    const seq = ctx.p.scramble();
+    if (ctx.twin) ctx.twin.move(seq);
+  }
+  if (t && t.key === "reset") {
+    ctx.p.reset();
+    if (ctx.twin) ctx.twin.reset();
+  }
+  if (ctx.readout)
+    ctx.readout.textContent = ctx.twin
+      ? `facelets vs a plain 3×3: ${
+          ctx.p.getState() === ctx.twin.getState() ? "identical" : "DIFFERENT"
+        } — ${ctx.p.getState().slice(0, 27)}…`
+      : `${ctx.p.pieces.length} pieces, bent by one linear map`;
+  return tune(ctx.p, { scheme: false }).toSVG({ fitSphere: true });
 });
 
 // ─── 9f. Welding ─────────────────────

@@ -158,6 +158,7 @@
                 <li><a href="#turners">Corner &amp; edge turners</a></li>
                 <li><a href="#solids">Beyond the cube</a></li>
                 <li><a href="#welding">Welding</a></li>
+                <li><a href="#deform">Deformation</a></li>
               </ol>
             </li>
             <li class="toc-group" style="--band: var(--yellow); --band-ink: var(--on-yellow)">
@@ -869,6 +870,71 @@ new Cube({
             x comes back 3×3×1. Switch blocking on over a cuboid that is
             allowed to deform and you get the identical move list, size for
             size.
+          </p>
+        </div>
+      </div>
+
+      <!-- ─── 9g. Deformation ──────────────────────────── -->
+
+      <div class="section-row" id="deform">
+        <div class="section-demo">
+          <div class="demo" id="demo-deform">
+            <div class="demo-canvas"></div>
+            <div class="demo-controls">
+              <label class="control-label"
+                >Bent
+                <select data-bind="kind">
+                  <option value="squished" selected>Squished Cube</option>
+                  <option value="hard">Squished harder</option>
+                  <option value="stretched">Stretched</option>
+                  <option value="minx">A squished Megaminx</option>
+                  <option value="weld">A squished weld</option>
+                  <option value="none">Not bent at all</option>
+                </select>
+              </label>
+              <button data-bind="move:R">R</button>
+              <button data-bind="move:U">U</button>
+              <button data-bind="move:F">F</button>
+              <button data-bind="scramble">Scramble</button>
+              <button data-bind="reset">Reset</button>
+            </div>
+            <p class="demo-readout" data-readout></p>
+          </div>
+        </div>
+        <div class="section-text">
+          <h2>Deformation</h2>
+          <p>
+            A paint changes a sticker's colour and a decal puts a mark on it.
+            A <strong>deformation</strong> changes the shape of the whole
+            puzzle, by applying one linear map as it is drawn — and the
+            Squished Cube is a 3×3 under exactly that.
+          </p>
+          <p>
+            Which is the point: it has no mechanism of its own. Every one of
+            its positions is a 3×3's position bent by the same map, so its
+            notation, its state and its solve are the cube's <em>exactly</em>
+            — the readout below compares the two facelet strings as you turn
+            it, and they never part. A deformation is a way of looking, in
+            the same sense a paint is.
+          </p>
+          <pre><code>import { Cube, Squished, squash } from 'erno'
+
+new Squished()                      // a 3×3 as a rhombohedron
+new Squished({ squash: 0.45 })      // harder
+new Cube({ deform: squash(0.6) })   // the map on its own
+new Megaminx({ deform: squash(0.6) })</code></pre>
+          <p>
+            <code>squash(k, axis)</code> compresses by <code>k</code> along
+            an axis that defaults to the body diagonal; above 1 it stretches
+            instead, and the frame widens to match. Any invertible 3×3 works.
+          </p>
+          <p>
+            One thing to know, because it is the first thing that goes wrong:
+            a parallel projection looking straight down the axis of a
+            compression <em>cannot see it</em>. erno's default isometric
+            camera looks along the body diagonal, so the first render of a
+            squished cube came out pixel for pixel identical to a plain one.
+            This one ships with a camera off that axis.
           </p>
         </div>
       </div>

@@ -295,6 +295,7 @@
                 <option value="dicecube">Dice cube</option>
                 <option value="sudokube">Sudokube</option>
                 <option value="dominopips">Domino, with its spots</option>
+                <option value="squished">Squished cube</option>
                 <option value="custom">— Build your own —</option>
               </select>
             </div>
@@ -332,7 +333,7 @@
     </div>
 
     <script type="module">
-      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
+      import { generateScheme, Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, Squished, squash, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, Puzzle, buildPuzzle, SCHEMES } from "../src/erno.js";
 
       const stage = document.getElementById("stage");
       const historyEl = document.getElementById("history");
@@ -602,6 +603,14 @@
           moves: ["U", "R", "F", "D", "L", "B"],
           presets: ["classic", "stickerless"],
           schemes: false,
+        },
+        // A deformation, not a mechanism: the notation and the state are a
+        // plain 3×3's, so nothing else here needs to change.
+        squished: {
+          make: (opts) => new Squished(opts),
+          moves: ["U", "R", "F", "D", "L", "B"],
+          presets: ["classic", "stickerless"],
+          schemes: true,
         },
         dominopips: {
           make: (opts) => new Domino({ ...opts, ...DOMINO_PRINT }),
