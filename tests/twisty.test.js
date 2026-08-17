@@ -785,6 +785,49 @@ test("Cube is the piece-based 3×3, and a paint turns it into any pattern", () =
   }
 });
 
+// ── Subtraction ────────────────────────────────────────────────────────────
+
+test("remove: 'centers' rebuilds the Void from an ordinary cube", () => {
+  // The Void is a 3×3 with its face centres taken out, so subtraction on a
+  // plain cube must give it back exactly — markup included.
+  const v = new Cube({ remove: "centers" });
+  assertEqual(v.pieces.length, new Void().pieces.length, "same pieces");
+  assertEqual(v.getState().length, new Void().getState().length, "same facelets");
+  assertEqual(v.toSVG(), new Void().toSVG(), "same markup");
+});
+
+test("subtraction leaves a working puzzle, on any mechanism", () => {
+  for (const [label, make] of [
+    ["cube", () => new Cube({ remove: "centers" })],
+    ["5×5", () => new Cube({ size: 5, remove: "centers" })],
+    ["cuboid", () => new Cuboid({ size: [3, 2, 3], remove: "centers" })],
+    ["megaminx", () => new Megaminx({ remove: "centers" })],
+    ["skewb", () => new Skewb({ remove: "centers" })],
+    ["a whole layer", () => new Cube({ remove: ({ slot }) => Math.abs(slot[1]) < 1e-6 })],
+    ["one corner", () => new Cube({ remove: ({ slot }) => slot.every((v) => v > 0) })],
+    ["a box region", () => new Cube({ remove: { box: [[0, 0, 0], [2, 2, 2]] } })],
+  ]) {
+    const p = make();
+    assert(p.pieces.length > 0, `${label} keeps pieces`);
+    assert(p.isSolved(), `${label} starts solved`);
+    assert(p.toSVG().includes('data-part="core"'), `${label} shows the walls behind the hole`);
+    const q = make();
+    const seq = q.scramble();
+    q.move(Twisty.inverse(seq));
+    assert(q.isSolved(), `${label}: inverse of "${seq}"`);
+  }
+});
+
+test("remove refuses a shape it does not understand", () => {
+  let threw = false;
+  try {
+    new Cube({ remove: "everything" });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "an unknown region is an error, not a silently whole cube");
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

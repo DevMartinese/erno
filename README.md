@@ -320,6 +320,28 @@ Note `tetrisPaint`'s layout is a hand-found exact-cover solution for the 3×3
 It is not a formula, so it does not generalise to other sizes; anything off
 that grid is left untinted.
 
+## Subtraction
+
+The sibling of heerich's `removeGeometry`: drop whole pieces and the engine
+draws the interior walls they leave behind, so the holes go all the way
+through.
+
+```js
+import { Cube, Megaminx } from 'erno'
+
+new Cube({ remove: 'centers' })            // this IS the Void cube
+new Cube({ size: 5, remove: 'centers' })   // and there is no 5×5 Void on sale
+new Megaminx({ remove: 'centers' })
+
+new Cube({ remove: ({ slot }) => slot.every(v => v > 0) })   // one corner gone
+new Cube({ remove: { box: [[0, 0, 0], [2, 2, 2]] } })        // a whole octant
+```
+
+`remove` takes a predicate `({ slot, stickers, piece, centroid }) => boolean`,
+the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
+is left is a real puzzle: it turns, scrambles and inverts exactly, and
+`Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
+
 ## Camera
 
 Four projection types, sharing semantics with heerich:

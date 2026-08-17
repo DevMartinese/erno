@@ -299,6 +299,30 @@ export function slicePieces(solidFaces, planes) {
   return cells;
 }
 
+/**
+ * Normalise the `remove` option into one predicate.
+ *
+ * - a function: `({ slot, stickers, piece, centroid }) => boolean`
+ * - `"centers"`: the face centres, which is what makes a Void
+ * - `{ box: [[x0,y0,z0], [x1,y1,z1]] }`: everything inside that region of
+ *   slot space, the closest thing here to heerich's subtract
+ */
+function normalizeRemove(remove) {
+  if (!remove) return null;
+  if (typeof remove === "function") return remove;
+  if (remove === "centers")
+    // a face centre is the only piece with two zero slot coordinates
+    return ({ slot }) => slot.filter((v) => Math.abs(v) < 1e-6).length >= 2;
+  if (remove === "core") return ({ stickers }) => stickers === 0;
+  if (remove && Array.isArray(remove.box)) {
+    const [lo, hi] = remove.box;
+    return ({ slot }) => slot.every((v, i) => v >= lo[i] - 1e-6 && v <= hi[i] + 1e-6);
+  }
+  throw new Error(
+    `erno: remove takes a function, "centers", or { box: [[x,y,z],[x,y,z]] }`,
+  );
+}
+
 // ── The engine ──────────────────────────────────────────────────────────────
 
 export class Twisty {
@@ -332,6 +356,11 @@ export class Twisty {
     this.plastic = options.plastic || def.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
+    // Subtraction, the sibling of heerich's removeGeometry: drop whole
+    // pieces and the engine draws the interior walls they leave behind, so
+    // the holes go all the way through. A predicate, a named region, or a
+    // box in slot space.
+    this._remove = normalizeRemove(options.remove);
     // `paint` may be a callback, or — for painting by hand — a plain map of
     // face letter to colours in the same reading order getState() uses, with
     // a hole anywhere a sticker should keep its face colour.
@@ -436,6 +465,16 @@ export class Twisty {
       const stickers = piece.faces.filter((f) => f.letter);
       if (stickers.length === 0) continue; // interior core
       if (def.keepPiece && !def.keepPiece(piece.slotPoint, stickers.length))
+        continue;
+      if (
+        this._remove &&
+        this._remove({
+          slot: piece.slotPoint,
+          stickers: stickers.length,
+          piece,
+          centroid: centroidOf(piece.allVerts),
+        })
+      )
         continue;
       piece.centroid = centroidOf(piece.allVerts);
       delete piece.allVerts;
