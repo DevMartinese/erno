@@ -819,6 +819,27 @@ const TETRIS_CUBIES = {
   // white: UB edge ("1,2,0") and UFR corner ("2,2,2")
 };
 
+/**
+ * The Tetris layout as a reusable paint. Mechanically the Tetris cube is an
+ * ordinary 3×3 — same solid, same cuts, same notation — and everything that
+ * makes it Tetris is this tinting. So it is published as a paint rather
+ * than locked inside one class: `new Mirror({ paint: tetrisPaint })` works,
+ * and so does any other 3×3 mechanism.
+ *
+ * The layout itself is a hand-found exact-cover solution: one tetromino per
+ * face wrapped around its centre, no I piece, two white fillers. It does
+ * NOT generalise to other sizes by formula — a 4×4 would need the search
+ * run again — so this paint leaves anything outside the 3×3 grid untinted.
+ */
+export function tetrisPaint({ slot }) {
+  const key = slot.map((v) => Math.round(v) + 1).join(",");
+  const shape = TETRIS_CUBIES[key];
+  return shape ? TETRIS_COLORS[shape] : TETRIS_COLORS.W;
+}
+
+/** The Tetris palette, keyed by tetromino letter. */
+export const TETRIS_PALETTE = { ...TETRIS_COLORS };
+
 function buildTetrisDef() {
   const cuts = [];
   for (let axis = 0; axis < 3; axis++) {

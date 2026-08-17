@@ -28,6 +28,9 @@ import {
   schemeFrom,
   generateRamp,
   nameScheme,
+  tetrisPaint,
+  Megaminx,
+  SkewbDiamond,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -530,6 +533,47 @@ test("generated schemes drive any puzzle", () => {
   assert(cube.toSVG().startsWith("<svg"));
   const pyra = new Pyraminx({ colors: generateScheme(["F", "L", "R", "D"], { seed: 9 }) });
   assert(pyra.toSVG().startsWith("<svg"));
+});
+
+// ── Painting ────────────────────────────────────────────────────────────────
+
+test("paint tints stickers on any mechanism, not just Tetris", () => {
+  // the Tetris layout lifted onto a different mechanism entirely
+  const m = new Mirror({ paint: tetrisPaint });
+  assert(m.isSolved(), "painted mirror starts solved");
+  assert(m.toSVG().startsWith("<svg"), "painted mirror renders");
+  assert(!new Mirror({ paint: tetrisPaint }).move("R").isSolved(), "R breaks it");
+
+  // a paint may tint only what it wants; the rest keeps its face colour
+  const one = new Skewb({ paint: ({ letter }) => (letter === "U" ? "#cc2823" : undefined) });
+  const reds = one.getTints().filter((t) => t === "#cc2823").length;
+  assertEqual(reds, 5, "every U sticker of a skewb tinted, and only those");
+
+  // and it reaches puzzles that never had a painted variant
+  const mega = new Megaminx({ paint: ({ index }) => (index % 2 ? "#00489f" : "#f6ba00") });
+  assertEqual(new Set(mega.getTints().filter(Boolean)).size, 2, "megaminx takes two tints");
+});
+
+test("a painted puzzle is solved by pattern, not by facelets", () => {
+  // Same-coloured pieces are interchangeable, so a paint that gives every
+  // piece one colour can never be unsolved however it is scrambled.
+  const flat = new SkewbDiamond({ paint: () => "#17110c" });
+  flat.scramble();
+  assert(flat.isSolved(), "a single-colour paint is always solved");
+
+  // while a paint that distinguishes pieces behaves like a real puzzle
+  const striped = new Erno({ paint: ({ slot }) => (slot[1] > 0 ? "#cc2823" : "#00489f") });
+  assert(striped.isSolved(), "starts solved");
+});
+
+test("Tetris still works exactly as before", () => {
+  const t = new Tetris();
+  assert(t.isSolved(), "solved at birth");
+  assert(!new Tetris().move("R").isSolved(), "R breaks it");
+  const q = new Tetris();
+  const seq = q.scramble();
+  q.move(Twisty.inverse(seq));
+  assert(q.isSolved(), `inverse of "${seq}" restores it`);
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

@@ -631,6 +631,8 @@ export {
   SkewbDiamond,
   Megaminx,
   Kilominx,
+  tetrisPaint,
+  TETRIS_PALETTE,
   SCHEMES,
 } from "./puzzles.js";
 export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

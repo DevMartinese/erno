@@ -332,12 +332,20 @@ export class Twisty {
     this.plastic = options.plastic || def.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
+    this._paint = options.paint || null;
     this._styleFn = null;
     this._styleObj = null;
     if (options.style) this.style(options.style);
 
     this._build();
     this.reset();
+
+    // A painted puzzle is solved by its PATTERN, not by its facelets: with
+    // solid-coloured cubies, two pieces of the same colour are
+    // interchangeable and orientation stops mattering — exactly like the
+    // real Tetris cube. Remember the factory pattern so isSolved() can
+    // compare against it.
+    if (this._paint || def.paint) this._solvedTints = this.getTints().join();
     this.setCamera(options.camera || def.camera || { type: "isometric", angle: 30 });
   }
 
@@ -436,9 +444,31 @@ export class Twisty {
       this.pieces.push(piece);
     }
 
-    // Optional per-piece decoration: lets a puzzle tint stickers by piece
-    // (solid-colored cubies like Rubik's Tetris) rather than by face.
+    // Per-piece decoration, tinting stickers by piece rather than by face —
+    // solid-colored cubies like Rubik's Tetris. A definition can bake one in
+    // (`def.paint`, given the whole piece list), and a caller can supply one
+    // per instance (`options.paint`, called once per sticker). Nothing about
+    // this is specific to Tetris: it is a paint job, so any mechanism in the
+    // library can wear any paint.
     if (def.paint) def.paint(this.pieces);
+    if (this._paint) {
+      for (let i = 0; i < this.pieces.length; i++) {
+        const piece = this.pieces[i];
+        for (const f of piece.faces) {
+          if (!f.letter) continue;
+          const tint = this._paint({
+            piece,
+            index: i,
+            letter: f.letter,
+            slot: piece.slotPoint,
+            normal: f.normal,
+          });
+          // returning nothing leaves the sticker its face colour, so a paint
+          // can decorate a few stickers without restating the rest
+          if (tint) f.tint = tint;
+        }
+      }
+    }
 
     // Canonical facelet order: by face, then reading order within the face.
     const stickers = [];
@@ -490,6 +520,10 @@ export class Twisty {
 
   /** True if every face is a single color. */
   isSolved() {
+    // Painted puzzles are judged on the visible pattern — see the note in
+    // the constructor.
+    if (this._solvedTints !== undefined)
+      return this.getTints().join() === this._solvedTints;
     const s = this.getState();
     for (const [start, end] of this._faceRanges)
       for (let i = start; i < end; i++) {
