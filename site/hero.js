@@ -1,4 +1,6 @@
 import {
+  generateRamp,
+  schemeFrom,
   Skewb,
   Penrose,
   Mirror,
@@ -441,7 +443,16 @@ export function initHero(container) {
 
     // every so often the work is built from original Rubik's-colored,
     // scrambled cubes — the icon itself as raw material
-    const classic = location.search.includes("classic") || Math.random() < 0.28;
+    const forceGenerative = location.search.includes("generative");
+    const classic =
+      !forceGenerative &&
+      (location.search.includes("classic") || Math.random() < 0.28);
+
+    // And every so often again, the colour is GENERATED rather than dealt
+    // from the page's five. Taken out of the unit's share, never the
+    // classic's, so how often a scene comes up in Rubik colours is exactly
+    // what it was.
+    const generative = forceGenerative || (!classic && Math.random() < 0.34);
 
     // The colour story is Vasarely's Plastic Unit: constant forms and a
     // fixed set of homogeneous colours, varied only by PERMUTATION. Hue
@@ -472,22 +483,39 @@ export function initHero(container) {
     // the survivors sitting off-centre, with the carved side reading as dead
     // space. A provisional fit is needed to test the zone in screen space,
     // so the frame is simply taken twice.
-    const draft = frame(blocks);
-    const kept = reserved
-      ? blocks.filter((b) => {
-          const sx = draft.cx + uOf(b) * draft.k;
-          const sy = draft.cy + vOf(b) * draft.k;
-          const rp = b.R * draft.k;
-          return !(
-            sx + rp > reserved.x0 &&
-            sx - rp < reserved.x1 &&
-            sy + rp > reserved.y0 &&
-            sy - rp < reserved.y1
-          );
-        })
-      : blocks;
+    // Carving and framing chase each other: the zone can only be tested in
+    // screen space, screen space depends on the fit, and the fit depends on
+    // which blocks survive the carve. Testing once against a draft fit —
+    // which is what this did — lets a block that was clear under the draft
+    // land on the masthead under the final one. So iterate until the set
+    // stops changing, then carve once more WITHOUT reframing: the title is
+    // then clear by construction, at the cost of a frame a hair wider than
+    // its contents.
+    const intrudes = (b, fit) => {
+      const sx = fit.cx + uOf(b) * fit.k;
+      const sy = fit.cy + vOf(b) * fit.k;
+      const rp = b.R * fit.k;
+      return (
+        sx + rp > reserved.x0 &&
+        sx - rp < reserved.x1 &&
+        sy + rp > reserved.y0 &&
+        sy - rp < reserved.y1
+      );
+    };
+    let kept = blocks;
+    let fit = frame(blocks);
+    if (reserved) {
+      for (let pass = 0; pass < 4; pass++) {
+        const next = kept.filter((b) => !intrudes(b, fit));
+        if (!next.length || next.length === kept.length) break;
+        kept = next;
+        fit = frame(kept);
+      }
+      const last = kept.filter((b) => !intrudes(b, fit));
+      if (last.length) kept = last;
+    }
     if (!kept.length) return;
-    const { u0, u1, v0, v1, k, cx, cy } = frame(kept);
+    const { u0, u1, v0, v1, k, cx, cy } = fit;
 
     // Build order: outward from the middle of the composition, so the work
     // grows from its centre toward the edges. Measured on screen rather than
@@ -500,6 +528,52 @@ export function initHero(container) {
       b.spread = Math.hypot(uOf(b) - midU, vOf(b) - midV);
     kept.sort((a, b) => a.spread - b.spread || a.y - b.y);
 
+    /**
+     * The generated colour is a FIELD over the sculpture, not a colour per
+     * block. One ramp is generated for the scene and sampled along a
+     * direction taken across the picture, so a block's colour comes from
+     * where it stands: the mass reads as a single sweep instead of a
+     * hundred unrelated decisions. Sampling in SCREEN space rather than in
+     * the world means the sweep runs across the composition whatever the
+     * camera angle.
+     *
+     * Each block then derives its six faces from its own place in the ramp,
+     * with the hue held on a short leash — enough that the facets separate,
+     * not enough for the block to leave the field. Two blocks at the same
+     * step get the same deal, which is what makes it read as one work; the
+     * cache below is that fact, not an optimisation.
+     */
+    const RAMP_STEPS = 9;
+    let fieldColors = null;
+    if (generative) {
+      const ramp = generateRamp(RAMP_STEPS, {
+        character: pick(["pale", "muted", "deep", "vivid"]),
+      });
+      const th = Math.random() * Math.PI * 2;
+      const dx = Math.cos(th);
+      const dy = Math.sin(th);
+      const along = (b) => uOf(b) * dx + vOf(b) * dy;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const b of kept) {
+        const t = along(b);
+        if (t < lo) lo = t;
+        if (t > hi) hi = t;
+      }
+      const span = hi - lo || 1;
+      const cache = new Map();
+      fieldColors = (b, letters) => {
+        const step = Math.min(
+          RAMP_STEPS - 1,
+          Math.floor(((along(b) - lo) / span) * RAMP_STEPS),
+        );
+        const key = `${step}|${letters.length}`;
+        if (!cache.has(key))
+          cache.set(key, schemeFrom(ramp[step], letters, { hueCycles: 0.3 }));
+        return cache.get(key);
+      };
+    }
+
     const AXIS_MOVES = [["R", "L"], ["U", "D"], ["F", "B"]];
     const items = [];
     for (const blk of kept) {
@@ -508,7 +582,9 @@ export function initHero(container) {
       const colors =
         classic || !letters
           ? undefined // engine defaults ARE the original scheme
-          : permuteUnit(unit, letters, blk.level, items.length);
+          : generative
+            ? fieldColors(blk, letters)
+            : permuteUnit(unit, letters, blk.level, items.length);
       const inst = blk.fused
         ? new Cuboid({ camera, stickerInset: 0.12, colors, size: blk.size })
         : mk[type]({ camera, stickerInset: 0.12, colors });
