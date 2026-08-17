@@ -114,11 +114,14 @@ function pickScramble(rand, letters, suffixes, count) {
 // face, i.e. -90° right-handed about the outward axis. Slot points live on
 // the uniform grid of cell centers, so layers [lo..hi] span the open
 // interval (lo - N/2, hi + 1 - N/2).
-//
-// On a cuboid, a quarter turn is only legal about an axis whose cross
-// section is square — everywhere else the shape (and the slot grid) only
-// returns to itself after a half turn, so odd quarter counts are rejected.
-function makeBoxParser(dims) {
+/**
+ * A quarter turn about an axis whose cross-section is not square leaves a
+ * cuboid misshapen. Both answers to that are real puzzles: some cuboids are
+ * built so the move simply cannot be made, and others — a 3×3×5, a 2×3×4 —
+ * are sold precisely because it can, and shape-shifting is the point. So it
+ * is a policy, not a law: `shapeShift` picks which puzzle you are holding.
+ */
+function makeBoxParser(dims, shapeShift = false) {
   const square = [
     dims[1] === dims[2],
     dims[0] === dims[2],
@@ -126,9 +129,9 @@ function makeBoxParser(dims) {
   ];
   return (token) => {
     const { axis, lo, hi, quarters } = parseBoxMove(token, dims);
-    if (!square[axis] && ((quarters % 2) + 2) % 2 !== 0)
+    if (!shapeShift && !square[axis] && ((quarters % 2) + 2) % 2 !== 0)
       throw new Error(
-        `erno: '${token}' would leave this cuboid misshapen — only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2)`,
+        `erno: '${token}' would leave this cuboid misshapen — only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2), or build it with { shapeShift: true }`,
       );
     const u = [0, 0, 0];
     u[axis] = 1;
@@ -696,7 +699,7 @@ export class Void extends Twisty {
 // cross section, half turns everywhere — so the puzzle always stays a box.
 // The classics: Domino 3×2×3 (Rubik's pre-cube 1978 puzzle), Tower 2×3×2,
 // Floppy 3×1×3 (only 180° flips exist).
-function buildCuboidDef(dims) {
+function buildCuboidDef(dims, shapeShift = false) {
   const [nx, ny, nz] = dims;
   const cuts = [];
   for (let axis = 0; axis < 3; axis++) {
@@ -709,10 +712,10 @@ function buildCuboidDef(dims) {
   const AXIS_OF = { R: 0, L: 0, U: 1, D: 1, F: 2, B: 2 };
 
   return {
-    name: `cuboid-${nx}x${ny}x${nz}`,
+    name: `cuboid-${nx}x${ny}x${nz}${shapeShift ? "-shift" : ""}`,
     solid: boxSolid(nx / 2, ny / 2, nz / 2),
     cuts,
-    parseMove: makeBoxParser(dims),
+    parseMove: makeBoxParser(dims, shapeShift),
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
@@ -727,7 +730,9 @@ function buildCuboidDef(dims) {
         if (f === last || dims[axis] === 1) continue;
         last = f;
         tokens.push(
-          square[axis] ? f + ["", "'", "2"][Math.floor(rand() * 3)] : f + "2",
+          square[axis] || shapeShift
+            ? f + ["", "'", "2"][Math.floor(rand() * 3)]
+            : f + "2",
         );
       }
       return tokens.join(" ");
@@ -742,15 +747,19 @@ export class Cuboid extends Twisty {
    * @param {Object} [options] - Twisty options plus:
    * @param {[number,number,number]} [options.size=[3,2,3]] - layers per axis
    *   (x = R–L, y = U–D, z = F–B)
+   * @param {boolean} [options.shapeShift=false] - allow the quarter turns
+   *   that leave the box misshapen. Off, the puzzle refuses them the way a
+   *   Domino's mechanism does; on, it shifts shape the way a 3×3×5 does.
    */
   constructor(options = {}) {
     const dims = (options.size || [3, 2, 3]).map((v) => Math.round(v));
     if (dims.length !== 3 || dims.some((v) => v < 1 || v > 8))
       throw new Error(`erno: bad cuboid size [${dims}] (1–8 layers per axis)`);
-    const key = dims.join("x");
+    // the flag changes the definition, so it has to key the cache too
+    const key = dims.join("x") + (options.shapeShift ? "+shift" : "");
     let def = _cuboidDefs.get(key);
     if (!def) {
-      def = buildCuboidDef(dims);
+      def = buildCuboidDef(dims, !!options.shapeShift);
       _cuboidDefs.set(key, def);
     }
     super(def, options);

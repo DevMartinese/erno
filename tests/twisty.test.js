@@ -642,6 +642,58 @@ test("the builder refuses an axis family a cube does not have", () => {
   assert(threw, "an unknown axis family is an error, not a silent empty puzzle");
 });
 
+// ── Cuboids that change shape ──────────────────────────────────────────────
+
+test("a cuboid refuses the misshaping turn by default", () => {
+  let threw = false;
+  try {
+    new Domino().move("R");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "R on a 3×2×3 is refused unless asked for");
+  assert(new Domino().move("R2").isSolved() === false, "R2 is always legal");
+});
+
+test("shapeShift turns the same cuboid into the kind that deforms", () => {
+  // Both are real puzzles: a Domino's mechanism cannot make the move, while
+  // a 3×3×5 is sold precisely because it can. The engine already handled the
+  // deformed state — only the parser stood in the way.
+  for (const size of [[3, 2, 3], [3, 3, 5], [2, 3, 4]]) {
+    const p = new Cuboid({ size, shapeShift: true });
+    p.move("R");
+    assert(!p.isSolved(), `${size.join("×")} deforms on R`);
+    assert(p.toSVG().startsWith("<svg"), `${size.join("×")} still renders deformed`);
+
+    const q = new Cuboid({ size, shapeShift: true });
+    q.move("R");
+    q.move("R'");
+    assert(q.isSolved(), `${size.join("×")}: R then R' comes back`);
+
+    const r = new Cuboid({ size, shapeShift: true });
+    for (let i = 0; i < 4; i++) r.move("R");
+    assert(r.isSolved(), `${size.join("×")}: R⁴ is the identity`);
+
+    const t = new Cuboid({ size, shapeShift: true });
+    const seq = t.scramble();
+    t.move(Twisty.inverse(seq));
+    assert(t.isSolved(), `${size.join("×")}: inverse of "${seq}"`);
+  }
+});
+
+test("the two policies are separate puzzles, cached apart", () => {
+  const strict = new Cuboid({ size: [3, 2, 3] });
+  const shifty = new Cuboid({ size: [3, 2, 3], shapeShift: true });
+  assert(strict.def !== shifty.def, "one definition must not be reused for the other");
+  let threw = false;
+  try {
+    strict.move("R");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "the strict one is still strict after the other was built");
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

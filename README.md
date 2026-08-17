@@ -237,6 +237,22 @@ Piece-based puzzles emit `data-part`, `data-face`, `data-index`,
 `{ face, index, letter, piece }`. Open `gallery.html` on the dev server for
 a visual test sheet of every puzzle, scrambled and mid-turn.
 
+### Cuboids that change shape
+
+A quarter turn about an axis whose cross-section is not square leaves a box
+misshapen. Both answers to that are real puzzles — a Domino's mechanism
+cannot make the move, while a 3×3×5 is sold precisely because it can — so it
+is a policy rather than a law:
+
+```js
+new Cuboid({ size: [3, 2, 3] }).move("R")                     // throws
+new Cuboid({ size: [3, 3, 5], shapeShift: true }).move("R")   // deforms
+```
+
+Off (the default) the puzzle refuses the move and tells you to use `R2`. On,
+it shifts shape, reports `?` for the stickers that have left the facelet
+grid, and still inverts exactly.
+
 ## Painting
 
 `colors` sets a fill per FACE. `paint` sets one per STICKER, at build time,
