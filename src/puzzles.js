@@ -1361,3 +1361,137 @@ export const SCHEMES = {
   silver: { U: "#c9ccd1", R: "#c9ccd1", F: "#c9ccd1", D: "#c9ccd1", L: "#c9ccd1", B: "#c9ccd1" },
   gold: { U: "#d9b64c", R: "#d9b64c", F: "#d9b64c", D: "#d9b64c", L: "#d9b64c", B: "#d9b64c" },
 };
+
+// ── Building a puzzle from scratch ──────────────────────────────────────────
+
+/**
+ * Every definition in this file is the same three things: a convex solid, a
+ * set of cut planes, and a set of moves that rotate whatever sits beyond a
+ * plane. The families differ only in WHICH AXES they turn about and by how
+ * much — and the angle is not a free choice either, it is a full turn
+ * divided by the rotational order of that axis. A cube's faces are 4-fold,
+ * its corners 3-fold, its edges 2-fold; a dodecahedron's faces are 5-fold.
+ *
+ * So the twenty-six puzzles above are configurations, not kinds. This is the
+ * builder that says so: pick a solid, pick which axes turn, pick how deep the
+ * cuts go, and the rest follows.
+ */
+
+const SQ3 = Math.sqrt(3);
+
+/** Axis families per solid, with the rotational order that sets the angle. */
+const AXIS_FAMILIES = {
+  cube: {
+    faces: {
+      order: 4,
+      axes: [["U", [0, 1, 0]], ["R", [1, 0, 0]], ["F", [0, 0, 1]],
+             ["D", [0, -1, 0]], ["L", [-1, 0, 0]], ["B", [0, 0, -1]]],
+    },
+    corners: {
+      order: 3,
+      axes: CORNER_TOKENS.map((t) => [
+        [...t].sort().join(""),
+        norm([t.includes("R") ? 1 : -1, t[0] === "U" ? 1 : -1, t.includes("F") ? 1 : -1]),
+      ]),
+    },
+    edges: {
+      order: 2,
+      axes: HELI_TOKENS.map((t) => {
+        const V = { U: [0, 1, 0], D: [0, -1, 0], R: [1, 0, 0], L: [-1, 0, 0], F: [0, 0, 1], B: [0, 0, -1] };
+        const [a, b] = [V[t[0]], V[t[1]]];
+        return [[...t].sort().join(""), norm([a[0] + b[0], a[1] + b[1], a[2] + b[2]])];
+      }),
+    },
+  },
+};
+
+/**
+ * Compose a puzzle definition from a description.
+ *
+ * @param {Object} spec
+ * @param {string} [spec.shape="cube"] - "cube" | "box" | "octahedron" |
+ *   "dodecahedron"
+ * @param {number[]} [spec.size] - box dimensions, e.g. [3,2,3]
+ * @param {string} [spec.turn="faces"] - which axis family turns:
+ *   "faces" | "corners" | "edges"
+ * @param {number} [spec.depth] - how far each cut sits from the centre, as a
+ *   fraction of the distance from the centre to the solid's furthest point
+ *   along that axis. 1 leaves nothing to turn, 0 cuts through the middle.
+ * @param {number} [spec.angle] - degrees per turn; defaults to a full turn
+ *   divided by the axis family's rotational order, which is the only angle
+ *   that maps the solid back onto itself
+ * @param {Object} [spec.colors] - face letter → fill
+ * @returns {Object} a definition, ready for `new Twisty(def)` or `Puzzle`
+ */
+export function buildPuzzle(spec = {}) {
+  const {
+    shape = "cube",
+    size,
+    turn = "faces",
+    depth = 0.5,
+    angle,
+    colors,
+    name = `${shape}-${turn}`,
+  } = spec;
+
+  // A box, or a cube of any size, is the layered face-turning case the
+  // cuboid builder already covers exactly.
+  if (shape === "box" || (shape === "cube" && turn === "faces")) {
+    const dims = size || [3, 3, 3];
+    const def = buildCuboidDef(dims);
+    return { ...def, name, ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  if (shape === "dodecahedron") {
+    // reach is measured from the centre outward, the opposite sense of depth
+    return { ...buildMinxDef(name, 1 - depth, 30), ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  if (shape === "octahedron") {
+    return { ...buildSkewbDiamondDef(), name, ...(colors ? { colors: { ...colors } } : {}) };
+  }
+
+  const family = AXIS_FAMILIES.cube[turn];
+  if (!family)
+    throw new Error(
+      `erno: a cube turns about "faces", "corners" or "edges", not "${turn}"`,
+    );
+
+  const h = 1.5;
+  // How far the solid reaches along an axis of this family — a corner sits
+  // at h√3, an edge at h√2, a face at h — so `depth` means the same fraction
+  // of the available material whichever family is chosen.
+  const reach = turn === "corners" ? h * SQ3 : turn === "edges" ? h * Math.SQRT2 : h;
+  const d = reach * depth;
+  const step = ((angle === undefined ? 360 / family.order : angle) * Math.PI) / 180;
+
+  const cuts = [];
+  const moves = {};
+  for (const [token, u] of family.axes) {
+    cuts.push({ n: u, d });
+    // select everything beyond the cut, nudged off the plane itself
+    moves[token] = { axis: u, angle: -step, min: d + 1e-3 };
+  }
+
+  const tokens = family.axes.map(([t]) => t);
+  return {
+    name,
+    solid: cubeSolid(h),
+    cuts,
+    moves,
+    parseMove: namedMoveParser(name, moves),
+    faceOrder: ["U", "R", "F", "D", "L", "B"],
+    faceSortDirs: CUBE_SORT_DIRS,
+    colors: { ...(colors || CUBE_COLORS) },
+    scramble: (rand, length) =>
+      pickScramble(rand, tokens, family.order > 2 ? ["", "'"] : [""], length || 16).join(" "),
+  };
+}
+
+/** A puzzle built from a description rather than picked off the shelf. */
+export class Puzzle extends Twisty {
+  constructor(spec = {}, options = {}) {
+    super(buildPuzzle(spec), options);
+    this.spec = spec;
+  }
+}

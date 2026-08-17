@@ -633,6 +633,8 @@ export {
   Kilominx,
   tetrisPaint,
   TETRIS_PALETTE,
+  buildPuzzle,
+  Puzzle,
   SCHEMES,
 } from "./puzzles.js";
 export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

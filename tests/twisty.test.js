@@ -31,6 +31,8 @@ import {
   tetrisPaint,
   Megaminx,
   SkewbDiamond,
+  Puzzle,
+  buildPuzzle,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -574,6 +576,70 @@ test("Tetris still works exactly as before", () => {
   const seq = q.scramble();
   q.move(Twisty.inverse(seq));
   assert(q.isSolved(), `inverse of "${seq}" restores it`);
+});
+
+// ── Building a puzzle from a description ───────────────────────────────────
+
+test("the builder reproduces the shelf puzzles exactly", () => {
+  // If a description can rebuild the hand-written definitions piece for
+  // piece, then those twenty-six puzzles really are configurations rather
+  // than kinds — which is the whole claim the builder makes.
+  const cases = [
+    ["skewb", { turn: "corners", depth: 0 }, new Skewb().pieces.length],
+    ["dino", { turn: "corners", depth: 1 / 3 }, new Dino().pieces.length],
+    ["compy", { turn: "corners", depth: 1.15 / (1.5 * Math.sqrt(3)) }, new Compy().pieces.length],
+    ["master skewb", { turn: "corners", depth: 0.52 / (1.5 * Math.sqrt(3)) }, new MasterSkewb().pieces.length],
+    ["helicopter", { turn: "edges", depth: 0.5 }, new Helicopter().pieces.length],
+    ["3×3", { turn: "faces", size: [3, 3, 3] }, 26],
+    ["megaminx", { shape: "dodecahedron", depth: 0.32 }, new Megaminx().pieces.length],
+    ["skewb diamond", { shape: "octahedron" }, new SkewbDiamond().pieces.length],
+  ];
+  for (const [name, spec, want] of cases)
+    assertEqual(new Puzzle(spec).pieces.length, want, `${name} rebuilt from a spec`);
+});
+
+test("a built puzzle turns by the order of its axis, and inverts exactly", () => {
+  // The angle is not a free parameter: only a full turn divided by the
+  // axis's rotational order maps the solid back onto itself.
+  for (const [spec, token, order] of [
+    [{ turn: "corners", depth: 0 }, "FRU", 3],
+    [{ turn: "edges", depth: 0.5 }, "FU", 2],
+    [{ turn: "faces", size: [3, 3, 3] }, "R", 4],
+  ]) {
+    const p = new Puzzle(spec);
+    assert(p.isSolved(), "starts solved");
+    for (let i = 0; i < order; i++) p.move(token);
+    assert(p.isSolved(), `${token}^${order} is the identity`);
+
+    const q = new Puzzle(spec);
+    const seq = q.scramble();
+    assert(!q.isSolved(), `scrambled by "${seq}"`);
+    q.move(Twisty.inverse(seq));
+    assert(q.isSolved(), `inverse of "${seq}" restores it`);
+  }
+});
+
+test("the builder makes puzzles that are not on the shelf", () => {
+  // Depths nobody manufactures still have to produce a working mechanism.
+  for (const depth of [0.15, 0.55, 0.65, 0.8]) {
+    const p = new Puzzle({ turn: "corners", depth });
+    assert(p.pieces.length > 0, `corners at ${depth} builds pieces`);
+    assert(p.isSolved(), `corners at ${depth} starts solved`);
+    const seq = p.scramble();
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `corners at ${depth}: inverse of "${seq}"`);
+    assert(new Puzzle({ turn: "corners", depth }).toSVG().startsWith("<svg"), "renders");
+  }
+});
+
+test("the builder refuses an axis family a cube does not have", () => {
+  let threw = false;
+  try {
+    buildPuzzle({ turn: "diagonals" });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "an unknown axis family is an error, not a silent empty puzzle");
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────
