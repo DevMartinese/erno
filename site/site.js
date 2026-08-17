@@ -82,6 +82,11 @@ function enhanceRange(input) {
     [...cells.children].forEach((c, i) => {
       if (i < on) c.setAttribute("data-on", "");
       else c.removeAttribute("data-on");
+      // The handle is marked here rather than in CSS: `:last-of-type` means
+      // the last cell OF ITS TYPE, not the last one that happens to be
+      // filled, so it matches the final cell only when the strip is full.
+      if (i === on - 1) c.setAttribute("data-head", "");
+      else c.removeAttribute("data-head");
     });
     if (valueSpan) valueSpan.textContent = input.value;
   }
