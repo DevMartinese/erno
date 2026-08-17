@@ -1,7 +1,7 @@
 {
   "name": "erno",
   "version": "0.1.0",
-  "description": "A tiny engine for twisty puzzles rendered to SVG — N×N cubes, Skewb, Pyraminx, Mirror and Void",
+  "description": "An engine for twisty puzzles and the permutations underneath them, rendered to SVG. Zero dependencies.",
   "type": "module",
   "main": "./dist/erno.umd.cjs",
   "module": "./dist/erno.js",
@@ -20,7 +20,8 @@
     "build": "vite build",
     "build:site": "vite build --config site/vite.config.js",
     "preview": "vite preview site",
-    "test": "node tests/erno.test.js && node tests/twisty.test.js"
+    "test": "node tests/erno.test.js && node tests/twisty.test.js",
+    "prepublishOnly": "npm test && npm run build"
   },
   "keywords": [
     "rubik",
@@ -49,5 +50,9 @@
   "bugs": {
     "url": "https://github.com/DevMartinese/erno/issues"
   },
-  "homepage": "https://github.com/DevMartinese/erno#readme"
+  "homepage": "https://github.com/DevMartinese/erno#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false
 }
