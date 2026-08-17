@@ -472,6 +472,13 @@ export class Twisty {
     // block, where it is what makes the glue visible — the welded cubies
     // wear one sticker per face instead of a grid pretending they can come
     // apart.
+    // A DEFORMATION: a linear map applied to the whole puzzle as it is drawn.
+    // The Squished Cube is a 3×3 under a compression along a body diagonal —
+    // every one of its positions is a 3×3's position under the same map — so
+    // it is not a mechanism but a way of looking, in the same sense that
+    // paint is not a mechanism. The state stays exactly the cube's, which is
+    // why scramble and inverse still come back bit for bit.
+    this._deform = options.deform || null;
     this._stickerGroup =
       options.stickerGroup === undefined
         ? !!def.stickerGroup
@@ -574,6 +581,15 @@ export class Twisty {
       let reach = 0;
       for (const p of verts) reach = Math.max(reach, vlen(sub(p, c)));
       radius = Math.max(radius, vlen(sub(c, this._viewCenter)) + reach);
+    }
+    // A deformation that STRETCHES would push the puzzle out of a frame sized
+    // on its undeformed points, so the reach grows by the map's largest
+    // stretch. A squash only shrinks and costs nothing here.
+    if (this._deform) {
+      let most = 0;
+      for (const axis of [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        most = Math.max(most, vlen(matVec(this._deform, axis)));
+      radius *= Math.max(1, most);
     }
     this._radius = radius;
 
@@ -1130,7 +1146,11 @@ export class Twisty {
    */
   getFaces(turn, pieceFilter) {
     const proj = this._project();
-    const view = this.def.view || IDENT;
+    // `view` orients a definition (the Pyraminx sits in a cube frame);
+    // `deform` is the caller's, and composes on top of it.
+    const view = this._deform
+      ? matMul(this._deform, this.def.view || IDENT)
+      : this.def.view || IDENT;
     const R = this._radius;
     let spin = null;
     if (turn && turn.progress) {

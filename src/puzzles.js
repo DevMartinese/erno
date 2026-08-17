@@ -839,6 +839,57 @@ export class Cube extends Cuboid {
   }
 }
 
+// ── Deformation ─────────────────────────────────────────────────────────────
+
+/**
+ * A compression along `axis` by factor `k` — the linear map that turns a cube
+ * into the Squished Cube's rhombohedron.
+ *
+ * `I + (k − 1)·nnᵀ` leaves everything perpendicular to the axis alone and
+ * scales what lies along it, so the six faces become rhombi and the cubies
+ * parallelepipeds while the 3×3 structure is untouched. Pass it as `deform`.
+ *
+ *   new Cube({ deform: squash(0.6) })
+ */
+export function squash(k, axis = [1, 1, 1]) {
+  const len = Math.hypot(...axis) || 1;
+  const n = axis.map((v) => v / len);
+  const m = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let i = 0; i < 3; i++)
+    for (let j = 0; j < 3; j++) m[i][j] += (k - 1) * n[i] * n[j];
+  return m;
+}
+
+/**
+ * The Squished Cube: a 3×3 compressed along a body diagonal.
+ *
+ * Not a mechanism of its own — every position of it is a 3×3's position under
+ * one linear map, so the notation, the state and the solve are the cube's
+ * exactly. It ships with a camera off that diagonal, because a parallel
+ * projection looking straight down the axis of a compression cannot see it:
+ * on the default isometric view a squished cube and a plain one are the same
+ * picture.
+ *
+ * @param {Object} [options] - Cube options plus:
+ * @param {number} [options.squash=0.6] - how far it is compressed, 1 being
+ *   not at all
+ */
+export class Squished extends Cube {
+  constructor(options = {}) {
+    const k = options.squash === undefined ? 0.6 : options.squash;
+    super({
+      // A parallel projection looking straight down the axis of a
+      // compression cannot see it: on the default isometric view — which
+      // looks along the body diagonal — a squished cube and a plain one are
+      // the same picture. It ships with a camera off that axis.
+      camera: { type: "perspective", distance: 24 },
+      ...options,
+      deform: squash(k),
+    });
+    this.squash = k;
+  }
+}
+
 // ── Printed faces: dice, dominoes, sudoku ───────────────────────────────────
 
 // Three more puzzles that are not puzzles. A dice cube, a Sudokube and the

@@ -42,6 +42,8 @@ import {
   DICE_CUBE,
   SUDOKU_CUBE,
   DOMINO_PRINT,
+  Squished,
+  squash,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -973,6 +975,66 @@ test("fused bodies have to line up cubie to cubie", () => {
     threw = true;
   }
   assert(threw, "a body off the shared lattice is an error, not a sliced neighbour");
+});
+
+// ── Deformation ─────────────────────────────────────────────────────────────
+
+test("a deformed puzzle is the same puzzle, exactly", () => {
+  // The Squished Cube is a 3×3 under one linear map: every position of it is
+  // a 3×3's position deformed, so the notation, the state and the solve are
+  // the cube's. If that were not true the whole idea would be wrong.
+  const seq = "R U R' U' F2 D L'";
+  assertEqual(
+    new Squished().move(seq).getState(),
+    new Cube().move(seq).getState(),
+    "same facelets as a plain 3×3",
+  );
+  const p = new Squished();
+  assertEqual(p.pieces.length, 26, "same pieces");
+  assert(p.isSolved(), "starts solved");
+  const s2 = p.scramble();
+  p.move(Twisty.inverse(s2));
+  assert(p.isSolved(), `inverse of "${s2}"`);
+});
+
+test("a deformation is a way of looking, so it composes with everything", () => {
+  for (const [label, make] of [
+    ["cube", () => new Cube({ deform: squash(0.6) })],
+    ["5×5", () => new Cube({ size: 5, deform: squash(0.55) })],
+    ["megaminx", () => new Megaminx({ deform: squash(0.6) })],
+    ["siamese", () => new Siamese({ deform: squash(0.6) })],
+    ["stretched", () => new Cube({ deform: squash(1.6) })],
+    ["with a paint", () => new Cube({ paint: tetrisPaint, deform: squash(0.6) })],
+    ["with a decal", () => new Cube({ decal: dicePips, deform: squash(0.6) })],
+  ]) {
+    const p = make();
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    assert(p.isSolved(), `${label} starts solved`);
+  }
+});
+
+test("a deformation changes the picture and nothing else", () => {
+  const plain = new Cube({ camera: { type: "orthographic", angle: 20, pitch: 55 } });
+  const bent = new Cube({
+    camera: { type: "orthographic", angle: 20, pitch: 55 },
+    deform: squash(0.6),
+  });
+  assert(plain.toSVG() !== bent.toSVG(), "it is visible");
+  assertEqual(plain.getState(), bent.getState(), "and the state is untouched");
+});
+
+test("a stretch is given room rather than clipped", () => {
+  // The frame is sized on the undeformed points, so a map that stretches
+  // would push the puzzle out of it.
+  const svg = new Cube({ deform: squash(1.8) }).toSVG({ fitSphere: true });
+  const vb = svg.match(/viewBox="([^"]*)"/)[1].split(" ").map(Number);
+  let over = 0;
+  for (const m of svg.matchAll(/points="([^"]*)"/g))
+    for (const q of m[1].trim().split(" ")) {
+      const [x, y] = q.split(",").map(Number);
+      over = Math.max(over, vb[0] - x, x - (vb[0] + vb[2]), vb[1] - y, y - (vb[1] + vb[3]));
+    }
+  assert(over <= 0.01, `nothing leaves the frame (worst ${over.toFixed(2)}px)`);
 });
 
 // ── Decals ──────────────────────────────────────────────────────────────────

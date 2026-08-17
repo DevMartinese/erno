@@ -342,6 +342,38 @@ the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
 is left is a real puzzle: it turns, scrambles and inverts exactly, and
 `Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
 
+## Deformation
+
+A paint changes a sticker's colour, a decal puts a mark on it — and a
+**deformation** changes the shape of the whole puzzle, by applying one linear
+map as it is drawn.
+
+```js
+import { Cube, Squished, squash } from 'erno'
+
+new Squished()                      // the Squished Cube: a 3×3 as a rhombohedron
+new Squished({ squash: 0.45 })      // harder
+new Cube({ deform: squash(0.6) })   // the map on its own
+new Megaminx({ deform: squash(0.6) })
+```
+
+The point is what it is *not*: the Squished Cube has no mechanism of its own.
+Every one of its positions is a 3×3's position under the same map, so its
+notation, its state and its solve are the cube's exactly —
+`new Squished().move(seq).getState()` equals `new Cube().move(seq).getState()`
+for every sequence. It is a way of looking, in the same sense a paint is.
+
+`squash(k, axis)` compresses by `k` along `axis`, which defaults to the body
+diagonal: `I + (k − 1)·nnᵀ`. Values above 1 stretch instead, and the viewBox
+is widened to match so nothing is clipped. Any invertible 3×3 works as
+`deform`.
+
+One thing to know, because it is the first thing that goes wrong: a parallel
+projection looking straight down the axis of a compression cannot see it. On
+erno's default isometric camera — which looks along the body diagonal — a
+squished cube and a plain one are the same picture. `Squished` ships with a
+camera off that axis for exactly this reason.
+
 ## Decals
 
 A paint sets a sticker's colour; a decal puts a **mark** on it. A dice cube, a
