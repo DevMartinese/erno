@@ -19,6 +19,8 @@
 import {
   Twisty,
   CUBE_COLORS,
+  FACES,
+  FACE_AXIS,
   parseCubeMove,
   parseBoxMove,
   rotationMatrix,
@@ -738,6 +740,8 @@ function buildCuboidDef(dims, shapeShift = false) {
     name: `cuboid-${nx}x${ny}x${nz}${shapeShift ? "-shift" : ""}`,
     solid: boxSolid(nx / 2, ny / 2, nz / 2),
     cuts,
+    // the face-turn vocabulary, so legalMoves() can answer on a box too
+    tokens: FACES.flatMap((f) => ["", "'", "2"].map((s) => f + s)),
     parseMove: makeBoxParser(dims, shapeShift),
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
@@ -832,6 +836,168 @@ export class Cube extends Cuboid {
         `erno: Cube takes a single number for size, not [${n}] — use Cuboid for uneven sides`,
       );
     super({ ...options, size: [n, n, n] });
+  }
+}
+
+// ── Fused puzzles ───────────────────────────────────────────────────────────
+
+// Fusion is the union, the sibling of `remove`'s subtraction: two or more
+// boxes welded into one body. The classics are the Siamese cubes — two 3×3s
+// sharing a bar of cubies — and the corner-mounted odd sizes people build by
+// gluing a 2×2 onto a 3×3.
+//
+// The geometry is the easy half. What makes a Siamese cube a puzzle rather
+// than a diorama is which turns it REFUSES: a layer of one cube reaches into
+// the other, and the two together no longer add up to a shape that spins. The
+// engine already knows the law that decides this — a turn is only possible if
+// its layer comes back to itself — so the definitions below just switch it
+// on, and the blocked moves fall out. Nothing here enumerates them.
+//
+// Bodies must share one unit lattice; otherwise a body's wall would slice its
+// neighbour's cubies in half, and the result would be a shape, not a puzzle.
+const BODY_LETTERS = "ABCDEFGH";
+const FUSED_RE = /^([A-H])([URFDLB])(\d*)('?)$/;
+
+function buildFusedDef(name, bodies) {
+  bodies.forEach((b, i) => {
+    if (!Array.isArray(b.size) || b.size.length !== 3)
+      throw new Error(`erno: body ${i} needs a size [nx,ny,nz]`);
+    if (b.size.some((v) => !Number.isInteger(v) || v < 1 || v > 8))
+      throw new Error(`erno: body ${i} has a bad size [${b.size}] (1–8 layers)`);
+  });
+  // shared lattice check: every body's grid must land on the same integers
+  const originOf = (b, ax) => b.at[ax] - b.size[ax] / 2;
+  for (let ax = 0; ax < 3; ax++)
+    for (let i = 1; i < bodies.length; i++) {
+      const shift = originOf(bodies[i], ax) - originOf(bodies[0], ax);
+      if (Math.abs(shift - Math.round(shift)) > 1e-9)
+        throw new Error(
+          `erno: body ${i} is off the shared lattice on axis ${"xyz"[ax]} by ${shift.toFixed(3)} — fused bodies must line up cubie to cubie`,
+        );
+    }
+
+  const solids = bodies.map((b) =>
+    boxSolid(b.size[0] / 2, b.size[1] / 2, b.size[2] / 2).map((f) => ({
+      ...f,
+      pts: f.pts.map((p) => [p[0] + b.at[0], p[1] + b.at[1], p[2] + b.at[2]]),
+    })),
+  );
+
+  // Every layer boundary of every body, walls included, so a cut of one body
+  // also parts its neighbour where they overlap.
+  const cuts = [];
+  const seenCut = new Set();
+  for (const b of bodies)
+    for (let ax = 0; ax < 3; ax++)
+      for (let k = 0; k <= b.size[ax]; k++) {
+        const d = originOf(b, ax) + k;
+        const key = `${ax}:${Math.round(d * 1e5)}`;
+        if (seenCut.has(key)) continue;
+        seenCut.add(key);
+        const n = [0, 0, 0];
+        n[ax] = 1;
+        cuts.push({ n, d });
+      }
+
+  const letters = BODY_LETTERS.slice(0, bodies.length);
+  const tokens = [];
+  for (const L of letters)
+    for (const f of FACES) for (const s of ["", "'", "2"]) tokens.push(L + f + s);
+
+  return {
+    name,
+    solids,
+    cuts,
+    blocking: true,
+    tokens,
+    // each body turns about itself, so the frame has to allow for all of them
+    turnCenters: bodies.map((b) => b.at),
+    parseMove(token) {
+      const m = FUSED_RE.exec(token);
+      const bi = m ? letters.indexOf(m[1]) : -1;
+      if (bi < 0)
+        throw new Error(
+          `erno: bad ${name} move '${token}' — bodies are ${letters.split("").join("/")}, as in ${letters[0]}U or ${letters[0]}R2`,
+        );
+      const [ax, dir] = FACE_AXIS[m[2]];
+      const count = (m[3] ? parseInt(m[3], 10) : 1) * (m[4] ? -1 : 1);
+      const u = [0, 0, 0];
+      u[ax] = dir;
+      const body = bodies[bi];
+      // A turn cleaves the whole assembly at the plane one layer in from
+      // that face and spins everything beyond it about the body's own axis.
+      return {
+        axis: u,
+        angle: -(Math.PI / 2) * count,
+        min: dir * body.at[ax] + body.size[ax] / 2 - 1,
+        center: body.at,
+      };
+    },
+    faceOrder: ["U", "R", "F", "D", "L", "B"],
+    faceSortDirs: CUBE_SORT_DIRS,
+    colors: { ...CUBE_COLORS },
+    scrambleLength: 20,
+  };
+}
+
+const _fusedDefs = new Map();
+
+/**
+ * Two or more boxes welded into one puzzle.
+ *
+ * @param {Object} [options] - Twisty options plus:
+ * @param {Array} [options.bodies] - `[{ size: [nx,ny,nz], at: [x,y,z] }]` —
+ *   each body's layer counts and the position of its centre, in cubies. The
+ *   bodies must share a unit lattice.
+ *
+ * Notation prefixes the face with the body's letter: `AU`, `BR'`, `AF2`.
+ * Turns that would tear the weld throw; `legalMoves()` lists what is left.
+ */
+export class Fused extends Twisty {
+  constructor(options = {}) {
+    const bodies = options.bodies || [
+      { size: [3, 3, 3], at: [0, 0, 0] },
+      { size: [3, 3, 3], at: [2, 2, 0] },
+    ];
+    const key = bodies.map((b) => `${b.size}@${b.at}`).join("+");
+    let def = _fusedDefs.get(key);
+    if (!def) {
+      def = buildFusedDef(`fused-${key}`, bodies);
+      _fusedDefs.set(key, def);
+    }
+    super(def, options);
+    this.bodies = bodies;
+  }
+}
+
+/**
+ * The Siamese cube: two cubes sharing a block of cubies.
+ *
+ * @param {Object} [options] - Fused options plus:
+ * @param {number} [options.size=3] - layers per side of each cube
+ * @param {[number,number,number]} [options.offset=[2,2,0]] - how far the
+ *   second cube is displaced, in cubies. The shared block is what is left
+ *   where they overlap: the default gives the classic 1×1×3 bar, `[1,2,0]`
+ *   the 2×1×3, `[2,0,0]` the 1×3×3 slab (which is really a 5×3×3 cuboid,
+ *   and turns like one).
+ */
+export class Siamese extends Fused {
+  constructor(options = {}) {
+    const n = options.size === undefined ? 3 : options.size;
+    const at = options.offset || [2, 2, 0];
+    if (at.some((v) => !Number.isInteger(v) || Math.abs(v) > n))
+      throw new Error(
+        `erno: Siamese offset [${at}] must be whole cubies, no further than ${n}`,
+      );
+    if (at.every((v) => v === 0))
+      throw new Error(`erno: a Siamese offset of [0,0,0] is one cube, not two`);
+    super({
+      ...options,
+      bodies: [
+        { size: [n, n, n], at: [0, 0, 0] },
+        { size: [n, n, n], at },
+      ],
+    });
   }
 }
 

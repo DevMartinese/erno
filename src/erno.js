@@ -100,10 +100,18 @@ export class Erno {
     this.plastic = options.plastic || "#0d0d0d";
     this.stickerInset =
       options.stickerInset === undefined ? 0.12 : options.stickerInset;
-    if (options.paint)
-      throw new Error(
-        "erno: Erno is the facelet cube and has no pieces to paint — use Cube({ paint }) for a piece-based 3×3",
-      );
+    // The facelet cube has no pieces, so every option that addresses one has
+    // to say so rather than be quietly dropped.
+    for (const [opt, hint] of [
+      ["paint", "paint"],
+      ["remove", "remove"],
+      ["bandage", "bandage"],
+      ["blocking", "blocking"],
+    ])
+      if (options[opt])
+        throw new Error(
+          `erno: Erno is the facelet cube and has no pieces — use Cube({ ${hint} }) for a piece-based 3×3`,
+        );
     this._styleFn = null;
     this._styleObj = null;
     if (options.style) this.style(options.style);
@@ -636,6 +644,8 @@ export {
   SkewbDiamond,
   Megaminx,
   Kilominx,
+  Fused,
+  Siamese,
   tetrisPaint,
   TETRIS_PALETTE,
   buildPuzzle,

@@ -34,6 +34,8 @@ import {
   Puzzle,
   buildPuzzle,
   Cube,
+  Fused,
+  Siamese,
 } from "../src/erno.js";
 
 let passed = 0;
@@ -826,6 +828,241 @@ test("remove refuses a shape it does not understand", () => {
     threw = true;
   }
   assert(threw, "an unknown region is an error, not a silently whole cube");
+});
+
+// ── Fusion ──────────────────────────────────────────────────────────────────
+
+test("fusion welds two cubes into one body, seam and all", () => {
+  const s = new Siamese();
+  // 26 + 26 cubies, less the 3 they share, less the one of those three that
+  // ends up buried inside the union with no face left to show
+  assertEqual(s.pieces.length, 48, "pieces");
+  assert(s.isSolved(), "starts solved");
+  assert(!s.getState().includes("?"), "every sticker lands on the facelet grid");
+  // the weld is not skin: two separate cubes would carry 108 stickers
+  assert(s.getState().length < 108, `${s.getState().length} stickers, fewer than two loose cubes`);
+});
+
+test("the Siamese refuses exactly the turns its mechanism cannot make", () => {
+  // The shared bar runs along z at the +x +y corner of cube A. Every turn
+  // that would drag it away from cube B is impossible, which leaves each
+  // cube the two faces furthest from the weld — and nothing in the engine
+  // says so anywhere: it falls out of the layer having to come back to
+  // itself.
+  const s = new Siamese();
+  assertEqual(
+    s.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "AD AL BU BR",
+    "free faces",
+  );
+  let threw = false;
+  try {
+    s.move("AF");
+  } catch {
+    threw = true;
+  }
+  assert(threw, "a blocked turn is an error, not a silent tear");
+  assert(s.isSolved(), "and it left the puzzle where it was");
+});
+
+test("a fused puzzle turns, scrambles and inverts like any other", () => {
+  for (const [label, make] of [
+    ["1×1×3", () => new Siamese()],
+    ["2×1×3", () => new Siamese({ offset: [1, 2, 0] })],
+    ["2×2×3", () => new Siamese({ offset: [1, 1, 0] })],
+    ["2×2 on a 3×3", () =>
+      new Fused({
+        bodies: [
+          { size: [3, 3, 3], at: [0, 0, 0] },
+          { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+        ],
+      })],
+    ["three in a row", () =>
+      new Fused({
+        bodies: [
+          { size: [3, 3, 3], at: [0, 0, 0] },
+          { size: [3, 3, 3], at: [2, 2, 0] },
+          { size: [3, 3, 3], at: [4, 4, 0] },
+        ],
+      })],
+  ]) {
+    const p = make();
+    assert(p.isSolved(), `${label} starts solved`);
+    assert(p.legalMoves().length > 0, `${label} has somewhere to go`);
+    assert(p.toSVG().startsWith("<svg"), `${label} renders`);
+    const seq = p.scramble(12);
+    assert(!p.isSolved(), `${label} scrambles to something`);
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label}: inverse of "${seq}"`);
+  }
+});
+
+test("a chain of three keeps only the turns its symmetry allows", () => {
+  // A at (0,0), B at (2,2), C at (4,4): a staircase with a half-turn
+  // symmetry about B. The outer cubes keep the two faces facing away from
+  // the chain. The middle one is gripped at both ends and keeps no quarter
+  // turn at all — but its front and back slabs span the whole staircase,
+  // and a half turn about B swaps A with C and maps that slab onto itself,
+  // so those two survive. Nothing here was reasoned out in code: the layer
+  // test found the symmetry on its own.
+  const make = () =>
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [2, 2, 0] },
+        { size: [3, 3, 3], at: [4, 4, 0] },
+      ],
+    });
+  const p = make();
+  assertEqual(p.legalMoves().filter((t) => t[0] === "B").join(" "), "BF2 BB2", "B");
+  assert(
+    !p.legalMoves().some((t) => t[0] === "B" && !t.endsWith("2")),
+    "B has no quarter turn left",
+  );
+  const q = make();
+  q.move("BF2");
+  assert(!q.isSolved(), "and BF2 is a real move, not a no-op");
+  q.move("BF2");
+  assert(q.isSolved(), "twice over, it is the identity");
+});
+
+test("blocking derives the cuboid policy nobody has to write down", () => {
+  // A Domino refuses its quarter turns because a 3×1×3 layer spun about x
+  // comes back 3×3×1. That rule lives in makeBoxParser as a hand-written
+  // policy; switch on `blocking` over a cuboid that is allowed to deform
+  // and the same law reproduces it, size for size.
+  for (const size of [[3, 2, 3], [3, 3, 2], [5, 3, 3], [3, 3, 3], [4, 4, 4]]) {
+    const byLaw = new Cuboid({ size, shapeShift: true, blocking: true }).legalMoves();
+    const byPolicy = new Cuboid({ size }).legalMoves();
+    assertEqual(byLaw.join(" "), byPolicy.join(" "), `${size.join("×")}`);
+  }
+});
+
+test("blocking takes nothing away from a puzzle that is not bandaged", () => {
+  for (const [label, make] of [
+    ["3×3", () => new Cube({ blocking: true })],
+    ["5×5", () => new Cube({ size: 5, blocking: true })],
+    ["Skewb", () => new Skewb({ blocking: true })],
+    ["Megaminx", () => new Megaminx({ blocking: true })],
+  ]) {
+    const p = make();
+    const vocab = p.def.tokens || Object.keys(p.def.moves || {});
+    assertEqual(p.legalMoves().length, vocab.length, `${label} keeps every move`);
+    const seq = p.scramble();
+    p.move(Twisty.inverse(seq));
+    assert(p.isSolved(), `${label} still inverts`);
+  }
+});
+
+test("fused bodies have to line up cubie to cubie", () => {
+  let threw = false;
+  try {
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [1.4, 0, 0] },
+      ],
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "a body off the shared lattice is an error, not a sliced neighbour");
+});
+
+// ── Bandaging ───────────────────────────────────────────────────────────────
+
+test("bandaging glues cubies, and the glue is what blocks the turns", () => {
+  // The Fused Cube: a 2×2×2 block set into a 3×3. The block reaches the
+  // middle layer on all three axes, so U, R and F all try to take part of
+  // it and cannot — leaving the three faces furthest from it. That is the
+  // real puzzle, and again nothing here lists the blocked moves.
+  const block = { bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "block" : null) };
+  const p = new Cube(block);
+  assertEqual(p.pieces.length, 20, "seven cubies became one");
+  assertEqual(
+    p.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "D L B",
+    "free faces",
+  );
+  assert(p.isSolved(), "starts solved");
+  assert(!p.getState().includes("?"), "a glued sticker still knows its own slot");
+  const q = new Cube(block);
+  const seq = q.scramble(15);
+  q.move(Twisty.inverse(seq));
+  assert(q.isSolved(), `inverse of "${seq}"`);
+});
+
+test("bandaging takes a list of slots as readily as a rule", () => {
+  // Glue the U centre to the UF edge: the pair straddles the F layer, so F
+  // is gone and nothing else is.
+  const p = new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]] });
+  assertEqual(p.pieces.length, 25, "two cubies became one");
+  assertEqual(
+    p.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
+    "U R D L B",
+    "F is the only casualty",
+  );
+});
+
+test("a bandaged block wears one sticker per face, not a grid", () => {
+  // Grouped stickers are what make the glue visible. It does not remove any
+  // tiles or change how much colour is on show — each facet keeps its area
+  // and simply moves in until it meets its neighbour, so the block reads as
+  // one piece. Measure exactly that: corners shared between tiles.
+  const corners = (svg) => {
+    const seen = new Map();
+    for (const m of svg.matchAll(/<polygon points="([^"]*)"[^>]*data-part="sticker"/g))
+      for (const p of new Set(m[1].trim().split(" ")))
+        seen.set(p, (seen.get(p) || 0) + 1);
+    return [...seen.values()].filter((n) => n > 1).length;
+  };
+  const opt = { bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "b" : null) };
+  assertEqual(corners(new Cube().toSVG()), 0, "a plain cube shares none");
+  assertEqual(corners(new Cube(opt).toSVG()), 0, "nor does a bandaged one left loose");
+  assertEqual(corners(new Cube({ stickerGroup: true }).toSVG()), 0, "nor grouping alone");
+  assert(
+    corners(new Cube({ ...opt, stickerGroup: true }).toSVG()) > 0,
+    "but a grouped bandaged block does",
+  );
+});
+
+test("bandage refuses a shape it does not understand", () => {
+  for (const bad of ["corners", [[[0, 1, 1]]], 7]) {
+    let threw = false;
+    try {
+      new Cube({ bandage: bad });
+    } catch {
+      threw = true;
+    }
+    assert(threw, `${JSON.stringify(bad)} is an error, not a silently plain cube`);
+  }
+});
+
+test("an animated turn lands exactly where the move leaves it", () => {
+  // The weld forced every piece's placement to carry a translation as well as a
+  // rotation, because each body turns about its own centre. If that
+  // transport were wrong the animation would drift away from the state.
+  const pointsOf = (svg) =>
+    svg
+      .match(/points="[^"]*"/g)
+      .map((s) => s.replace(/[\d.]+/g, (m) => Math.round(+m)))
+      .sort()
+      .join(";");
+  for (const [label, make, mv] of [
+    ["3×3", () => new Cube(), "U"],
+    ["Skewb", () => new Skewb(), "R"],
+    ["Siamese", () => new Siamese(), "BU"],
+    ["Siamese half", () => new Siamese(), "AL2"],
+  ]) {
+    const a = make();
+    a.move(mv);
+    const b = make();
+    assertEqual(
+      pointsOf(a.toSVG({ fitSphere: true })),
+      pointsOf(b.toSVG({ fitSphere: true, turn: { move: mv, progress: 1 } })),
+      `${label} animation endpoint`,
+    );
+  }
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

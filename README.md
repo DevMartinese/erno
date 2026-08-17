@@ -342,6 +342,103 @@ the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
 is left is a real puzzle: it turns, scrambles and inverts exactly, and
 `Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
 
+## Fusion
+
+The union, and the other half of subtraction: weld two or more boxes into one
+puzzle. Where they overlap, the wall between them stops being a wall — the
+buried stickers go, the shared cubies become single pieces, and what is left
+is the shape you would get by gluing two cubes together.
+
+```js
+import { Siamese, Fused } from 'erno'
+
+new Siamese()                          // the classic: two 3×3s sharing a 1×1×3 bar
+new Siamese({ offset: [1, 2, 0] })     // sharing a 2×1×3 block instead
+new Siamese({ size: 4, offset: [3, 3, 0] })
+
+new Fused({ bodies: [                  // a 2×2 grown on the corner of a 3×3
+  { size: [3, 3, 3], at: [0, 0, 0] },
+  { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+]})
+```
+
+Notation prefixes each face with its body's letter — `AU`, `BR'`, `AF2`.
+Bodies must line up cubie to cubie on one lattice; anything else would slice
+its neighbour in half, and the constructor says so instead.
+
+## Blocking
+
+Fusion supplies the shape. What makes a Siamese cube a *puzzle* is which turns
+it refuses, and that comes from one rule:
+
+> **A turn is possible only if the layer it grabs comes back to itself.**
+
+This is the shell symmetry law narrowed from the whole puzzle to a single
+layer. Whatever the layer leaves behind is still in the way, so a layer that
+would land somewhere else cannot go. Ask a puzzle what it can do:
+
+```js
+const s = new Siamese()
+s.legalMoves()      // AD AD' AD2 AL AL' AL2 BU BU' BU2 BR BR' BR2
+s.canMove('AF')     // false
+s.move('AF')        // throws: the layer does not come back to itself
+s.scramble(20)      // walks the legal moves rather than replaying a fixed string
+```
+
+Nothing lists those twelve moves anywhere. The shared bar runs up one corner
+of each cube, so each cube keeps exactly the two faces furthest from the weld
+— which is what the real puzzle does in your hands.
+
+The same law reproduces rules the library used to state by hand. A Domino
+refuses its quarter turns because a 3×1×3 layer spun about x comes back
+3×3×1; switch blocking on over a cuboid that is allowed to deform and you get
+the identical move list, size for size:
+
+```js
+new Cuboid({ size: [3, 2, 3], shapeShift: true, blocking: true }).legalMoves()
+// same as new Cuboid({ size: [3, 2, 3] }).legalMoves()
+```
+
+`legalMoves()` and `canMove()` answer on every puzzle, not just blocking ones:
+a move the notation refuses outright counts as unavailable too.
+
+One consequence worth knowing: because the law is about the shape of the
+material, subtraction takes part in it. A Void cube keeps all eighteen turns
+(its holes are symmetric), but hollowing out one corner and switching blocking
+on will close the turns that no longer come back to themselves.
+
+## Bandaging
+
+Fusion welds bodies; bandaging welds cubies inside one. It is the other way a
+twisty puzzle gets its blocked turns, and it runs through the same law.
+
+```js
+import { Cube } from 'erno'
+
+// the Fused Cube: a 2×2×2 block set into a 3×3
+new Cube({ bandage: ({ slot }) => slot.every(v => v >= 0) ? 'block' : null })
+// → 20 pieces, and only D, L and B still turn
+
+// or name the slots outright — here the U centre glued to the UF edge
+new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]] })
+// → F is the only turn it costs
+```
+
+`bandage` takes a grouping function `({ slot, piece, centroid }) => key` —
+pieces answering with the same key are welded — or a plain list of slot
+groups. It switches blocking on by default, since a glued pair with nothing
+forbidden would simply tear.
+
+Add `stickerGroup: true` to make the glue visible: the welded cubies then wear
+one tile per face instead of a grid pretending they come apart.
+
+```js
+new Cube({
+  bandage: ({ slot }) => slot.every(v => v >= 0) ? 'block' : null,
+  stickerGroup: true,
+})
+```
+
 ## Camera
 
 Four projection types, sharing semantics with heerich:

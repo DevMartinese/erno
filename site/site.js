@@ -30,6 +30,9 @@ import {
   generateRamp,
   tetrisPaint,
   Puzzle,
+  Cube,
+  Fused,
+  Siamese,
 } from "../src/erno.js";
 import { version } from "../package.json";
 import { initHero } from "./hero.js";
@@ -359,6 +362,83 @@ familyDemo("demo-solids", {
   megaminx: () => new Megaminx(),
   kilominx: () => new Kilominx(),
   skewbdiamond: () => new SkewbDiamond(),
+});
+
+// ─── 9f. Welding ─────────────────────
+// The palette is the point of this one: rather than fixed buttons it asks
+// the puzzle what it can do right now, so the greying-out IS the rule being
+// demonstrated. Rebuilt every render, because a turn changes the answer.
+const WELDS = {
+  siamese: () => new Siamese(),
+  siamese2: () => new Siamese({ offset: [1, 2, 0] }),
+  corner: () =>
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+      ],
+    }),
+  chain: () =>
+    new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [3, 3, 3], at: [2, 2, 0] },
+        { size: [3, 3, 3], at: [4, 4, 0] },
+      ],
+    }),
+  fusedcube: () =>
+    new Cube({
+      bandage: ({ slot }) => (slot.every((v) => v >= 0) ? "block" : null),
+      stickerGroup: true,
+    }),
+  pair: () =>
+    new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]], stickerGroup: true }),
+  column: () =>
+    new Cube({
+      bandage: ({ slot }) => (slot[0] === 1 && slot[2] === 1 ? "col" : null),
+      stickerGroup: true,
+    }),
+};
+
+let weldRender;
+weldRender = setupDemo("demo-welding", (v, ctx, t) => {
+  if (!ctx.p || ctx.kind !== v.kind) {
+    ctx.p = WELDS[v.kind]();
+    ctx.kind = v.kind;
+  }
+  const p = ctx.p;
+  if (t && t.key === "scramble") p.scramble(14);
+  if (t && t.key === "reset") p.reset();
+  if (t && t.key.startsWith("weld:")) {
+    try {
+      p.move(t.key.slice(5) + (t.shift ? "'" : ""));
+    } catch {
+      // the button was live a moment ago and is not any more — nothing to do
+    }
+  }
+
+  const vocab = (p.def.tokens || []).filter((tok) => !/['2]$/.test(tok));
+  const open = vocab.filter((tok) => p.canMove(tok));
+  const grid = ctx.root.querySelector("[data-moves]");
+  grid.innerHTML = vocab
+    .map(
+      (tok) =>
+        `<button class="weld-move" data-move="${tok}"${
+          p.canMove(tok) ? "" : " disabled"
+        }>${tok}</button>`,
+    )
+    .join("");
+  grid.querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", (ev) =>
+      weldRender({ key: `weld:${b.dataset.move}`, shift: ev.shiftKey }),
+    ),
+  );
+  if (ctx.readout)
+    ctx.readout.textContent = `${p.pieces.length} pieces · ${open.length} of ${vocab.length} faces still turn${
+      open.length ? "" : " — welded shut"
+    }`;
+
+  return tune(p, { scheme: false }).toSVG({ fitSphere: true });
 });
 
 setupDemo("demo-mirror", (v, ctx, t) => {

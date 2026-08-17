@@ -1367,6 +1367,34 @@ input[type="color"]::-webkit-color-swatch {
   font-size: 0.8rem;
 }
 
+/* The welding palette. A dead button has to read as dead without reading as
+   broken, so it keeps its outline and loses its weight — the plane is still
+   there, the ink has drained out of it. */
+.move-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.9rem 0 0;
+  padding: 0 0.75rem;
+}
+
+.move-grid button {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-stretch: 100%;
+  font-size: 0.72rem;
+  padding: 0.35em 0.6em;
+  min-width: 3.1em;
+}
+
+.move-grid button:disabled {
+  color: color-mix(in oklab, var(--ink) 28%, var(--paper));
+  border-color: color-mix(in oklab, var(--ink) 28%, var(--paper));
+  background: var(--paper);
+  cursor: not-allowed;
+}
+
 .hero-puzzle {
   transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.3, 1.15);
 }
