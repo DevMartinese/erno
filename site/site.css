@@ -249,7 +249,9 @@ body {
   font-weight: 400;
   color: var(--text);
   background: var(--bg);
-  line-height: 1.65;
+  /* Rosarivo's canon is 12/12 — solid, which worked in lead and does not on
+     a screen. The workable range is 1.5–1.6; this sat a notch above it. */
+  line-height: 1.6;
 }
 
 .hero {
@@ -404,8 +406,13 @@ article {
 /* The heading is a plane: it spans its column outright, and the plate
    number sits in it as a printed mark. Which ink it carries is the
    measured pairing, never a guess. */
+/* The title plane takes the canon's 1:2 split — one part above the word, two
+   below. Rosarivo divides a page's white that way (superior:inferior), and a
+   title block is the one place on screen where the rule still has a
+   rectangle to divide. It also gives the word somewhere to sit rather than
+   floating mid-plane. */
 .section-row .section-text h2 {
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-4);
   margin: 0 0 var(--space-2);
   width: auto;
   font-size: var(--size-3xl);
@@ -516,7 +523,7 @@ article {
   }
   > h2 {
     grid-column: 1 / 13;
-    padding: var(--space-3) var(--space-4) 1.6rem;
+    padding: var(--space-3) var(--space-4) var(--space-6);
     margin: 0 0 var(--space-3);
     width: auto;
     font-size: var(--size-3xl);
@@ -1575,7 +1582,7 @@ input[type="color"]::-webkit-color-swatch {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.35rem;
+  gap: var(--space-0-5);
   margin: var(--space-2) 0 0;
   padding: 0 var(--space-1-5);
 }
