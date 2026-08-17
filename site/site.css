@@ -75,6 +75,38 @@
   vertical-align: 0.42em;
 }
 
+/* Keyboard focus. The controls are solid planes now, so the browser's own
+   faint ring disappears against them — a red rule offset from the edge
+   reads on paper, on ink and on every coloured plane. :focus-visible, so a
+   mouse click never leaves a marker behind. */
+:focus-visible {
+  outline: 3px solid var(--red);
+  outline-offset: 2px;
+}
+
+.control-label:has(select):focus-within {
+  outline: 3px solid var(--red);
+  outline-offset: 2px;
+}
+
+.control-label select:focus-visible {
+  outline: none;
+}
+
+/* Someone who asks for less motion gets the finished work, not the
+   seven-second assembly. Transitions collapse to an instant rather than
+   being removed, so nothing depends on a transitionend that never fires. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* erno keeps its warm beige palette in every color scheme — no dark override. */
 
 * {

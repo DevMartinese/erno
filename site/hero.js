@@ -22,7 +22,14 @@ import {
  * holds, dissolves, and the next work begins. Click to skip ahead.
  */
 export function initHero(container) {
-  const INSTANT = location.search.includes("instant");
+  /**
+   * Someone who asks for less motion gets the finished sculpture rather than
+   * the seven-second assembly, and it never dissolves into the next one —
+   * the work is the point, the building of it is the flourish. Read live, so
+   * changing the system setting takes effect without a reload.
+   */
+  const stillness = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const INSTANT = location.search.includes("instant") || stillness.matches;
   const FREEZE = parseFloat(new URLSearchParams(location.search).get("progress"));
   let animationId = 0;
   let scene = null;
@@ -668,8 +675,13 @@ export function initHero(container) {
     animationId = requestAnimationFrame(frame);
   }
 
+  // Clicking still swaps the work when motion is reduced — the person asked
+  // for no unprompted animation, not for no interaction — it just cuts
+  // straight to the next one instead of dissolving into it.
   container.addEventListener("click", () => {
-    if (scene && scene.phase !== "dissolve") {
+    if (!scene) return;
+    if (INSTANT) start();
+    else if (scene.phase !== "dissolve") {
       scene.phase = "dissolve";
       scene.phaseStart = performance.now();
     }

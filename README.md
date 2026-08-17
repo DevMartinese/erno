@@ -104,14 +104,26 @@ Beyond the N×N cube, erno ships the classic variants, all with the same API
 (`move` / `scramble` / `toSVG` / `style` / `setCamera` / `turn` animation):
 
 ```js
-import { Skewb, Pyraminx, Mirror, Void, Tetris } from 'erno'
+import { Skewb, Pyraminx, Mirror, Void, Tetris, Megaminx } from 'erno'
 
 new Skewb().move("R U' L B")
 new Pyraminx().move("U L' R b")
 new Mirror().move("R U2 F' D")   // shape-shifts like the real thing
 new Void().move("M E' S2")
 new Tetris().scramble()          // solid-colored Tetrimino cubies
+new Megaminx().move("A C' F")    // a dodecahedron: faces are lettered A–L
 ```
+
+The bigger siblings come along too — `MasterSkewb`, `MasterPyraminx`,
+`Mastermorphix` and `Kilominx`.
+
+Twenty-six puzzles in all. Cubes and cuboids of any size, the shape mods
+(Fisher, Windmill, Axis, Ghost, Mirror, Twist, Penrose), the turners (Skewb,
+Dino, Compy, Master Skewb, Helicopter), the tetrahedra (Pyraminx, Master
+Pyraminx, Pyramorphix, Mastermorphix), and three solids that are neither
+cube nor tetrahedron: `Megaminx` and `Kilominx` on a dodecahedron, and
+`SkewbDiamond` on an octahedron — the Skewb's dual, which is the same four
+cuts and moves applied to a different solid.
 
 They run on a generic piece engine (`Twisty`, also exported): each puzzle is
 defined as a base solid plus cut planes, the engine slices it into pieces,
@@ -201,12 +213,62 @@ schemeFrom('#e63946', [..."URFDLB"]) // whole scheme from one brand color
 const ramp = generateRamp(20)        // paint pieces along a gradient…
 new Void().style(({ piece }) => ({ fill: ramp[piece] }))
 // …and scrambling turns it into a mosaic
+
+nameScheme(scheme)                   // name any scheme after the fact
+```
+
+Schemes are composed in **OKLCH** and gamut-mapped by reducing chroma rather
+than clipping channels, so a colour that sRGB cannot show is pulled toward
+the boundary with its lightness and hue intact instead of drifting. Pass
+`character: 'pale' | 'muted' | 'deep' | 'vivid'` to pick the mood — chroma
+and lightness predict how a palette feels far better than hue does.
+
+The conversions are exported for use on their own:
+
+```js
+import { oklchToHex, hexToOklch, TETRIS_PALETTE } from 'erno'
+
+oklchToHex(0.55, 0.20, 28)           // '#cc2823', gamut-mapped
+hexToOklch('#cc2823')                // [L, C, H]
 ```
 
 Piece-based puzzles emit `data-part`, `data-face`, `data-index`,
 `data-color` and `data-piece` on every polygon, and style callbacks receive
 `{ face, index, letter, piece }`. Open `gallery.html` on the dev server for
 a visual test sheet of every puzzle, scrambled and mid-turn.
+
+## Painting
+
+`colors` sets a fill per FACE. `paint` sets one per STICKER, at build time,
+and unlike a style callback it becomes part of the puzzle's state:
+
+```js
+import { Erno, Mirror, tetrisPaint } from 'erno'
+
+// tint one face of any mechanism
+new Skewb({ paint: ({ letter }) => letter === 'U' ? '#cc2823' : undefined })
+
+// return nothing and the sticker keeps its face colour, so a paint can
+// decorate a few stickers without restating the rest
+new Cuboid({ size: [4, 4, 4], paint: ({ index }) => index % 2 && '#00489f' })
+
+// the Tetris cube is mechanically an ordinary 3×3 — everything that makes
+// it Tetris is this paint, so any 3×3 mechanism can wear it
+new Mirror({ paint: tetrisPaint })
+```
+
+The callback receives `{ piece, index, letter, slot, normal }`.
+
+A painted puzzle is **solved by its pattern, not by its facelets**: with
+solid-coloured cubies two pieces of the same colour are interchangeable and
+orientation stops mattering, exactly like the real Tetris cube. `isSolved()`
+switches to comparing `getTints()` on its own — so a puzzle painted a single
+colour can never be unsolved, however hard you scramble it.
+
+Note `tetrisPaint`'s layout is a hand-found exact-cover solution for the 3×3
+(one tetromino per face around its centre, no I piece, two white fillers).
+It is not a formula, so it does not generalise to other sizes; anything off
+that grid is left untinted.
 
 ## Camera
 

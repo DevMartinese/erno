@@ -145,7 +145,7 @@
             <li><a href="#pyraminx">Pyraminx</a></li>
             <li><a href="#mirror">Mirror cube</a></li>
             <li><a href="#void">Void cube</a></li>
-            <li><a href="#tetris">Rubik's Tetris</a></li>
+            <li><a href="#painting">Painting</a></li>
             <li><a href="#cuboids">Cuboids</a></li>
             <li><a href="#shapemods">Shape mods</a></li>
             <li><a href="#turners">Corner &amp; edge turners</a></li>
@@ -469,43 +469,53 @@ new Void().move("M E' S2")</code></pre>
 
       <!-- ─── 9b. Tetris ────────────────────────────────── -->
 
-      <div class="section-row" id="tetris">
+      <div class="section-row" id="painting">
         <div class="section-demo">
-          <div class="demo" id="demo-tetris">
+          <div class="demo" id="demo-painting">
             <div class="demo-canvas"></div>
             <div class="demo-controls">
+              <label class="control-label"
+                >Paint
+                <select data-bind="kind">
+                  <option value="tetris" selected>Tetris on a 3×3</option>
+                  <option value="mirror">Tetris on a Mirror</option>
+                  <option value="face">One face red</option>
+                  <option value="layers">By layer</option>
+                  <option value="flat">All one colour</option>
+                </select>
+              </label>
               <button data-bind="move:R">R</button>
               <button data-bind="move:U">U</button>
               <button data-bind="move:F">F</button>
-              <button data-bind="move:D">D</button>
-              <button data-bind="move:x">x</button>
-              <button data-bind="move:y">y</button>
               <button data-bind="scramble">Scramble</button>
               <button data-bind="reset">Reset</button>
             </div>
           </div>
         </div>
         <div class="section-text">
-          <h2>Rubik's Tetris</h2>
+          <h2>Painting</h2>
           <p>
-            The official Rubik's × Tetris mashup: a 3×3 whose 26 cubies are
-            solid-colored blocks. Solved, every face reveals one classic
-            Tetrimino in its Tetris color around that face's center — all of
-            them except the I, which doesn't fit a 3×3 face (the real product
-            ships it as the display stand). Two cubies stay white, like the
-            logo tile on the physical puzzle.
+            <code>colors</code> sets a fill per face.
+            <code>paint</code> sets one per sticker, and unlike a style
+            callback it becomes part of the puzzle's state. Return nothing
+            and that sticker keeps its face colour, so a paint can decorate a
+            few stickers without restating the rest.
           </p>
-          <pre><code>import { Tetris } from 'erno'
+          <pre><code>new Skewb({ paint: ({ letter }) =>
+  letter === 'U' ? '#cc2823' : undefined })
 
-const t = new Tetris()
-t.scramble()
-t.isSolved() // visual check: same-colored
-             // cubies are interchangeable</code></pre>
+// the Tetris cube is mechanically an ordinary
+// 3×3 — the paint is all that makes it Tetris,
+// so any 3×3 mechanism can wear it
+new Mirror({ paint: tetrisPaint })</code></pre>
           <p>
-            Because the pieces are solid-colored, <code>isSolved()</code>
-            compares the visible pattern, not piece identity — swapping two
-            same-colored cubies still counts as solved, exactly like the real
-            puzzle.
+            A painted puzzle is solved by its <em>pattern</em>, not by its
+            facelets: with solid-coloured cubies two pieces of the same
+            colour are interchangeable and orientation stops mattering,
+            exactly like the real Rubik's × Tetris. So
+            <code>isSolved()</code> switches to comparing the visible
+            colours on its own — and a puzzle painted a single colour can
+            never be unsolved, however hard you scramble it. Try it.
           </p>
         </div>
       </div>

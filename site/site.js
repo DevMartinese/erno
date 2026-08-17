@@ -28,6 +28,7 @@ import {
   generateScheme,
   schemeFrom,
   generateRamp,
+  tetrisPaint,
 } from "../src/erno.js";
 import { version } from "../package.json";
 import { initHero } from "./hero.js";
@@ -265,7 +266,29 @@ function variantDemo(id, make, options) {
 variantDemo("demo-skewb", () => new Skewb());
 variantDemo("demo-pyraminx", () => new Pyraminx(), { scheme: false });
 variantDemo("demo-void", () => new Void());
-variantDemo("demo-tetris", () => new Tetris(), { scheme: false });
+/* Painting is a system, not one puzzle: the same option carries the Tetris
+   layout, a single face, a gradient by layer, or one flat colour — and the
+   flat one is the point, since a puzzle whose pieces are all the same colour
+   can never be unsolved. */
+const PAINTS = {
+  tetris: () => new Tetris(),
+  mirror: () => new Mirror({ paint: tetrisPaint }),
+  // paint belongs to the piece engine, so a painted 3×3 is a Cuboid — the
+  // facelet Erno is a different representation and carries no pieces
+  face: () =>
+    new Cuboid({
+      size: [3, 3, 3],
+      paint: ({ letter }) => (letter === "U" ? "#cc2823" : undefined),
+    }),
+  layers: () =>
+    new Cuboid({
+      size: [3, 3, 3],
+      paint: ({ slot }) => ["#f6ba00", "#cc2823", "#00489f"][Math.round(slot[1]) + 1],
+    }),
+  flat: () => new Cuboid({ size: [3, 3, 3], paint: () => "#17110c" }),
+};
+
+familyDemo("demo-painting", PAINTS, { scheme: false });
 
 // ─── 9c. Cuboids ─────────────────────
 const CUBOIDS = {
