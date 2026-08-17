@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pattern · an erno example</title>
+    <meta
+      name="description"
+      content="Write a function of a cubie's position, get a cube, then scramble it and bring the pattern back. An example of the erno engine driving a game."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../site.css" />
+    <link rel="stylesheet" href="./pattern.css" />
+  </head>
+  <body class="example">
+    <header class="example-head">
+      <a class="example-back" href="../../index.html">erno</a>
+      <span class="example-kind">Example</span>
+      <h1>Pattern</h1>
+      <p class="example-lede">
+        Write a function of a cubie's position and the engine paints a cube
+        with it. Then scramble that cube and bring the pattern back. Two
+        puzzles stacked: one you write, one you turn.
+      </p>
+      <p class="example-note">
+        This page is not part of the library. It is one file of glue over the
+        public API, kept here to show what the engine is for.
+      </p>
+    </header>
+
+    <section class="example-plate" id="write-panel">
+      <div class="example-text">
+        <h2>Write</h2>
+        <p>
+          Your function runs once per cubie, with <code>x</code>,
+          <code>y</code> and <code>z</code> at its place on the lattice and
+          <code>n</code> at the half width. Return a colour, by number.
+        </p>
+        <p>
+          Nothing here is a special mode. <code>paint</code> is an ordinary
+          option on an ordinary cube, so what comes out is a working puzzle
+          and not a picture of one.
+        </p>
+
+        <div class="example-editor">
+          <label class="example-label" for="write-code">
+            f(x, y, z, n)
+            <span class="example-verdict" id="write-depth"></span>
+          </label>
+          <textarea
+            id="write-code"
+            spellcheck="false"
+            rows="3"
+            aria-describedby="write-status"
+          ></textarea>
+        </div>
+
+        <div class="demo-controls">
+          <label class="control-label">
+            <span>Size</span>
+            <input
+              type="range"
+              id="write-size"
+              min="2"
+              max="6"
+              value="3"
+              data-scale="choice"
+            />
+          </label>
+        </div>
+
+        <div class="example-presets" id="write-presets"></div>
+        <p class="demo-readout" id="write-status"></p>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="write-canvas"></div>
+      </div>
+    </section>
+
+    <section class="example-plate example-plate--flip" id="play-panel">
+      <div class="example-text">
+        <h2>Solve</h2>
+        <p>
+          The goal is the cube you just wrote, at rest. That matters more than
+          it sounds: the target is reachable because the puzzle was standing on
+          it a moment ago, so no solver is needed and no impossible pattern can
+          be asked for.
+        </p>
+        <p>
+          The move buttons ask the puzzle what is available rather than
+          assuming. On a plain cube everything always is. Point the same code
+          at a welded or bandaged puzzle and it stops being true, which is why
+          the question is asked at all.
+        </p>
+
+        <div class="example-goal">
+          <div class="example-goal-art" id="play-target"></div>
+          <div class="example-goal-text">
+            <span class="example-label">Target</span>
+            <div class="range-wrap example-progress">
+              <div class="range-cells" id="play-cells"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-controls">
+          <button id="play-start">Scramble</button>
+          <button id="play-undo">Undo</button>
+          <button id="play-reset">Reset</button>
+          <button id="play-share">Copy link</button>
+        </div>
+
+        <div class="move-grid" id="play-moves"></div>
+        <p class="demo-readout" id="play-status"></p>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="play-canvas"></div>
+      </div>
+    </section>
+
+    <footer class="example-foot">
+      <p>
+        Everything on this page goes through six public methods:
+        <code>paint</code> to build it, <code>legalMoves</code> and
+        <code>canMove</code> to offer only the turns that exist,
+        <code>getPattern</code> and <code>distanceTo</code> to score it, and
+        <code>getPosition</code> to put a game in a link.
+      </p>
+      <p><a href="../../index.html">Back to the guide</a></p>
+    </footer>
+
+    <script type="module" src="./pattern.js"></script>
+  </body>
+</html>

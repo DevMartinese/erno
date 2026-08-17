@@ -79,6 +79,49 @@ cube.setState('UUU…')     // throws on malformed input
 This is the same layout used by common solvers (e.g. Kociemba's), so wiring a
 solver up is a string away.
 
+### Position: saving and restoring
+
+`getState()` reads the puzzle from outside, and two different placements can
+wear the same face. `getPosition()` reads it from inside, so it round-trips
+exactly on every puzzle in the catalogue, Megaminx and shape-shifters included:
+
+```js
+const saved = cube.getPosition()   // a string; put it in a URL
+cube.scramble()
+cube.setPosition(saved)            // exactly where it was, down to the cubie
+```
+
+`setPosition` throws rather than half-load, and leaves the puzzle untouched if
+it does.
+
+### Patterns
+
+A pattern is a position worth reaching that is not the solved one. Capture it
+with `getPattern()` and the puzzle can score itself against it:
+
+```js
+const checkerboard = new Cube().move('U2 D2 F2 B2 L2 R2').getPattern()
+
+const cube = new Cube()
+cube.distanceTo(checkerboard)   // 24 stickers out of place
+cube.move('U2 D2 F2 B2 L2 R2')
+cube.matches(checkerboard)      // true
+cube.move('y x')                // held another way up
+cube.matches(checkerboard)      // still true
+cube.matches(checkerboard, { anyOrientation: false })   // false
+```
+
+`getPattern()` is the facelet string on a plain puzzle and the sticker colours
+on a painted one, because two cubies of the same colour are interchangeable and
+nobody looking at it could tell them apart. `orientations()` lists the 24 ways
+of holding a cube; a puzzle that cannot be held every way up, like a Domino,
+reports the one it is in rather than guessing.
+
+Not every pattern you can imagine is one a puzzle can reach. A turn permutes
+pieces but never changes what *kind* of piece one is, so a pattern that only
+asks about the kind is the same however you turn it, and there is nothing to
+solve. See `site/examples/pattern` for a game built on all of this.
+
 ### Stateless rendering
 
 Render a facelet string without keeping an instance (size is inferred):

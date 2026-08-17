@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-// Site build — builds the interactive guide as a static site
+// Site build: builds the interactive guide as a static site
 export default defineConfig({
   root: __dirname,
   base: "./",
@@ -15,6 +15,10 @@ export default defineConfig({
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         playground: fileURLToPath(new URL("./playground.html", import.meta.url)),
         gallery: fileURLToPath(new URL("./gallery.html", import.meta.url)),
+        // Examples: pages that use the library rather than document it
+        pattern: fileURLToPath(
+          new URL("./examples/pattern/index.html", import.meta.url),
+        ),
       },
     },
   },

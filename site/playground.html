@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>erno — Rubik's cubes to SVG</title>
+    <title>erno · Rubik's cubes to SVG</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <style>
-      /* Képarchitektúra tokens — kept in step with site.css */
+      /* Képarchitektúra tokens, kept in step with site.css */
       :root {
         --paper: #f4efe7;
         --ink: #17110c;
@@ -180,7 +180,7 @@
         <h1>ern<span class="o-acute">o</span></h1>
         <p>
           A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb,
-          Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners — moves, scrambles, layer animation and
+          Pyraminx, Megaminx, Mirror, Void, Tetris, cuboids, shape mods and turners: moves, scrambles, layer animation and
           per-sticker styling. No WebGL, no canvas, just
           <code>&lt;svg&gt;</code>. Sibling of
           <a href="https://github.com/meodai/heerich">heerich</a>.
@@ -295,7 +295,7 @@
                 <option value="dicecube">Dice cube</option>
                 <option value="sudokube">Sudokube</option>
                 <option value="dominopips">Domino, with its spots</option>
-                <option value="custom">— Build your own —</option>
+                <option value="custom">Build your own</option>
               </select>
             </div>
             <div class="row">
@@ -524,8 +524,8 @@
           schemes: false,
         },
         // Welded puzzles. Their notation prefixes each face with its body's
-        // letter, and half the tokens are blocked from any given position —
-        // the buttons for those simply do nothing, which is the puzzle.
+        // letter, and half the tokens are blocked from any given position,
+        // so the buttons for those simply do nothing, which is the puzzle.
         siamese: {
           make: (opts) => new Siamese(opts),
           moves: ["AU", "AR", "AF", "AD", "AL", "AB", "BU", "BR", "BF", "BD", "BL", "BB"],
@@ -589,7 +589,7 @@
           presets: ["classic", "stickerless"],
           fit: false,
         },
-        // Printed faces — decoration, not mechanism, so the notation is
+        // Printed faces: decoration, not mechanism, so the notation is
         // whatever the puzzle underneath already used.
         dicecube: {
           make: (opts) => new Cube({ ...opts, ...DICE_CUBE }),
@@ -704,8 +704,8 @@
       }
 
       function render(turn) {
-        // A welded puzzle is a poor sphere — the staircase fills a tenth of
-        // one — and it does not need it: blocking keeps its silhouette
+        // A welded puzzle is a poor sphere: the staircase fills a tenth of
+        // one, and it does not need it. Blocking keeps its silhouette
         // still, so its own outline is a frame that cannot jump.
         const fitSphere = PUZZLES[$("puzzle").value]?.fit !== false;
         stage.innerHTML = cube.toSVG({ fitSphere, turn });

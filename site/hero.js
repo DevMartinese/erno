@@ -11,12 +11,12 @@ import {
 } from "../src/erno.js";
 
 /**
- * Constructive hero — heerichdots-style monoliths built from puzzles.
+ * Constructive hero: heerichdots-style monoliths built from puzzles.
  *
  * Each scene is ONE monumental abstract voxel artwork (a grid with holes,
  * an organic growth, a stack of shifting slabs…) on a 3-unit lattice where
  * every voxel is a real puzzle: mostly 3×3 cubes, with skewbs, penroses,
- * ghosts and mirrors as texture accents — their cut patterns play the role
+ * ghosts and mirrors as texture accents, and their cut patterns play the role
  * of heerichdots' triangulated faces. One tight color ramp per scene,
  * sampled by height, keeps the mass reading as a single work.
  *
@@ -26,8 +26,8 @@ import {
 export function initHero(container) {
   /**
    * Someone who asks for less motion gets the finished sculpture rather than
-   * the seven-second assembly, and it never dissolves into the next one —
-   * the work is the point, the building of it is the flourish. Read live, so
+   * the seven-second assembly, and it never dissolves into the next one.
+   * The work is the point, the building of it is the flourish. Read live, so
    * changing the system setting takes effect without a reload.
    */
   const stillness = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -44,7 +44,7 @@ export function initHero(container) {
   /**
    * Plan the lattice from the hero's proportions. Under this projection
    * world X runs almost straight across the picture while Z spends half its
-   * length going down, and height is pure vertical — so a square plan can
+   * length going down, and height is pure vertical, so a square plan can
    * never out-run its own height on screen, and a wide hero is only filled
    * by a plan stretched along X and kept low. (Stretching Z instead would
    * make the mass taller as fast as it makes it wider.)
@@ -61,7 +61,7 @@ export function initHero(container) {
 
   // ── shape grammars: cell lists on an integer lattice ──────────────────
   const GRAMMARS = [
-    // grid with holes — denser toward the core, floating bits at the rim
+    // grid with holes, denser toward the core, floating bits at the rim
     function grid(plan) {
       const nx = plan.nx;
       const ny = plan.ny;
@@ -118,7 +118,7 @@ export function initHero(container) {
       }
       return cells;
     },
-    // shifting slabs — shrinking plates, each nudged off-axis
+    // shifting slabs: shrinking plates, each nudged off-axis
     function slabs(plan) {
       const cells = [];
       let w = plan.nx + 1;
@@ -152,7 +152,7 @@ export function initHero(container) {
    * Keep the work reading as one body: take the largest connected group of
    * cells and re-admit only the strays hovering close to it. A cell marooned
    * out at the rim reads as a mistake, and it also stretches the bounding
-   * box the whole composition is scaled to fit — one stray in a corner
+   * box the whole composition is scaled to fit, and one stray in a corner
    * shrinks everything else and hands the hero back its empty margins.
    */
   function tidy(cells) {
@@ -197,7 +197,7 @@ export function initHero(container) {
 
   // ── fusion: weld adjacent cells into ONE continuous puzzle ────────────
   // A fused pair becomes a single 6×3×3 (or 3×6×3 / 3×3×6) cuboid whose
-  // sticker grid runs unbroken across both cells — the engine's arbitrary
+  // sticker grid runs unbroken across both cells, the engine's arbitrary
   // cuboid support turned into sculpture.
   function fuseCells(cells, rate) {
     const seen = new Set(cells.map(key));
@@ -248,11 +248,11 @@ export function initHero(container) {
     pyra: ["F", "L", "R", "D"],
   };
   // The Twist's body is wrung about the vertical axis, so only turns about
-  // that axis leave its shape intact — a side turn sends the twisted slabs
+  // that axis leave its shape intact. A side turn sends the twisted slabs
   // across orientations and it bursts out of its cell.
   const TWIST_MOVES = ["U", "U'", "U2", "D", "D'", "E", "E'"];
 
-  // The Pyraminx never joins the mass — a tetrahedron inside a cubic
+  // The Pyraminx never joins the mass, since a tetrahedron inside a cubic
   // lattice reads as a hole. It only ever caps an exposed top cell, where
   // its apex turns that column into a roof. In its view frame the base
   // sits at y = -0.866 and the apex at +2.598, and the footprint leans
@@ -260,7 +260,7 @@ export function initHero(container) {
   const PYRA_BASE = 0.866;
   const PYRA_ZOFF = 0.612;
 
-  /** Cells with nothing above them, highest first — candidate roofs. */
+  /** Cells with nothing above them, highest first: candidate roofs. */
   function crownCells(cells) {
     const occ = new Set(cells.map(key));
     // a roof only works where the apex clears its surroundings: nothing
@@ -299,7 +299,7 @@ export function initHero(container) {
    * A curved scene pays for it twice over, so it runs smaller: the twist
    * costs about five times a plain cube to draw and the hero redraws a
    * block once per cubie it reveals, and welding neighbours into long
-   * cuboids would put plain cubes back in the majority — hence the much
+   * cuboids would put plain cubes back in the majority, hence the much
    * lower fusion rate as well.
    */
   const CASTS = [
@@ -336,7 +336,7 @@ export function initHero(container) {
    * The scene's whole colour vocabulary, read off the page's own custom
    * properties so the stylesheet stays the single source of truth: if the
    * palette is retuned in CSS, the sculptures follow without a code change.
-   * Paper and ink are in the set — in a linocut the paper is a colour too.
+   * Paper and ink are in the set, because in a linocut the paper is a colour too.
    */
   function readUnitPalette() {
     const cs = getComputedStyle(document.documentElement);
@@ -355,7 +355,7 @@ export function initHero(container) {
   /**
    * Deal the unit colours onto one block's faces. The rotation is driven by
    * height and index rather than randomness, so a column shifts hue-by-hue
-   * as it rises and neighbours never land on the same deal — variation
+   * as it rises and neighbours never land on the same deal: variation
    * without ever leaving the five colours.
    */
   function permuteUnit(unit, letters, level, index) {
@@ -378,7 +378,7 @@ export function initHero(container) {
     const cast = pickCast();
     let cells = tidy(GRAMMARS[grammarIdx](planFor(W, H)));
 
-    // budget: keep the piece count tractable — the hero redraws a block once
+    // budget: keep the piece count tractable, since the hero redraws a block once
     // per cubie it reveals, so this bounds the work of a whole build
     while (cells.length > cast.budget)
       cells.splice(Math.floor(Math.random() * cells.length), 1);
@@ -442,7 +442,7 @@ export function initHero(container) {
     };
 
     // every so often the work is built from original Rubik's-colored,
-    // scrambled cubes — the icon itself as raw material
+    // scrambled cubes, the icon itself as raw material
     const forceGenerative = location.search.includes("generative");
     const classic =
       !forceGenerative &&
@@ -457,7 +457,7 @@ export function initHero(container) {
     // The colour story is Vasarely's Plastic Unit: constant forms and a
     // fixed set of homogeneous colours, varied only by PERMUTATION. Hue
     // never wanders, so however many blocks a scene holds it still reads
-    // as one composition — and the palette is read straight off the page's
+    // as one composition, and the palette is read straight off the page's
     // own tokens, so the work and the page are painted from one pot.
     const maxLevel = Math.max(...blocks.map((b) => b.level));
     const unit = readUnitPalette();
@@ -485,8 +485,8 @@ export function initHero(container) {
     // so the frame is simply taken twice.
     // Carving and framing chase each other: the zone can only be tested in
     // screen space, screen space depends on the fit, and the fit depends on
-    // which blocks survive the carve. Testing once against a draft fit —
-    // which is what this did — lets a block that was clear under the draft
+    // which blocks survive the carve. Testing once against a draft fit,
+    // which is what this did, lets a block that was clear under the draft
     // land on the masthead under the final one. So iterate until the set
     // stops changing, then carve once more WITHOUT reframing: the title is
     // then clear by construction, at the cost of a frame a hair wider than
@@ -538,7 +538,7 @@ export function initHero(container) {
      * camera angle.
      *
      * Each block then derives its six faces from its own place in the ramp,
-     * with the hue held on a short leash — enough that the facets separate,
+     * with the hue held on a short leash: enough that the facets separate,
      * not enough for the block to leave the field. Two blocks at the same
      * step get the same deal, which is what makes it read as one work; the
      * cache below is that fact, not an optimisation.
@@ -597,7 +597,7 @@ export function initHero(container) {
           );
         else inst.scramble(3 + Math.floor(Math.random() * 4));
       }
-      // some blocks hold a frozen mid-turn — sculpture with puzzle tension
+      // some blocks hold a frozen mid-turn, sculpture with puzzle tension
       let turn;
       if (blk.fused && Math.random() < 0.14) {
         // fused cuboids only allow quarter turns about their long axis
@@ -670,7 +670,7 @@ export function initHero(container) {
 
     // No ground shadow. A soft radial gradient is the one thing on this
     // page pretending to depth, and picture-architecture "absorbs all into
-    // a flat plane" — the work sits ON the paper, it does not hover above it.
+    // a flat plane". The work sits ON the paper, it does not hover above it.
 
     scene = {
       items,
@@ -751,8 +751,8 @@ export function initHero(container) {
     animationId = requestAnimationFrame(frame);
   }
 
-  // Clicking still swaps the work when motion is reduced — the person asked
-  // for no unprompted animation, not for no interaction — it just cuts
+  // Clicking still swaps the work when motion is reduced. The person asked
+  // for no unprompted animation, not for no interaction, so it just cuts
   // straight to the next one instead of dissolving into it.
   container.addEventListener("click", () => {
     if (!scene) return;

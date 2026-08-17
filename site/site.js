@@ -40,6 +40,7 @@ import {
 } from "../src/erno.js";
 import { version } from "../package.json";
 import { initHero } from "./hero.js";
+import { enhanceRange } from "./controls.js";
 import { highlight } from "https://esm.sh/sugar-high";
 
 document.querySelectorAll("pre code").forEach((el) => {
@@ -51,7 +52,7 @@ document.querySelector("h1 .version").textContent = version;
 // ─── The index ───────────────────────
 // The titles are wrapped so the numeral and the words can be styled apart.
 // The index groups the guide by subject, so its own order is not the page's
-// and a CSS counter would number the entries by where they sit in the LIST —
+// and a CSS counter would number the entries by where they sit in the LIST,
 // sending you to "X Cuboids" when the plate says XII. The numeral is read off
 // the page instead, the same principle as everything else here: the map does
 // not restate the territory, it reads it.
@@ -82,70 +83,12 @@ for (const a of document.querySelectorAll("nav a")) {
 }
 
 // ─── Enhance all range inputs ────────
-function enhanceRange(input) {
-  const wrap = document.createElement("div");
-  wrap.className = "range-wrap";
-  input.parentNode.insertBefore(wrap, input);
-  wrap.appendChild(input);
-
-  // One cell per real step, which is what makes the strip honest: a cube's
-  // size has seven values and shows seven cells. Where the steps are finer
-  // than the eye — an angle in whole degrees — the strip stops subdividing
-  // at a count that still reads as cells rather than as a hairline fill.
-  const min = parseFloat(input.min) || 0;
-  const max = parseFloat(input.max) || 100;
-  const step = parseFloat(input.step) || 1;
-  const steps = Math.round((max - min) / step) + 1;
-
-  // Two kinds, and conflating them was the mistake. An ANGLE is a quantity:
-  // filling the strip up to it reads correctly. A cube's SIZE is a choice
-  // among whole values, and filling cells 2, 3 and 4 to mean "four" reads as
-  // "two and three and four" — which is why it was impossible to tell where
-  // 2 sat versus 3. A choice marks one cell and names them all.
-  const choice = input.dataset.scale === "choice";
-  const count = choice ? steps : Math.max(2, Math.min(24, steps));
-  wrap.dataset.scale = choice ? "choice" : "quantity";
-
-  const cells = document.createElement("div");
-  cells.className = "range-cells";
-  cells.setAttribute("aria-hidden", "true");
-  for (let i = 0; i < count; i++) {
-    const cell = document.createElement("i");
-    if (choice) cell.textContent = String(min + i * step);
-    cells.appendChild(cell);
-  }
-  wrap.appendChild(cells);
-
-  const valueSpan = wrap
-    .closest(".control-label")
-    .querySelector(".control-value");
-
-  function syncVal() {
-    const val = parseFloat(input.value) || 0;
-    const t = (val - min) / (max - min || 1);
-    // A choice lights the cell it is on. A quantity fills up to it.
-    const on = choice ? Math.round((val - min) / step) + 1 : Math.max(1, Math.round(t * count));
-    [...cells.children].forEach((c, i) => {
-      if (choice ? i === on - 1 : i < on) c.setAttribute("data-on", "");
-      else c.removeAttribute("data-on");
-      // The handle is marked here rather than in CSS: `:last-of-type` means
-      // the last cell OF ITS TYPE, not the last one that happens to be
-      // filled, so it matches the final cell only when the strip is full.
-      if (i === on - 1) c.setAttribute("data-head", "");
-      else c.removeAttribute("data-head");
-    });
-    if (valueSpan) valueSpan.textContent = input.value;
-  }
-
-  input.addEventListener("input", syncVal);
-  syncVal();
-}
 
 document.querySelectorAll('input[type="range"]').forEach(enhanceRange);
 
 // ─── Settings panel ──────────────────
 // The panel is fixed and never goes away once shown, so leaving it open
-// parks a solid block over the top-right corner of every plate — which is
+// parks a solid block over the top-right corner of every plate, which is
 // exactly where a flipped plate puts its heading and first paragraph, and
 // it was cutting words off the ends of lines. It opens on a click instead.
 const panel = document.getElementById("settings-panel");
@@ -327,8 +270,8 @@ function variantDemo(id, make, options) {
     if (t && t.key === "scramble") ctx.p.scramble();
     if (t && t.key === "reset") ctx.p.reset();
     // The frame is the puzzle's own circumsphere, not its current outline.
-    // A tight fit is measured on the drawing, so anything that shape-shifts
-    // — or simply opens up mid-turn — redraws at a different scale and the
+    // A tight fit is measured on the drawing, so anything that shape-shifts,
+    // or simply opens up mid-turn, redraws at a different scale and the
     // puzzle appears to shrink as you use it.
     return tune(ctx.p, options).toSVG({ fitSphere: true });
   });
@@ -345,14 +288,14 @@ familyDemo(
 );
 variantDemo("demo-void", () => new Void());
 /* Painting is a system, not one puzzle: the same option carries the Tetris
-   layout, a single face, a gradient by layer, or one flat colour — and the
+   layout, a single face, a gradient by layer, or one flat colour, and the
    flat one is the point, since a puzzle whose pieces are all the same colour
    can never be unsolved. */
 const PAINTS = {
   tetris: () => new Tetris(),
 
   mirror: () => new Mirror({ paint: tetrisPaint }),
-  // paint belongs to the piece engine, so a painted 3×3 is a Cuboid — the
+  // paint belongs to the piece engine, so a painted 3×3 is a Cuboid; the
   // facelet Erno is a different representation and carries no pieces
   face: () =>
     new Cuboid({
@@ -369,8 +312,8 @@ const PAINTS = {
 
 familyDemo("demo-painting", PAINTS, { scheme: false });
 
-/* Decals get their own plate. They are a different idea from a paint — a mark
-   rather than a colour — and the three printings share a frame of their own,
+/* Decals get their own plate. They are a different idea from a paint, a mark
+   rather than a colour, and the three printings share a frame of their own,
    which a Mirror in the same family would have forced wide. */
 familyDemo(
   "demo-decals",
@@ -391,7 +334,7 @@ const CUBOIDS = {
 };
 
 // One frame for the boxes too. They are genuinely different sizes, so here
-// sharing is not about hiding a difference — it is what makes the difference
+// sharing is not about hiding a difference, it is what makes the difference
 // legible: the cubie stays one size and a Floppy reads as flat rather than
 // being blown up to fill the same square as a 3×4×3.
 let cuboidFrame = null;
@@ -406,7 +349,7 @@ setupDemo("demo-cuboids", (v, ctx, t) => {
     try {
       ctx.p.move(moveToken(t));
     } catch {
-      // quarter turn about a non-square axis — ignore, the text explains why
+      // quarter turn about a non-square axis, so ignore it; the text explains why
     }
   }
   if (t && t.key === "scramble") ctx.p.scramble();
@@ -417,8 +360,8 @@ setupDemo("demo-cuboids", (v, ctx, t) => {
 // ─── 9d/9e. Shape mods & turners ─────
 function familyDemo(id, kinds, options) {
   // One frame for the whole family. Each puzzle reserves the room its own
-  // turns need — a Mirror shape-shifts and asks for a quarter more than a
-  // plain 3×3 — so framing each to itself makes the cube appear to change
+  // turns need. A Mirror shape-shifts and asks for a quarter more than a
+  // plain 3×3, so framing each to itself makes the cube appear to change
   // size when you change the option and only the frame moved. Built once,
   // from the largest.
   let shared = null;
@@ -436,7 +379,7 @@ function familyDemo(id, kinds, options) {
       try {
         ctx.p.move(moveToken(t));
       } catch {
-        // token belongs to the other puzzle in the select — ignore
+        // token belongs to the other puzzle in the select, so ignore it
       }
     }
     if (t && t.key === "scramble") ctx.p.scramble();
@@ -507,7 +450,7 @@ const WELDS = {
 };
 
 // The welds are framed to their own outline rather than a sphere they barely
-// fill, which leaves each one filling its box — so a staircase of three cubes
+// fill, which leaves each one filling its box, so a staircase of three cubes
 // and a single bandaged one drew their cubies at 1.7× each other. One frame,
 // big enough for the largest, centred on whichever is showing: the cubie is
 // then the same size whatever you pick, and a bigger puzzle looks bigger.
@@ -532,7 +475,7 @@ weldRender = setupDemo("demo-welding", (v, ctx, t) => {
     try {
       p.move(t.key.slice(5) + (t.shift ? "'" : ""));
     } catch {
-      // the button was live a moment ago and is not any more — nothing to do
+      // the button was live a moment ago and is not any more, so there is nothing to do
     }
   }
 
@@ -554,13 +497,13 @@ weldRender = setupDemo("demo-welding", (v, ctx, t) => {
   );
   if (ctx.readout)
     ctx.readout.textContent = `${p.pieces.length} pieces · ${open.length} of ${vocab.length} faces still turn${
-      open.length ? "" : " — welded shut"
+      open.length ? "" : ", welded shut"
     }`;
 
   // Every other demo fits its viewBox to the circumsphere so the frame holds
   // still while a puzzle turns. A welded puzzle is a poor sphere: the
   // staircase filled a tenth of its own frame and read as a distant speck.
-  // It does not need the sphere either — with blocking on, a legal turn maps
+  // It does not need the sphere either. With blocking on, a legal turn maps
   // its layer onto itself, so the silhouette is invariant and the tight fit
   // cannot jump. Measured across every legal move and a forty-move scramble
   // on all seven welds: zero drift.
@@ -605,12 +548,12 @@ setupDemo("demo-generative", (v, ctx, t) => {
       ctx.p = new Void();
       ctx.ramp = generateRamp(ctx.p.pieces.length);
       ctx.p.style(({ piece }) => ({ fill: ctx.ramp[piece] }));
-      ctx.readout.textContent = "a ramp across the pieces — scramble it";
+      ctx.readout.textContent = "a ramp across the pieces, scramble it";
     } else {
       ctx.p = new Erno();
       ctx.scheme = generateScheme(CUBE_LETTERS);
       ctx.p.colors = ctx.scheme;
-      ctx.readout.textContent = `“${ctx.scheme.name}” — seed ${ctx.scheme.seed}`;
+      ctx.readout.textContent = `“${ctx.scheme.name}”, seed ${ctx.scheme.seed}`;
     }
   }
   if (t && t.key === "shuffle") {
@@ -621,7 +564,7 @@ setupDemo("demo-generative", (v, ctx, t) => {
     } else {
       ctx.scheme = generateScheme(CUBE_LETTERS);
       ctx.p.colors = ctx.scheme;
-      ctx.readout.textContent = `“${ctx.scheme.name}” — seed ${ctx.scheme.seed}`;
+      ctx.readout.textContent = `“${ctx.scheme.name}”, seed ${ctx.scheme.seed}`;
     }
   }
   if (t && (t.key === "derive" || t.key === "base")) {
@@ -633,7 +576,7 @@ setupDemo("demo-generative", (v, ctx, t) => {
     } else {
       ctx.scheme = schemeFrom(v.base, CUBE_LETTERS);
       ctx.p.colors = ctx.scheme;
-      ctx.readout.textContent = `derived from ${v.base} — “${ctx.scheme.name}”`;
+      ctx.readout.textContent = `derived from ${v.base}, “${ctx.scheme.name}”`;
     }
   }
   if (t && t.key === "scramble") ctx.p.scramble();
@@ -691,8 +634,8 @@ setupDemo("demo-animation", (v, ctx, t) => {
   }
 
   // Scrubbing is the API in the prose, driven by hand: one move held at a
-  // fraction of its turn. The control is a strip of cells — the same form the
-  // puzzle is made of — so the thing you drag and the thing you turn are cut
+  // fraction of its turn. The control is a strip of cells, the same form the
+  // puzzle is made of, so the thing you drag and the thing you turn are cut
   // from one material.
   if (t && t.key === "scrub") {
     stop();
@@ -791,7 +734,7 @@ setupDemo("demo-renderstate", (v, ctx) => {
  * The four arrangements used to cycle by position, which meant the split
  * between text and demo was decided before anyone knew what was going in
  * it. Across these eighteen plates the prose runs from 159 to 773
- * characters — a 4.9× spread — and the demos carry between one and ten
+ * characters, a 4.9× spread, and the demos carry between one and ten
  * controls, so pairing width to position put the shortest text in the
  * widest column and left a hole under it.
  *
@@ -808,7 +751,7 @@ function composePlates() {
     const text = plate.querySelector(".section-text");
     const demo = plate.querySelector(".section-demo");
     if (!text) return;
-    // all prose, not just <p> — the longest plate on the page keeps half its
+    // all prose, not just <p>, since the longest plate on the page keeps half its
     // text in a list, and counting paragraphs alone filed it as the lightest
     const bare = text.cloneNode(true);
     bare.querySelectorAll("pre, h2").forEach((n) => n.remove());
@@ -836,7 +779,7 @@ composePlates();
 initHero(document.getElementById("hero"));
 
 /**
- * Compose one — the code block IS the control.
+ * Compose one: the code block IS the control.
  *
  * The spec is parsed, never evaluated: this reads `key: value` pairs and
  * nothing else, so an editable block on a public page cannot run anything.
@@ -851,7 +794,7 @@ function parseSpec(text) {
     const key = part.slice(0, at).trim().replace(/^["']|["']$/g, "");
     const raw = part.slice(at + 1).trim();
     if (!key) continue;
-    // fractions are allowed because the classic depths ARE fractions —
+    // fractions are allowed because the classic depths ARE fractions:
     // a Dino is exactly 1/3, and 0.3333 is a different puzzle
     const frac = raw.match(/^(-?[\d.]+)\s*\/\s*([\d.]+)$/);
     if (frac) spec[key] = Number(frac[1]) / Number(frac[2]);
@@ -860,7 +803,7 @@ function parseSpec(text) {
     else if (raw !== "" && !Number.isNaN(Number(raw))) spec[key] = Number(raw);
   }
   // `size` is written [3, 2, 3], and splitting the body on commas tore it
-  // apart — stitch it back from the original text
+  // apart, so stitch it back from the original text
   const size = text.match(/size\s*:\s*\[([^\]]*)\]/);
   if (size) spec.size = size[1].split(",").map((n) => parseInt(n, 10));
   return spec;
@@ -876,13 +819,13 @@ const SPEC_PRESETS = {
 };
 
 /**
- * Compose one — the code writes itself and the puzzle forms as it goes.
+ * Compose one: the code writes itself and the puzzle forms as it goes.
  *
  * The hero builds a sculpture cubie by cubie; this builds a puzzle line by
  * line, which is the same argument in a different register: a puzzle is a
  * description, and you can watch one being written.
  *
- * It rebuilds at property boundaries rather than on every character —
+ * It rebuilds at property boundaries rather than on every character;
  * parsing and slicing a solid per keystroke is wasted work, and landing the
  * change when a value completes is also what reads as cause and effect.
  *

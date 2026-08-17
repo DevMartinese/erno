@@ -1249,6 +1249,127 @@ test("an animated turn lands exactly where the move leaves it", () => {
   }
 });
 
+// ── Position, patterns and the vocabulary ───────────────────────────────────
+
+test("every puzzle can say what moves it has", () => {
+  for (const C of [
+    Cube, Skewb, Pyraminx, Mirror, Void, Tetris, Domino, Tower, Floppy, Fisher,
+    Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist,
+    MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Fused,
+    Siamese,
+  ]) {
+    const p = new C();
+    const open = p.legalMoves();
+    assert(open.length > 0, `${p.def.name} enumerates no moves`);
+    for (const t of open) assert(p.canMove(t), `${p.def.name} listed ${t} but refuses it`);
+  }
+});
+
+test("a position saves and restores the puzzle exactly", () => {
+  // A facelet string cannot do this: two placements can wear the same face.
+  // A position is the placement itself, so it comes back bit for bit.
+  for (const make of [
+    () => new Cube({ size: 3 }), () => new Cube({ size: 5 }), () => new Megaminx(),
+    () => new Skewb(), () => new Fisher(), () => new Siamese(), () => new Mirror(),
+  ]) {
+    const p = make();
+    p.scramble();
+    const pos = p.getPosition();
+    const q = make().setPosition(pos);
+    assertEqual(q.getState(), p.getState(), `${p.def.name} state`);
+    assertEqual(q.getPosition(), pos, `${p.def.name} position`);
+    assertEqual(q.toSVG(), p.toSVG(), `${p.def.name} drawing`);
+  }
+});
+
+test("a bad position is refused, and refused whole", () => {
+  const v = new Void();
+  const intact = v.getPosition();
+  let refused = 0;
+  for (const bad of [
+    new Cube({ size: 3 }).getPosition(), // right shape, wrong puzzle
+    "", "nope", "e1:20:", "e1:20:1,2:0.0.0", "e1:99:0:0.0.0",
+  ]) {
+    try {
+      v.setPosition(bad);
+    } catch {
+      refused++;
+    }
+  }
+  assertEqual(refused, 6, "every bad position refused");
+  assertEqual(v.getPosition(), intact, "and the puzzle was left alone");
+});
+
+test("distance to a pattern falls as the pattern comes together", () => {
+  const target = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").getState();
+  const c = new Cube({ size: 3 });
+  // the checkerboard swaps the twelve edges and nothing else
+  assertEqual(c.distanceTo(target), 24, "solved to checkerboard");
+  const seen = [];
+  for (const m of ["U2", "D2", "F2", "B2", "L2", "R2"]) seen.push(c.move(m).distanceTo(target));
+  assertEqual(seen[seen.length - 1], 0, "arrives at zero");
+  assert(c.matches(target), "and matches");
+  assert(!c.isSolved(), "a pattern is not the solved puzzle");
+});
+
+test("a pattern is the same pattern held another way up", () => {
+  const target = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").getState();
+  const c = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2");
+  assertEqual(new Cube({ size: 3 }).orientations().length, 24, "24 ways to hold a cube");
+  for (const held of ["y", "x2", "z' y", "x y'"]) {
+    const q = new Cube({ size: 3 }).move("U2 D2 F2 B2 L2 R2").move(held);
+    assert(q.matches(target), `checkerboard held ${held}`);
+    assert(!q.matches(target, { anyOrientation: false }), `strictly, ${held} is a different string`);
+  }
+  assert(!c.move("R").matches(target), "one turn later it is gone");
+  // a puzzle that cannot be held every way up says so instead of guessing
+  assertEqual(new Domino().orientations().length, 1, "a Domino tips into a different puzzle");
+  assertEqual(new Megaminx().orientations().length, 1, "a Megaminx lists none");
+});
+
+test("asking for the orientations does not disturb the puzzle", () => {
+  const c = new Cube({ size: 3 });
+  c.scramble();
+  const pos = c.getPosition();
+  const history = c.history.join(" ");
+  c.orientations();
+  assertEqual(c.getPosition(), pos, "position");
+  assertEqual(c.history.join(" "), history, "history");
+});
+
+test("mid-turn, the turning layer is ordered by its own cut plane", () => {
+  // A turn grabs the pieces on one side of a cut and turns them about its
+  // normal, so a turning piece and a resting one keep to their own sides for
+  // the whole sweep and the plane between them settles the draw order
+  // exactly. Before that plane was used, these pairs fell through to a guess
+  // — draw whatever is moving on top — and a shape-shifter's blocks came out
+  // cutting through each other. These are the orders the plane gives.
+  for (const [label, make, seq, mv, progress, order] of [
+    ["Fisher", () => new Fisher(), "U R2 F' D", "U", 0.6,
+      "2,22,5,10,8,9,21,12,3,7,25,1,0,19,11,13,4,16,24,17,15,20,18,6"],
+    ["Axis", () => new Axis(), "R U2 F", "U", 0.6,
+      "9,1,3,17,4,10,12,20,18,24,11,2,6,13,22,21,19,5,15,14,16,25,7,8"],
+    ["Skewb", () => new Skewb(), "R U L'", "U", 0.6,
+      "8,9,1,4,13,2,0,6,7,11,3,5,12"],
+    ["SkewbDiamond", () => new SkewbDiamond(), "R U", "U", 0.6,
+      "10,5,7,9,13,0,1,11,8,3,12"],
+    ["Helicopter", () => new Helicopter(), "FU RU BU", "FU", 0.6,
+      "4,2,0,9,8,23,1,12,20,13,6,21,29,16,19,17,18,7,3,14,26,15,10,11,22,27,24,28,25,30,31"],
+    ["Siamese", () => new Siamese(), "AD AD' AD2", "AD", 0.6,
+      "2,1,11,6,0,10,19,20,9,18,4,12,7,14,5,17,8,15,13,32,16,21,23,22,26,27,24,34,39,28,38,29,35,36,30,33,37,40,42,41,44,43,45,46,47"],
+    ["3×3", () => new Cube({ size: 3 }), "R U R' F2", "R", 0.85,
+      "9,23,8,4,10,12,6,24,20,7,22,16,14,15,2,21,13,17,25,11,5,18,19"],
+  ]) {
+    const p = make().move(seq);
+    const drawn = [];
+    for (const f of p.getFaces({ move: mv, progress }))
+      if (drawn[drawn.length - 1] !== f.piece) drawn.push(f.piece);
+    assertEqual(drawn.join(","), order, `${label} paint order mid-turn`);
+    // and each piece is drawn all at once, never split around another
+    assertEqual(new Set(drawn).size, drawn.length, `${label} draws every piece once`);
+  }
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

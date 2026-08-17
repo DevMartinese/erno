@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>erno.js — Interactive Guide</title>
+    <title>erno.js · Interactive Guide</title>
     <meta
       name="description"
-      content="A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb, Pyraminx, Mirror and Void — WCA notation, layer animation, zero dependencies. Named after Ernő Rubik."
+      content="A tiny engine for twisty puzzles rendered to SVG. N×N cubes, Skewb, Pyraminx, Mirror and Void, with WCA notation, layer animation and zero dependencies. Named after Ernő Rubik."
     />
 
     <!-- Open Graph -->
     <meta property="og:title" content="erno.js" />
     <meta
       property="og:description"
-      content="Tiny engine for twisty puzzles rendered to SVG — N×N cubes, Skewb, Pyraminx, Mirror and Void, zero dependencies."
+      content="Tiny engine for twisty puzzles rendered to SVG: N×N cubes, Skewb, Pyraminx, Mirror and Void, zero dependencies."
     />
     <meta property="og:type" content="website" />
 
@@ -101,17 +101,17 @@
 
           <p>
             erno.js is a minimalist JavaScript engine that holds the state of a
-            twisty puzzle — an N×N Rubik's cube, a Skewb, a Pyraminx, a Mirror,
+            twisty puzzle (an N×N Rubik's cube, a Skewb, a Pyraminx, a Mirror,
             a Void, a Rubik's Tetris, a cuboid, a shape mod or a corner/edge
-            turner — applies moves in standard WCA notation, and
+            turner), applies moves in standard WCA notation, and
             distills every position into pristine SVG. No WebGL, no canvas: the
             output is semantic, stylable, resolution-independent markup, with
             data attributes on every sticker.
           </p>
 
           <p>
-            The cube core tracks facelets the way solvers do — the state string
-            is solver-ready — while the classic variants run on a generic piece
+            The cube core tracks facelets the way solvers do, so the state string
+            is solver-ready, while the classic variants run on a generic piece
             engine: each puzzle is described as a solid plus cut planes, and
             every piece carries an exact integer rotation, so a scramble and
             its inverse restore the solved state bit for bit.
@@ -129,7 +129,7 @@
 
           <p>
             This page is both manual and playground. Every example below is
-            live — use the settings panel to swap cameras and sticker styles
+            live: use the settings panel to swap cameras and sticker styles
             across the whole page.
           </p>
         </div>
@@ -205,7 +205,7 @@ cube.move("R U R' U'")
 document.body.innerHTML = cube.toSVG()</code></pre>
 
         <p>
-          All parameters are optional — <code>new Erno()</code> is a 3×3 with
+          All parameters are optional. <code>new Erno()</code> is a 3×3 with
           sensible defaults. The SVG auto-centers on the visible geometry;
           pass <code>{ fitSphere: true }</code> to size the viewBox to the
           cube's circumsphere instead, so animations never make it jump.
@@ -248,7 +248,7 @@ cube.move("Rw M2 x'")
 Erno.inverse("R U2 f'") // → "f U2 R'"</code></pre>
           <p>
             Internally every move is a permutation of facelet indices, derived
-            once from exact integer 3D rotations and cached — applying a move
+            once from exact integer 3D rotations and cached, so applying a move
             is a single array shuffle.
           </p>
         </div>
@@ -275,13 +275,13 @@ Erno.inverse("R U2 f'") // → "f U2 R'"</code></pre>
         <div class="section-text">
           <h2>Scrambling</h2>
           <p>
-            <code>scramble()</code> applies a random move sequence — avoiding
-            trivially redundant successors — and returns it, so you can show
+            <code>scramble()</code> applies a random move sequence, avoiding
+            trivially redundant successors, and returns it, so you can show
             it, store it, or invert it.
           </p>
           <pre><code>const seq = cube.scramble()
 cube.move(Erno.inverse(seq))
-cube.isSolved() // true — exactly</code></pre>
+cube.isSolved() // true, exactly</code></pre>
         </div>
       </div>
 
@@ -302,7 +302,7 @@ cube.isSolved() // true — exactly</code></pre>
           <h2>Facelet state</h2>
           <p>
             State is a facelet string in URFDLB face order, row-major per
-            face, one letter per sticker naming its home face — the same
+            face, one letter per sticker naming its home face, the same
             layout common solvers (e.g. Kociemba's) consume, so wiring a
             solver up is a string away.
           </p>
@@ -340,7 +340,7 @@ cube.setState(str)</code></pre>
           <h2>Cubes of any size</h2>
           <p>
             The same engine renders a 2×2 pocket cube, the 3×3, and any big
-            cube — wide turns like <code>3Rw</code> included. Facelet count
+            cube, wide turns like <code>3Rw</code> included. Facelet count
             grows as 6N², and moves stay a single permutation.
           </p>
           <pre><code>new Erno({ size: 2 })
@@ -457,7 +457,7 @@ new Pyraminx().scramble()
         <div class="section-text">
           <h2>Mirror cube</h2>
           <p>
-            A 3×3 with uneven cuts and uniform stickers — the blocks
+            A 3×3 with uneven cuts and uniform stickers: the blocks
             shape-shift as you scramble, exactly like the real puzzle. It
             speaks full cube notation, and because the pieces are tracked on a
             logical 3×3 grid, <code>getState()</code> still returns virtual
@@ -494,7 +494,7 @@ m.getState()        // 3×3-compatible</code></pre>
           <h2>Void cube</h2>
           <p>
             A 3×3 without centers. The piece engine renders interior plastic
-            walls, so the holes go all the way through — turn the camera and
+            walls, so the holes go all the way through. Turn the camera and
             you can see the background straight down the tunnels. 48 facelets,
             8 per face; slices still turn the edge ring.
           </p>
@@ -542,7 +542,7 @@ new Void().move("M E' S2")</code></pre>
   letter === 'U' ? '#cc2823' : undefined })
 
 // the Tetris cube is mechanically an ordinary
-// 3×3 — the paint is all that makes it Tetris,
+// 3×3, the paint is all that makes it Tetris,
 // so any 3×3 mechanism can wear it
 new Mirror({ paint: tetrisPaint })</code></pre>
           <p>
@@ -551,7 +551,7 @@ new Mirror({ paint: tetrisPaint })</code></pre>
             colour are interchangeable and orientation stops mattering,
             exactly like the real Rubik's × Tetris. So
             <code>isSolved()</code> switches to comparing the visible
-            colours on its own — and a puzzle painted a single colour can
+            colours on its own, and a puzzle painted a single colour can
             never be unsolved, however hard you scramble it. Try it.
           </p>
         </div>
@@ -587,7 +587,7 @@ new Mirror({ paint: tetrisPaint })</code></pre>
             <em>mark</em> on it. The callback returns SVG drawn in a unit
             square and the engine lays it onto the sticker. A dice cube, a
             Sudokube and the spots on Ernő's own 1978 Domino are the same
-            mechanisms printed differently — so, like the Tetris paint, they
+            mechanisms printed differently. Like the Tetris paint, they
             ship as decoration and not as classes.
           </p>
           <pre><code>import { Cube, Domino, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT } from 'erno'
@@ -597,7 +597,7 @@ new Cube(SUDOKU_CUBE)      // 1–9 on every face
 new Domino(DOMINO_PRINT)   // the 1978 puzzle, spots and all</code></pre>
           <p>
             Marks are printed at build time, so a mark belongs to its
-            <em>cubie</em> and travels with it — scramble the dice cube and
+            <em>cubie</em> and travels with it: scramble the dice cube and
             the pips go along, which is what a printed cube does. Each is
             laid on the face's own reading directions, so it sits upright
             when solved and turns with its piece afterwards.
@@ -638,7 +638,7 @@ new Domino(DOMINO_PRINT)   // the 1978 puzzle, spots and all</code></pre>
             Non-cubic boxes, any nx×ny×nz. The engine enforces the physics:
             quarter turns are only legal about an axis whose cross section is
             square; everywhere else the shape only returns to itself after a
-            half turn, so <code>R</code> throws and <code>R2</code> works —
+            half turn, so <code>R</code> throws and <code>R2</code> works, so
             the box never shape-shifts. The classics ship as presets:
             <strong>Domino</strong> (3×2×3, Ernő Rubik's 1978 puzzle before
             the cube), <strong>Tower</strong> (2×3×2) and
@@ -652,7 +652,7 @@ new Floppy().move("R2 F2 L2")
 new Cuboid({ size: [3, 4, 3] })</code></pre>
           <p>
             On the Domino, <code>U</code> and <code>D</code> spin freely
-            while the sides flip — scrambles mix white and yellow on the same
+            while the sides flip, so scrambles mix white and yellow on the same
             face, just like the real thing.
           </p>
         </div>
@@ -695,7 +695,7 @@ new Cuboid({ size: [3, 4, 3] })</code></pre>
             Cube and 2×2 groups wearing different bodies. The
             <strong>Fisher</strong> (Tony Fisher, 1985), <strong>Windmill</strong>,
             <strong>Axis</strong> and <strong>Ghost</strong> cubes are a 3×3
-            mechanism rotated inside the cube shell — the Ghost by a compound
+            mechanism rotated inside the cube shell, the Ghost by a compound
             odd angle, in monochrome. The <strong>Twist</strong> is molded
             pre-twisted, the <strong>Penrose</strong> is sculpted into three
             smooth shells, and the <strong>morphix</strong> pair puts a
@@ -708,7 +708,7 @@ new Fisher().move("R U' F")
 new Penrose().scramble()</code></pre>
           <p>
             Mid-shape-shift, stickers can face directions that belong to no
-            face of the cube — those positions report <code>?</code> in
+            face of the cube, and those positions report <code>?</code> in
             <code>getState()</code> until they realign.
           </p>
         </div>
@@ -746,7 +746,7 @@ new Penrose().scramble()</code></pre>
           <p>
             The <strong>Dino</strong> cube's cuts trace the face diagonals:
             twelve edge pieces and nothing else, turned three at a time 120°
-            around a corner — moves are named by their corner
+            around a corner, so moves are named by their corner
             (<code>URF</code>, <code>DBL'</code>…). The
             <strong>Helicopter</strong> turns 180° around its twelve edges
             (<code>UF</code>, <code>FR</code>…): eight corners and
@@ -795,7 +795,7 @@ new Helicopter().move("UF FR DB")</code></pre>
             The engine carves pieces out of any convex solid, so the base
             shape is just another part of the definition. The
             <strong>Megaminx</strong> is a dodecahedron cut by twelve planes,
-            one per face — sixty-two pieces, each face a centre pentagon
+            one per face: sixty-two pieces, each face a centre pentagon
             ringed by five edges and five corners, every turn a fifth of a
             revolution. Cut deeper and the edges disappear, leaving the
             twenty corners of the <strong>Kilominx</strong>. The
@@ -856,14 +856,14 @@ new SkewbDiamond().move("U R'")</code></pre>
             It follows from one rule: <strong>a turn is possible only if the
             layer it grabs comes back to itself.</strong> Whatever the layer
             leaves behind is still in the way. The greyed-out buttons are that
-            rule, evaluated for the position on the left — turn the puzzle and
+            rule, evaluated for the position on the left. Turn the puzzle and
             watch which ones come back to life.
           </p>
           <pre><code>import { Siamese, Cube } from 'erno'
 
 const s = new Siamese()
 s.legalMoves()   // AD AL BU BR, and their primes and doubles
-s.move('AF')     // throws — the layer does not come back to itself
+s.move('AF')     // throws: the layer does not come back to itself
 
 // glue a 2×2×2 block inside a 3×3 and only D, L, B survive
 new Cube({
@@ -880,13 +880,13 @@ new Cube({
         </div>
       </div>
 
-      <!-- PARKED: "Compose one" — the self-typing spec block. The builder
+      <!-- PARKED: "Compose one", the self-typing spec block. The builder
            behind it (buildPuzzle / Puzzle) ships and is tested; only this
            section is out of the guide for now. Uncomment to bring it back,
            along with its nav entry above. composeDemo() in site.js already
            no-ops when #demo-compose is absent.
 
-      <!—— ─── 9c. Compose ───────────────────────────────── ——>
+      [ 9c. Compose ]
 
       <div class="section-row" id="compose">
         <div class="section-demo">
@@ -910,11 +910,11 @@ new Cube({
             Every puzzle above is the same three things: a convex solid, a set
             of cut planes, and moves that turn whatever lies beyond a plane.
             The families differ only in which axes they turn about and how
-            deep the cuts go — so they are configurations, not kinds.
+            deep the cuts go, so they are configurations, not kinds.
           </p>
           <p>
             The block below writes itself, and the puzzle is rebuilt each
-            time a value lands — so a cube becomes a corner turner becomes a
+            time a value lands, so a cube becomes a corner turner becomes a
             Dino as you watch. <strong>Type in it and it is yours:</strong>
             the reel stops for good and the puzzle follows whatever you
             write.
@@ -943,7 +943,7 @@ new Cube({
             manufactures are the rare depths where a cut plane lands exactly
             on a feature the solid already has, so the slivers it would
             otherwise leave collapse to nothing. Every other depth is a
-            perfectly good mechanism with more pieces in it — it turns,
+            perfectly good mechanism with more pieces in it. It turns,
             scrambles and inverts like any other, nobody has just bothered to
             mould one.
           </p>
@@ -977,11 +977,11 @@ new Cube({
         <div class="section-text">
           <h2>Color schemes</h2>
           <p>
-            Face colors are just an option — <code>SCHEMES</code> ships the
+            Face colors are just an option. <code>SCHEMES</code> ships the
             Western/WCA classic, the Japanese scheme, and uniform silver and
             gold. Western and Japanese share white top, green front and red
             right, so from the default view they look identical; the
-            difference is on the hidden faces — Japanese puts
+            difference is on the hidden faces: Japanese puts
             <em>blue opposite white</em> (down) and
             <em>yellow opposite green</em> (back), where Western has yellow
             down and blue back. This demo starts rotated (<code>x2</code>) so
@@ -1026,7 +1026,7 @@ new Void({ colors: SCHEMES.gold })</code></pre>
             Beyond the presets, schemes can be <em>generated</em>: a hue walk
             around the wheel with eased saturation and lightness yields an
             endless supply of harmonious face colors, reproducible by seed.
-            <code>schemeFrom()</code> derives a whole scheme from one color —
+            <code>schemeFrom()</code> derives a whole scheme from one color:
             hand it a brand hex and the cube dresses to match. A generated
             <em>ramp</em> painted across the pieces turns scrambling into a
             mosaic maker.
@@ -1045,7 +1045,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
             cycling), <a href="https://github.com/meodai/poline">poline</a>
             (palettes as sampled paths) and
             <a href="https://github.com/meodai/dittoTones">dittoTones</a>
-            (palettes from one color) — the color-tool universe of heerich's
+            (palettes from one color), the color-tool universe of heerich's
             author.
           </p>
         </div>
@@ -1075,7 +1075,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
           <p>
             <code>style()</code> takes a static object merged into every
             sticker, or a callback
-            <code>({ face, row, col, letter }) → style</code> — the vocabulary
+            <code>({ face, row, col, letter }) → style</code>, the vocabulary
             of tutorial diagrams: gray out everything but the cross, highlight
             an F2L pair, dim solved layers.
           </p>
@@ -1133,11 +1133,11 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
           <h2>Animating turns</h2>
           <p>
             <code>toSVG({ turn: { move, progress } })</code> renders any
-            position mid-turn — the layer rotates continuously and the plastic
+            position mid-turn: the layer rotates continuously and the plastic
             core is exposed. Drive <code>progress</code> from
             <code>requestAnimationFrame</code> and you have a player; pair it
             with <code>fitSphere</code> so the viewBox holds still. Drag
-            <em>Scrub</em> to drive it by hand instead — that control is a
+            <em>Scrub</em> to drive it by hand instead. That control is a
             row of cells, which is the same thing you are turning.
           </p>
           <pre><code>cube.toSVG({
@@ -1170,7 +1170,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
           <h2>Stateless rendering</h2>
           <p>
             <code>Erno.renderState()</code> renders a facelet string without
-            keeping an instance — size inferred from the length. Feed it
+            keeping an instance, size inferred from the length. Feed it
             solver output or precomputed positions and render hundreds of
             algorithm diagrams at build time.
           </p>
@@ -1187,7 +1187,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
         <h2 id="pages">Keep going</h2>
         <p>
           The <a href="./playground.html">playground</a> is a full interactive
-          simulator — every puzzle, animated moves, scrambles, camera and
+          simulator: every puzzle, animated moves, scrambles, camera and
           style presets. The <a href="./gallery.html">gallery</a> is a visual
           test sheet: every puzzle solved, scrambled and mid-turn, on one
           page.
@@ -1200,7 +1200,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
         <h2 id="support">Credits</h2>
         <p>
           Created by
-          <a href="https://github.com/DevMartinese">DevMartinese</a> —
+          <a href="https://github.com/DevMartinese">DevMartinese</a> ·
           <a href="https://github.com/DevMartinese/erno">GitHub</a>.
         </p>
         <p class="credit">

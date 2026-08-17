@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>erno — puzzle gallery</title>
+    <title>erno · puzzle gallery</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <style>
-      /* Képarchitektúra tokens — kept in step with site.css */
+      /* Képarchitektúra tokens, kept in step with site.css */
       :root {
         --paper: #f4efe7;
         --ink: #17110c;
@@ -24,8 +24,8 @@
       h1 { font-size: 20px; }
       /* `1fr` is minmax(auto, 1fr), so a column cannot shrink below its
          content: one long caption widened its column and pushed the sheet
-         off a phone. Tracks that fit the width instead — four on a desktop,
-         two on a phone — and captions that may break mid-word. */
+         off a phone. Tracks that fit the width instead, four on a desktop and
+         two on a phone, with captions that may break mid-word. */
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 22vw, 260px), 1fr)); gap: 16px; max-width: 1400px; }
       figure { margin: 0; border: 1px solid color-mix(in oklab, var(--ink) 12%, var(--paper)); border-radius: 6px; padding: 8px; }
       figcaption { overflow-wrap: anywhere; font-size: 12px; color: color-mix(in oklab, var(--ink) 55%, var(--paper)); text-align: center; margin-top: 4px; font-family: var(--mono); }
@@ -33,7 +33,7 @@
     </style>
   </head>
   <body>
-    <h1>erno — puzzle gallery (visual test page)</h1>
+    <h1>erno · puzzle gallery (visual test page)</h1>
     <div class="grid" id="grid"></div>
     <script type="module">
       import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, SCHEMES } from "../src/erno.js";

@@ -96,6 +96,22 @@ const CUBE_SORT_DIRS = {
   B: [[0, -1, 0], [-1, 0, 0]],
 };
 
+// The whole move vocabulary of a three-layer cube in face notation. A
+// definition declares it so legalMoves() can enumerate what is available
+// from here; without it the puzzle can still be turned, but nothing can ask
+// it what its moves are.
+const CUBE3_TOKENS = ["U", "R", "F", "D", "L", "B"].flatMap((f) =>
+  ["", "'", "2"].map((s) => f + s),
+);
+
+// The 24 ways of holding a cube: pick which face is up (six choices, and the
+// six sequences below are one per face), then spin about the vertical (four).
+// A definition lists these so a pattern can be recognised however the puzzle
+// is held, which is what a player means by "the same pattern".
+const CUBE_ORIENTATIONS = ["", "x", "x2", "x'", "z", "z'"].flatMap((tip) =>
+  ["", "y", "y2", "y'"].map((spin) => [tip, spin].filter(Boolean).join(" ")),
+);
+
 // ── Shared scramblers ───────────────────────────────────────────────────────
 
 function pickScramble(rand, letters, suffixes, count) {
@@ -598,6 +614,12 @@ function buildMorphixDef(name, n) {
     faceOrder: ["F", "L", "R", "D"],
     faceSortDirs,
     colors: { ...TETRA_COLORS },
+    // A 2×2 body has no opposite-face turns to name: U, R and F reach every
+    // layer there is.
+    tokens:
+      n === 2
+        ? ["U", "R", "F"].flatMap((f) => ["", "'", "2"].map((s) => f + s))
+        : CUBE3_TOKENS,
     scramble: (rand, length) =>
       n === 2
         ? pickScramble(rand, ["U", "R", "F"], ["", "'", "2"], length || 11).join(" ")
@@ -667,6 +689,8 @@ function buildMirrorDef() {
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { U: silver, R: silver, F: silver, D: silver, L: silver, B: silver },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -704,6 +728,8 @@ function buildVoidDef() {
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -743,6 +769,10 @@ function buildCuboidDef(dims, shapeShift = false) {
     cuts,
     // the face-turn vocabulary, so legalMoves() can answer on a box too
     tokens: FACES.flatMap((f) => ["", "'", "2"].map((s) => f + s)),
+    // Only a cube can be held every way up. Tip a Domino onto its side and
+    // the layer counts no longer match the axes, so the rotation is not a
+    // way of holding the puzzle — it is a different puzzle.
+    orientations: nx === ny && ny === nz ? CUBE_ORIENTATIONS : undefined,
     parseMove: makeBoxParser(dims, shapeShift),
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
@@ -1237,6 +1267,8 @@ function buildTetrisDef() {
       L: TETRIS_COLORS.Z,
       B: TETRIS_COLORS.O,
     },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -1575,6 +1607,8 @@ function buildPenroseDef() {
       Z: [[0, 0, 1], [-1, 0, 0]],
     },
     colors: { X: "#f0c419", Y: "#2f6fce", Z: "#d9463e" },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
@@ -1705,6 +1739,8 @@ function buildTwistDef() {
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
+    tokens: CUBE3_TOKENS,
+    orientations: CUBE_ORIENTATIONS,
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };

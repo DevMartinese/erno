@@ -530,7 +530,16 @@ export class Twisty {
     // interchangeable and orientation stops mattering — exactly like the
     // real Tetris cube. Remember the factory pattern so isSolved() can
     // compare against it.
-    if (this._paint || def.paint) this._solvedTints = this.getTints().join();
+    if (this._paint || def.paint) {
+      this._solvedTints = this.getTints().join();
+      // One character per distinct colour, fixed now and never rebuilt. A
+      // turn permutes the stickers but cannot invent or destroy one, so
+      // every colour the puzzle will ever show is on it at rest.
+      this._tintCode = new Map();
+      for (const tint of this.getTints())
+        if (tint != null && !this._tintCode.has(tint))
+          this._tintCode.set(tint, String.fromCodePoint(97 + this._tintCode.size));
+    }
     this.setCamera(options.camera || def.camera || { type: "isometric", angle: 30 });
   }
 
@@ -948,6 +957,165 @@ export class Twisty {
     return tints;
   }
 
+  // ── Position: saving, restoring, and patterns ────────────────────────────
+
+  /**
+   * The placement of every piece, as a string. Where getState() reads the
+   * puzzle from outside — what colour lies on which facelet — this reads it
+   * from inside: where each piece sits and how it is turned. That is the
+   * whole of the state, so it round-trips exactly, which a facelet string
+   * cannot promise: two different placements can wear the same face.
+   *
+   * Save a game with it, put it in a URL, hand a position to someone else.
+   * @returns {string}
+   */
+  getPosition() {
+    const dict = [];
+    const seen = new Map();
+    // Rotations repeat — a cube has 24 of them across hundreds of pieces —
+    // so name each distinct triple once and refer to it by number.
+    // Written at full precision, not rounded: a Megaminx turns by irrational
+    // amounts and a Fisher by halves of a root, and a position that came back
+    // almost right would draw a puzzle with hairline seams. JavaScript prints
+    // the shortest string that reads back as the same double, so this is
+    // exact and still short.
+    const id = (nums) => {
+      const key = nums.map((v) => (Math.abs(v) < 1e-12 ? 0 : v)).join(",");
+      let at = seen.get(key);
+      if (at === undefined) {
+        at = dict.length;
+        seen.set(key, at);
+        dict.push(key);
+      }
+      return at;
+    };
+    const rows = this.pieces.map((_, i) => {
+      const [r0, r1, r2] = this._rot[i];
+      return [
+        id([...r0, ...r1, ...r2]),
+        id(this._slotT[i]),
+        id(this._bodyT[i]),
+      ].join(".");
+    });
+    return `e1:${this.pieces.length}:${dict.join(";")}:${rows.join(" ")}`;
+  }
+
+  /**
+   * Restore a position saved by getPosition(). Throws rather than half-load:
+   * a position from a different puzzle would leave this one in a state no
+   * sequence of moves could produce.
+   * @param {string} position
+   * @returns {Twisty} this (chainable)
+   */
+  setPosition(position) {
+    const m = /^e1:(\d+):([^:]*):(.*)$/.exec(String(position).trim());
+    if (!m) throw new Error("erno: not a position string");
+    const count = parseInt(m[1], 10);
+    if (count !== this.pieces.length)
+      throw new Error(
+        `erno: that position holds ${count} pieces, ${this.def.name} has ${this.pieces.length}`,
+      );
+    const dict = m[2] ? m[2].split(";").map((s) => s.split(",").map(Number)) : [];
+    const rows = m[3] ? m[3].split(" ").filter(Boolean) : [];
+    if (rows.length !== count) throw new Error("erno: position is truncated");
+    const entry = (k, n) => {
+      const v = dict[k];
+      if (!v || v.length !== n || v.some((x) => !Number.isFinite(x)))
+        throw new Error("erno: position is corrupt");
+      return v;
+    };
+    // Build it all before assigning any of it, so a bad string leaves the
+    // puzzle exactly as it was.
+    const rot = [];
+    const slotT = [];
+    const bodyT = [];
+    for (const row of rows) {
+      const [ri, si, bi] = row.split(".").map(Number);
+      const r = entry(ri, 9);
+      rot.push([r.slice(0, 3), r.slice(3, 6), r.slice(6, 9)]);
+      slotT.push(entry(si, 3));
+      bodyT.push(entry(bi, 3));
+    }
+    this._rot = rot;
+    this._slotT = slotT;
+    this._bodyT = bodyT;
+    this.history = [];
+    return this;
+  }
+
+  /**
+   * What the puzzle LOOKS like, one character per facelet. On a plain puzzle
+   * that is the facelet string; on a painted one it is the colours, because
+   * two cubies of the same colour are interchangeable and nobody looking at
+   * it could tell them apart. Patterns are compared on this, not on
+   * getState(), so a painted puzzle is judged by eye like the real thing.
+   * @returns {string}
+   */
+  getPattern() {
+    if (!this._tintCode) return this.getState();
+    const tints = this.getTints();
+    const state = this.getState();
+    let out = "";
+    for (let i = 0; i < tints.length; i++)
+      out += tints[i] == null ? state[i] : this._tintCode.get(tints[i]) || "?";
+    return out;
+  }
+
+  /**
+   * How many facelets disagree with `target`, a string from getPattern().
+   * Zero means the puzzle is wearing that pattern. A game shows this as
+   * progress: it falls as the pattern comes together, which "solved or not"
+   * cannot.
+   * @param {string} target
+   * @returns {number}
+   */
+  distanceTo(target) {
+    const here = this.getPattern();
+    if (typeof target !== "string" || target.length !== here.length)
+      throw new Error(
+        `erno: ${this.def.name} has ${here.length} facelets, that target has ${target && target.length}`,
+      );
+    let d = 0;
+    for (let i = 0; i < here.length; i++) if (here[i] !== target[i]) d++;
+    return d;
+  }
+
+  /**
+   * Every pattern string that is this same position held a different way up,
+   * from `def.orientations`: the sequences that move the whole puzzle and
+   * nothing within it. A definition that lists none gets back the one string
+   * it is wearing, which is the honest answer rather than a wrong one.
+   * @returns {string[]}
+   */
+  orientations() {
+    const seqs = this.def.orientations;
+    if (!seqs || !seqs.length) return [this.getPattern()];
+    const home = this.getPosition();
+    const history = this.history;
+    const out = new Set();
+    for (const seq of seqs) {
+      this.setPosition(home);
+      if (seq) this.move(seq);
+      out.add(this.getPattern());
+    }
+    this.setPosition(home);
+    this.history = history;
+    return [...out];
+  }
+
+  /**
+   * Is the puzzle wearing `target`? A pattern turned in your hands is the
+   * same pattern, so by default any orientation counts; pass
+   * {anyOrientation: false} to demand the one it was captured in.
+   * @param {string} target - a string from getPattern()
+   * @param {Object} [options]
+   * @returns {boolean}
+   */
+  matches(target, options = {}) {
+    if (options.anyOrientation === false) return this.getPattern() === target;
+    return this.orientations().includes(target);
+  }
+
   // ── Moves ────────────────────────────────────────────────────────────────
 
   /** Parse a single move token into {axis, angle, min, max}. */
@@ -1155,7 +1323,17 @@ export class Twisty {
     if (turn && turn.progress) {
       const spec = this.parseMove(turn.move);
       const mat = rotationMatrix(spec.axis, spec.angle * turn.progress);
-      spin = { spec, mat, off: offsetFor(mat, spec.center || this._pivot) };
+      // The turn axis carried into render space. A layer is bounded by cut
+      // planes perpendicular to it, so this direction is the one along which
+      // a turning piece and a resting one are guaranteed to come apart —
+      // see _paintOrder, which uses it to order them exactly.
+      const va = matVec(view, spec.axis);
+      spin = {
+        spec,
+        mat,
+        off: offsetFor(mat, spec.center || this._pivot),
+        renderAxis: [va[0], -va[1], -va[2]], // toRender flips y and z
+      };
     }
 
     const inset = Math.max(0, Math.min(0.45, this.stickerInset));
@@ -1357,7 +1535,7 @@ export class Twisty {
     // interleaving artifacts a per-face centroid sort produces when blocks
     // protrude past each other (Mirror cube, mid-turn layers).
     const out = [];
-    for (const idx of this._paintOrder(rendered, proj.eye)) {
+    for (const idx of this._paintOrder(rendered, proj.eye, spin && spin.renderAxis)) {
       const r = rendered[idx];
       r.units.sort((a, b) => b.depth - a.depth);
       for (const u of r.units) out.push(...u.polys);
@@ -1366,10 +1544,18 @@ export class Twisty {
   }
 
   /** Topological back-to-front piece order via separating-plane tests. */
-  _paintOrder(rendered, eye) {
+  _paintOrder(rendered, eye, turnAxis) {
     const n = rendered.length;
     const after = Array.from({ length: n }, () => []);
     const indeg = new Array(n).fill(0);
+
+    // Which side of a plane the camera sits on. `m` is the plane normal and
+    // `t` its offset (m·p = t for p on the plane); positive means the camera
+    // is on the +m side, so whatever lies there is in front.
+    const cameraSide = (m, t) =>
+      eye && eye.type === "point"
+        ? dot(m, eye.v) - t
+        : -dot(m, eye ? eye.v : [0, 0, 1]);
 
     // -1: hull hp drawn first (behind hq), +1: hq first, 0: undetermined
     const sepConvex = (hp, hq) => {
@@ -1381,10 +1567,7 @@ export class Twisty {
           if (minSide < -1e-7) break;
         }
         if (minSide >= -1e-7) {
-          const camSide =
-            eye && eye.type === "point"
-              ? dot(m, sub(eye.v, p0))
-              : -dot(m, eye ? eye.v : [0, 0, 1]);
+          const camSide = cameraSide(m, dot(m, p0));
           if (Math.abs(camSide) < 1e-9) continue; // plane edge-on to the view
           return camSide > 0 ? -1 : 1; // camera on hq's side → hp is behind
         }
@@ -1415,6 +1598,46 @@ export class Twisty {
       return agreed;
     };
 
+    // THE LAYER PLANE. A turn grabs the pieces whose slot coordinate along
+    // the turn axis lies in a range, and that range is bounded by cut planes
+    // perpendicular to the axis. Turning about the axis leaves that
+    // coordinate untouched, so a turning piece and a resting one keep to
+    // their own side of the boundary for the whole sweep: their extents
+    // along the axis never overlap, and the plane in the gap separates them
+    // exactly. It is the one ordering that is provable mid-turn, and it is
+    // precisely where the general search gives up — a shape-shifter's blocks
+    // protrude past each other, so no face plane of either piece separates
+    // them and the pair used to fall through to a guess, which is what made
+    // a turning layer look like it was cutting into the body.
+    const spans = new Array(n).fill(null);
+    const spanOf = (i) => {
+      if (spans[i]) return spans[i];
+      let lo = Infinity,
+        hi = -Infinity;
+      for (const h of rendered[i].hulls)
+        for (const v of h.verts) {
+          const s = dot(turnAxis, v);
+          if (s < lo) lo = s;
+          if (s > hi) hi = s;
+        }
+      return (spans[i] = [lo, hi]);
+    };
+    const layerSide = (a, b) => {
+      const [alo, ahi] = spanOf(a);
+      const [blo, bhi] = spanOf(b);
+      let m, t;
+      if (ahi <= blo + 1e-7) {
+        m = turnAxis; // b sits on the +axis side of a
+        t = (ahi + blo) / 2;
+      } else if (bhi <= alo + 1e-7) {
+        m = [-turnAxis[0], -turnAxis[1], -turnAxis[2]];
+        t = -(bhi + alo) / 2;
+      } else return 0; // extents overlap — not a layer boundary after all
+      const camSide = cameraSide(m, t);
+      if (Math.abs(camSide) < 1e-9) return 0; // plane edge-on to the view
+      return camSide > 0 ? -1 : 1; // camera on b's side → a is behind
+    };
+
     for (let a = 0; a < n; a++) {
       if (!rendered[a].units.length) continue;
       const [ax0, ay0, ax1, ay1] = rendered[a].bbox;
@@ -1422,13 +1645,14 @@ export class Twisty {
         if (!rendered[b].units.length) continue;
         const [bx0, by0, bx1, by1] = rendered[b].bbox;
         if (ax1 < bx0 || bx1 < ax0 || ay1 < by0 || by1 < ay0) continue;
-        let rel = relate(rendered[a], rendered[b]);
-        // Mid-turn on a shape-shifted puzzle, the sweeping layer can pass
-        // through protruding static pieces — no consistent order exists, so
-        // draw the moving piece on top: the eye reads the turning layer as
-        // being in front, instead of a hatched interleave.
-        if (rel === 0 && rendered[a].moving !== rendered[b].moving)
-          rel = rendered[a].moving ? 1 : -1;
+        const split = turnAxis && rendered[a].moving !== rendered[b].moving;
+        let rel = split ? layerSide(a, b) : 0;
+        if (rel === 0) rel = relate(rendered[a], rendered[b]);
+        // Only a puzzle whose layers genuinely interleave gets here — the
+        // Twist cube's curved seams, where no plane separates anything. Draw
+        // the moving piece on top: the eye reads the turning layer as being
+        // in front, instead of a hatched interleave.
+        if (rel === 0 && split) rel = rendered[a].moving ? 1 : -1;
         if (rel === -1) {
           after[a].push(b);
           indeg[b]++;
