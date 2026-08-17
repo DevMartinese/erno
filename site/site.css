@@ -231,6 +231,21 @@ article {
   border-top: var(--rule) solid var(--ink);
 }
 
+/* ONE PLATE PER SCREEN.
+
+   Plates used to end wherever their contents happened to stop, so the fold
+   nearly always cut through two of them — and because the heading rides the
+   text column, not the format, the half of the page opposite it had nothing
+   saying a new plate had begun. Two plates read as one muddle.
+
+   A plate now holds the screen by itself. The height is not spent as
+   margin: the demo grows with the viewport, so what would have been air
+   becomes the thing you came to look at. */
+.section-row,
+.section-full {
+  min-height: 100vh;
+}
+
 .section-row .section-demo {
   position: static;
   grid-row: 1;
@@ -249,17 +264,27 @@ article {
    the height cap alone keeps a plate a band rather than a page. */
 .section-row .demo-canvas {
   width: 100%;
-  /* An absolute cap, not a viewport one: a plate should read as a band at
-     any window height, and 52vh only bit on short screens. */
-  max-height: 22rem;
+  /* A plate holds the whole screen now, so the puzzle is what spends the
+     height rather than leaving it as margin — it is the reason the plate
+     exists. Still capped in absolute terms so a very tall window does not
+     blow one cube up into a poster. */
+  max-height: min(70vh, 40rem);
   margin: 0 auto;
 }
 
+/* The text column is a full-height field rather than a block that stops
+   where the words do. Heading and prose stay together at the top edge — a
+   plate that scrolls into view has to read from its first line, and slack
+   between a heading and its own paragraph orphans both. What is left over
+   falls to the bottom, where it is simply the plane the manifesto asks
+   for. The demo opposite is what spends the height. */
 .section-row .section-text {
   grid-row: 1;
   min-width: 0;
   padding: 0 0 1.5rem;
-  align-self: start;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
   p {
     margin-left: 0;
     padding: 0 2rem;
@@ -312,7 +337,7 @@ article {
   grid-column: span 7;
 }
 .plate--light .demo-canvas {
-  max-height: 17rem;
+  max-height: min(62vh, 34rem);
 }
 
 .plate--even .section-text,
@@ -320,7 +345,7 @@ article {
   grid-column: span 6;
 }
 .plate--even .demo-canvas {
-  max-height: 21rem;
+  max-height: min(68vh, 38rem);
 }
 
 /* Heavy plates get the wide text column and a taller demo to match it, so
@@ -332,7 +357,7 @@ article {
   grid-column: span 5;
 }
 .plate--heavy .demo-canvas {
-  max-height: 25rem;
+  max-height: min(74vh, 44rem);
 }
 
 /* The side. Straight puts the demo first, flipped puts the text first —
@@ -472,6 +497,17 @@ a {
 
   .section-row .section-text {
     align-self: stretch;
+  }
+
+  /* Stacked, a plate is already the only thing on screen — demanding a
+     screenful on top of that would leave the demo below the fold. */
+  .section-row,
+  .section-full {
+    min-height: 0;
+  }
+
+  .section-row .section-text h2 {
+    margin-bottom: 1.2rem;
   }
 
   .section-full {

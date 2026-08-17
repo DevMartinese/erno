@@ -82,10 +82,11 @@ function enhanceRange(input) {
 document.querySelectorAll('input[type="range"]').forEach(enhanceRange);
 
 // ─── Settings panel ──────────────────
+// The panel is fixed and never goes away once shown, so leaving it open
+// parks a solid block over the top-right corner of every plate — which is
+// exactly where a flipped plate puts its heading and first paragraph, and
+// it was cutting words off the ends of lines. It opens on a click instead.
 const panel = document.getElementById("settings-panel");
-if (window.matchMedia("(max-width: 56rem)").matches) {
-  panel.removeAttribute("open");
-}
 const movesSection = document.getElementById("moves");
 let panelShown = false;
 window.addEventListener(
