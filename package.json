@@ -7,6 +7,7 @@
   "module": "./dist/erno.js",
   "exports": {
     ".": {
+      "types": "./dist/types/erno.d.ts",
       "import": "./dist/erno.js",
       "require": "./dist/erno.umd.cjs"
     }
@@ -17,11 +18,12 @@
   ],
   "scripts": {
     "dev": "vite site --host",
-    "build": "vite build",
+    "build": "vite build && npm run types",
     "build:site": "vite build --config site/vite.config.js",
     "preview": "vite preview site",
     "test": "node tests/erno.test.js && node tests/twisty.test.js",
-    "prepublishOnly": "npm test && npm run build"
+    "prepublishOnly": "npm test && npm run build",
+    "types": "tsc --declaration --allowJs --emitDeclarationOnly --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --outDir dist/types src/erno.js"
   },
   "keywords": [
     "rubik",
@@ -41,6 +43,7 @@
   "author": "DevMartinese",
   "license": "MIT",
   "devDependencies": {
+    "typescript": "^5.9.3",
     "vite": "^8.0.1"
   },
   "repository": {
@@ -54,5 +57,6 @@
   "engines": {
     "node": ">=18"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "types": "./dist/types/erno.d.ts"
 }

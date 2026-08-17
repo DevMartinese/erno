@@ -963,6 +963,7 @@ export class Twisty {
    * null where a sticker carries no tint. Solid-colored-piece puzzles use
    * this for their visual solved check.
    */
+  /** @returns {(string|null)[]} */
   getTints() {
     const tints = new Array(this._faceletCount).fill(null);
     for (let i = 0; i < this.pieces.length; i++) {
@@ -1215,6 +1216,10 @@ export class Twisty {
    * about x) and, on a blocking puzzle, for turns the pieces are in the way
    * of right now.
    */
+  /**
+   * @param {string} token
+   * @returns {boolean}
+   */
   canMove(token) {
     let spec;
     try {
@@ -1230,6 +1235,7 @@ export class Twisty {
   /**
    * The moves available from here, out of `def.tokens` (the puzzle's full
    * vocabulary). On a blocking puzzle this shrinks as pieces move.
+   * @returns {string[]}
    */
   legalMoves() {
     const vocab = this.def.tokens || Object.keys(this.def.moves || {});
@@ -1238,6 +1244,7 @@ export class Twisty {
 
   /**
    * Apply a sequence of moves in the puzzle's notation.
+   * @param {string} sequence - one or more tokens, space separated
    * @returns {Twisty} this (chainable)
    */
   move(sequence) {
@@ -1268,6 +1275,7 @@ export class Twisty {
 
   /**
    * Scramble with the puzzle's standard random-move scramble.
+   * @param {number} [length] - how many moves; the puzzle's own default if omitted
    * @returns {string} the scramble sequence applied
    */
   scramble(length) {
@@ -1292,7 +1300,11 @@ export class Twisty {
     return seq;
   }
 
-  /** Invert a move sequence (same token grammar across all puzzles). */
+  /**
+   * Invert a move sequence (same token grammar across all puzzles).
+   * @param {string} sequence
+   * @returns {string}
+   */
   static inverse(sequence) {
     return inverseSequence(sequence);
   }
