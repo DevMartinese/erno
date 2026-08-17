@@ -472,12 +472,11 @@ export class Twisty {
     // block, where it is what makes the glue visible — the welded cubies
     // wear one sticker per face instead of a grid pretending they can come
     // apart.
-    // A DEFORMATION: a linear map applied to the whole puzzle as it is drawn.
-    // The Squished Cube is a 3×3 under a compression along a body diagonal —
-    // every one of its positions is a 3×3's position under the same map — so
-    // it is not a mechanism but a way of looking, in the same sense that
-    // paint is not a mechanism. The state stays exactly the cube's, which is
-    // why scramble and inverse still come back bit for bit.
+    // A DEFORMATION: a linear map applied to the whole puzzle as it is
+    // drawn. It bends the picture, not the mechanism — a squashed Megaminx
+    // is still a Megaminx — so it is a way of looking, in the same sense
+    // that paint is not a mechanism. The state is untouched, which is why
+    // scramble and inverse still come back bit for bit.
     this._deform = options.deform || null;
     this._stickerGroup =
       options.stickerGroup === undefined

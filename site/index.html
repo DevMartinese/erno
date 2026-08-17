@@ -158,7 +158,6 @@
                 <li><a href="#turners">Corner &amp; edge turners</a></li>
                 <li><a href="#solids">Beyond the cube</a></li>
                 <li><a href="#welding">Welding</a></li>
-                <li><a href="#deform">Squished</a></li>
               </ol>
             </li>
             <li class="toc-group" style="--band: var(--yellow); --band-ink: var(--on-yellow)">
@@ -878,67 +877,6 @@ new Cube({
             allowed to deform and you get the identical move list, size for
             size.
           </p>
-        </div>
-      </div>
-
-      <!-- ─── 9g. Squished ─────────────────────────────── -->
-
-      <div class="section-row" id="deform">
-        <div class="section-demo">
-          <div class="demo" id="demo-deform">
-            <div class="demo-canvas"></div>
-            <div class="demo-controls">
-              <label class="control-label"
-                >Bent
-                <select data-bind="kind">
-                  <option value="squished" selected>Squished — uneven cuts</option>
-                  <option value="hard">Squished harder</option>
-                  <option value="mirror">The same cuts, in silver</option>
-                  <option value="deformed">A cube bent at the last moment</option>
-                  <option value="minx">A bent Megaminx</option>
-                </select>
-              </label>
-              <button data-bind="move:R">R</button>
-              <button data-bind="move:U">U</button>
-              <button data-bind="move:F">F</button>
-              <button data-bind="scramble">Scramble</button>
-              <button data-bind="reset">Reset</button>
-            </div>
-            <p class="demo-readout" data-readout></p>
-          </div>
-        </div>
-        <div class="section-text">
-          <h2>Squished</h2>
-          <p>
-            The Squished Cube's layers are of different thickness: its cut
-            planes sit off centre, so its cubies come out uneven. Solved it
-            is a cube of unequal cells; turned, it shifts shape, because a
-            thin layer landing where a thick one was cannot leave the outline
-            alone.
-          </p>
-          <p>
-            Mechanically it <em>is</em> the Mirror cube — the same off-centre
-            cuts, the same uniform logical grid underneath. What separates
-            them is the paint: silver and you solve by shape, the ordinary six
-            and you solve by colour. One machine, two famous puzzles; the same
-            finding as the Tetris cube, one more time.
-          </p>
-          <pre><code>import { Squished, Mirror } from 'erno'
-
-new Squished()                  // uneven cuts, six colours
-new Squished({ offset: 0.45 })  // further off centre
-new Mirror()                    // the same cuts, in silver</code></pre>
-          <p>
-            Worth keeping apart from a <strong>deformation</strong>, which
-            bends the picture rather than the puzzle:
-            <code>deform</code> applies a linear map as the SVG is drawn, so
-            it can squash a Megaminx or stretch a weld without touching a
-            mechanism. It is a way of looking; the Squished is a way of
-            cutting. They are easy to confuse — and the readout tells them
-            apart, since both of these keep a plain 3×3's facelets exactly.
-          </p>
-          <pre><code>new Cube({ deform: squash(0.6) })   // bent as it is drawn
-new Megaminx({ deform: squash(0.6) })</code></pre>
         </div>
       </div>
 

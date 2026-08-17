@@ -36,7 +36,7 @@
     <h1>erno — puzzle gallery (visual test page)</h1>
     <div class="grid" id="grid"></div>
     <script type="module">
-      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, Squished, squash, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, SCHEMES } from "../src/erno.js";
+      import { Erno, Skewb, Pyraminx, Mirror, Void, Tetris, Cuboid, Domino, Tower, Floppy, Fisher, Windmill, Axis, Ghost, Dino, Compy, MasterSkewb, Helicopter, Penrose, Twist, MasterPyraminx, Pyramorphix, Mastermorphix, SkewbDiamond, Megaminx, Kilominx, Cube, Fused, Siamese, DICE_CUBE, SUDOKU_CUBE, DOMINO_PRINT, SCHEMES } from "../src/erno.js";
 
       const grid = document.getElementById("grid");
       const show = (label, svg) => {
@@ -137,13 +137,6 @@
       show("sudokube R U'", new Cube(SUDOKU_CUBE).move("R U'").toSVG());
       show("domino with its spots", new Domino(DOMINO_PRINT).toSVG());
       show("domino R2 U F2", new Domino(DOMINO_PRINT).move("R2 U F2").toSVG());
-      // Deformation: one linear map, and the state is still a plain 3×3's.
-      show("squished cube", new Squished().toSVG());
-      show("squished R U R'", new Squished().move("R U R'").toSVG());
-      show("squished harder", new Squished({ offset: 0.45 }).toSVG());
-      show("stretched", new Cube({ deform: squash(1.7), camera: { type: "perspective", distance: 26 } }).toSVG());
-      show("squished megaminx", new Megaminx({ deform: squash(0.6), camera: { type: "perspective", distance: 26 } }).toSVG());
-      show("squished siamese", new Siamese({ deform: squash(0.6), camera: { type: "perspective", distance: 34 } }).toSVG());
       show("bandaged pair", new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]], stickerGroup: true }).toSVG());
     </script>
   </body>

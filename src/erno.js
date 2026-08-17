@@ -646,7 +646,6 @@ export {
   Kilominx,
   Fused,
   Siamese,
-  Squished,
   squash,
   tetrisPaint,
   TETRIS_PALETTE,

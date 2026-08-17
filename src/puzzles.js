@@ -639,15 +639,8 @@ export class Mastermorphix extends Twisty {
 // pieces and open impossible gaps.
 const MIRROR_PIVOT = [0.3, -0.45, 0.15];
 
-/**
- * A 3×3 whose cut planes sit OFF CENTRE, so its cubies come out different
- * sizes. One mechanism, two famous puzzles: paint it silver and it is the
- * Mirror cube, solved by shape; paint it in the usual six and it is the
- * Squished Cube, solved by colour on a body whose cells are visibly uneven.
- * The difference between them is the paint, not the machine — the same
- * finding as Tetris, one more time.
- */
-function buildOffsetCubeDef(name, pivot, colors) {
+function buildMirrorDef() {
+  const pivot = MIRROR_PIVOT;
   const cuts = [];
   pivot.forEach((c, axis) => {
     const u = [0, 0, 0];
@@ -663,8 +656,9 @@ function buildOffsetCubeDef(name, pivot, colors) {
       return c < p - 0.5 ? -1 : c < p + 0.5 ? 0 : 1;
     });
 
+  const silver = "#c9ccd1";
   return {
-    name,
+    name: "mirror",
     solid: cubeSolid(1.5),
     cuts,
     pivot,
@@ -672,71 +666,18 @@ function buildOffsetCubeDef(name, pivot, colors) {
     slotPointOf,
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
-    colors,
+    colors: { U: silver, R: silver, F: silver, D: silver, L: silver, B: silver },
     scramble: (rand, length) =>
       pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
   };
 }
-
-const SILVER = "#c9ccd1";
 
 let _mirrorDef;
 
 export class Mirror extends Twisty {
   constructor(options = {}) {
     fixedSize("Mirror", options);
-    super(
-      _mirrorDef ||
-        (_mirrorDef = buildOffsetCubeDef("mirror", MIRROR_PIVOT, {
-          U: SILVER,
-          R: SILVER,
-          F: SILVER,
-          D: SILVER,
-          L: SILVER,
-          B: SILVER,
-        })),
-      options,
-    );
-  }
-}
-
-// The Squished's layers are further off centre than the Mirror's — on the
-// real puzzle one layer per axis is visibly thin — and it keeps the six
-// colours, so you solve it by colour while the body stays uneven.
-const SQUISHED_PIVOT = [0.34, -0.34, 0.34];
-
-const _squishedDefs = new Map();
-
-/**
- * The Squished Cube: a 3×3 whose layers are of different thickness.
- *
- * Solved it is a cube of uneven cells; turned, it shifts shape, because a
- * thin layer landing where a thick one was cannot leave the outline alone.
- * Mechanically it is the Mirror cube — same off-centre cuts, same uniform
- * logical grid underneath — wearing the ordinary six colours instead of
- * silver, which is what moves the puzzle from solving by shape to solving by
- * colour. Its state is a plain 3×3's, facelet for facelet.
- *
- * @param {Object} [options] - Twisty options plus:
- * @param {number} [options.offset=0.34] - how far the cuts sit off centre,
- *   0 being an ordinary cube
- */
-export class Squished extends Twisty {
-  constructor(options = {}) {
-    fixedSize("Squished", options);
-    const off = options.offset === undefined ? 0.34 : options.offset;
-    if (Math.abs(off) >= 0.5)
-      throw new Error(
-        `erno: a Squished offset of ${off} would put a cut outside the cube — keep it under 0.5`,
-      );
-    const key = String(off);
-    let def = _squishedDefs.get(key);
-    if (!def) {
-      def = buildOffsetCubeDef(`squished-${off}`, [off, -off, off], { ...CUBE_COLORS });
-      _squishedDefs.set(key, def);
-    }
-    super(def, options);
-    this.offset = off;
+    super(_mirrorDef || (_mirrorDef = buildMirrorDef()), options);
   }
 }
 
@@ -903,7 +844,7 @@ export class Cube extends Cuboid {
 
 /**
  * A compression along `axis` by factor `k` — the linear map that turns a cube
- * into the Squished Cube's rhombohedron.
+ * into a rhombohedron.
  *
  * `I + (k − 1)·nnᵀ` leaves everything perpendicular to the axis alone and
  * scales what lies along it, so the six faces become rhombi and the cubies

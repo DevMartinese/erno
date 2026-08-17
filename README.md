@@ -342,31 +342,9 @@ the name `'centers'` or `'core'`, or a `{ box }` region in slot space. What
 is left is a real puzzle: it turns, scrambles and inverts exactly, and
 `Cube({ remove: 'centers' })` renders byte for byte the same as `new Void()`.
 
-## The Squished Cube
-
-Its layers are of different thickness — the cut planes sit off centre — so
-its cubies come out uneven. Solved it is a cube of unequal cells; turned, it
-shifts shape, because a thin layer landing where a thick one was cannot leave
-the outline alone.
-
-```js
-import { Squished, Mirror } from 'erno'
-
-new Squished()                  // uneven cuts, six colours
-new Squished({ offset: 0.45 })  // further off centre
-new Mirror()                    // the same cuts, in silver
-```
-
-Mechanically it **is** the Mirror cube: the same off-centre cuts, the same
-uniform logical grid underneath, and a state that is a plain 3×3's facelet
-for facelet. What separates them is the paint — silver and you solve by
-shape, the ordinary six and you solve by colour. One machine, two famous
-puzzles.
-
 ## Deformation
 
-Not to be confused with the above, which is easy to do: a **deformation**
-bends the picture rather than the puzzle. `deform` applies a linear map as
+A **deformation** bends the picture rather than the puzzle. `deform` applies a linear map as
 the SVG is drawn, so it can squash a Megaminx or stretch a weld without
 touching a mechanism.
 
