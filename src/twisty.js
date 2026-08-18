@@ -246,61 +246,6 @@ function boundaryOf(piece, letter) {
   return onEdge;
 }
 
-// Do two convex solids share any interior? Separating axis: if some
-// direction has them apart on it, they are apart.
-//
-// The axes are tried lazily and cheapest first. Face normals settle almost
-// every pair at once, and there are a dozen of them. What is left needs the
-// cross product of every edge against every edge, of which a wrung body has
-// thousands, so those are deduplicated by direction and only reached by the
-// pairs that survive.
-//
-// The exact test is what this has to be. A cheaper one that asks whether a
-// corner of either has ended up inside the other runs in a fraction of the
-// time and gets the Twist wrong: a twisted slab driven through a twisted
-// body crosses it edge against edge with every corner of both still outside.
-// Adding face and edge midpoints to the samples does not find it either. It
-// is a real edge-edge intersection, and only the cross products see it.
-function hullsOverlap(a, b, EPS = 1e-6) {
-  const apart = (ax) => {
-    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
-    for (const q of a.pts) { const d = dot(ax, q); if (d < a0) a0 = d; if (d > a1) a1 = d; }
-    for (const q of b.pts) { const d = dot(ax, q); if (d < b0) b0 = d; if (d > b1) b1 = d; }
-    return a1 < b0 + EPS || b1 < a0 + EPS;
-  };
-  for (const h of [a, b])
-    for (const f of h.faces) {
-      const n = polygonNormal(f);
-      if (vlen(n) > 0.5 && apart(n)) return false;
-    }
-  const edgesOf = (h) => {
-    if (h.edges) return h.edges;
-    const out = [];
-    const seen = new Set();
-    for (const f of h.faces)
-      for (let i = 0; i < f.length; i++) {
-        const d = norm(sub(f[(i + 1) % f.length], f[i]));
-        if (vlen(d) < 0.5) continue;
-        // an edge and its reverse give the same axis, and so do parallels
-        const flip =
-          d[0] < 0 || (d[0] === 0 && (d[1] < 0 || (d[1] === 0 && d[2] < 0)));
-        const k = (flip ? [-d[0], -d[1], -d[2]] : d)
-          .map((v) => Math.round(v * 1e4))
-          .join(",");
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push(d);
-      }
-    return (h.edges = out);
-  };
-  for (const u of edgesOf(a))
-    for (const v of edgesOf(b)) {
-      const c = cross(u, v);
-      if (vlen(c) > 1e-9 && apart(norm(c))) return false;
-    }
-  return true;
-}
-
 function fanTriangles(pts) {
   const out = [];
   for (let i = 1; i + 1 < pts.length; i++) out.push(0, i, i + 1);
@@ -594,12 +539,6 @@ export class Twisty {
       options.blocking === undefined
         ? !!def.blocking || !!this._bandage
         : !!options.blocking;
-    // Clearance: refuse a turn that would drive the layer through the rest
-    // of the puzzle. A moulded body asks for it — a wrung one cannot turn
-    // about anything but the axis it was wrung about — and it is a separate
-    // question from blocking, which is about glue rather than about room.
-    this._clearance =
-      options.clearance === undefined ? !!def.clearance : !!options.clearance;
     // `paint` may be a callback, or — for painting by hand — a plain map of
     // face letter to colours in the same reading order getState() uses, with
     // a hole anywhere a sticker should keep its face colour.
@@ -1285,82 +1224,6 @@ export class Twisty {
    * exactly what makes a Siamese cube hard, and exactly what the mechanism
    * refuses to do in your hands.
    */
-  /**
-   * THE SECOND LAW: a turn needs room.
-   *
-   * `_turnFits` asks whether the layer comes back to itself in SLOT space,
-   * which is what a welded or bandaged puzzle needs: glue tears when the
-   * grid does not line up. It says nothing about shape, because for almost
-   * every puzzle here shape is not in question, and it must not: a Mirror
-   * cube's blocks stick out into free air and would fail any test that asked
-   * a layer to look like its own socket.
-   *
-   * A moulded puzzle needs the other question. The Twist is wrung about its
-   * vertical axis, so a vertical slab is a twisted chunk of material; turned
-   * ninety degrees about a horizontal axis it lands where nothing of that
-   * shape can go, and the faces pass through each other. On the real object
-   * your hand simply stops.
-   *
-   * So this asks the question the hand asks: after the turn, does anything
-   * that moved end up inside anything that did not? Separating axis, over
-   * the face normals of both pieces and the cross products of their edges,
-   * which is exact for convex solids, and every piece here is one.
-   */
-  _turnClears(spec) {
-    if (spec.angle === 0) return true;
-    // Asked once per token by legalMoves, and the answer cannot change while
-    // nothing has moved. Keyed on the position, so a turn invalidates it.
-    const memo = (this._clearMemo ||= new Map());
-    const at = this.getPosition();
-    if (memo.at !== at) { memo.clear(); memo.at = at; }
-    const key = `${spec.axis.map((v) => v.toFixed(4))}|${spec.angle.toFixed(4)}|${spec.min}|${spec.max}`;
-    const seen = memo.get(key);
-    if (seen !== undefined) return seen;
-    const answer = this._clearsUncached(spec);
-    memo.set(key, answer);
-    return answer;
-  }
-
-  _clearsUncached(spec) {
-    const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
-    const c = spec.center || this._pivot;
-    const turn = (q) => add(matVec(M, sub(q, c)), c);
-
-    const moving = [];
-    const still = [];
-    for (let i = 0; i < this.pieces.length; i++) {
-      const piece = this.pieces[i];
-      const put = this._selected(i, spec) ? turn : (q) => q;
-      const faces = piece.faces.map((f) => f.pts.map(put));
-      const pts = faces.flat();
-      // A box, not a sphere: it is cheaper to build, far tighter on the slabs
-      // and strips these puzzles are made of, and it throws out almost every
-      // pair before any real work happens.
-      const lo = [Infinity, Infinity, Infinity];
-      const hi = [-Infinity, -Infinity, -Infinity];
-      for (const q of pts)
-        for (let k = 0; k < 3; k++) {
-          if (q[k] < lo[k]) lo[k] = q[k];
-          if (q[k] > hi[k]) hi[k] = q[k];
-        }
-      (put === turn ? moving : still).push({ faces, pts, lo, hi });
-    }
-    if (!moving.length || !still.length) return true;
-
-    const EPS = 1e-6;
-    for (const a of moving)
-      for (const b of still) {
-        if (
-          a.hi[0] < b.lo[0] + EPS || b.hi[0] < a.lo[0] + EPS ||
-          a.hi[1] < b.lo[1] + EPS || b.hi[1] < a.lo[1] + EPS ||
-          a.hi[2] < b.lo[2] + EPS || b.hi[2] < a.lo[2] + EPS
-        )
-          continue; // boxes miss, so the solids do
-        if (hullsOverlap(a, b)) return false;
-      }
-    return true;
-  }
-
   _turnFits(spec) {
     if (spec.angle === 0) return true;
     const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
@@ -1397,9 +1260,7 @@ export class Twisty {
       // so one question answers for both kinds of impossibility
       return false;
     }
-    if (this._blocking && !this._turnFits(spec)) return false;
-    if (this._clearance && !this._turnClears(spec)) return false;
-    return true;
+    return !this._blocking || this._turnFits(spec);
   }
 
   /**
@@ -1423,10 +1284,6 @@ export class Twisty {
       if (this._blocking && !this._turnFits(spec))
         throw new Error(
           `erno: ${this.def.name} cannot turn '${token}' from here, the layer does not come back to itself`,
-        );
-      if (this._clearance && !this._turnClears(spec))
-        throw new Error(
-          `erno: ${this.def.name} cannot turn '${token}', the layer would pass through the rest of the puzzle`,
         );
       if (spec.angle !== 0) {
         const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
@@ -1457,7 +1314,7 @@ export class Twisty {
     // is legal depends on where the pieces are, so the scramble has to be
     // walked one move at a time, picking from whatever is open. A puzzle
     // that never wrote a scrambler gets the same walk for free.
-    if (this._blocking || this._clearance || !this.def.scramble) {
+    if (this._blocking || !this.def.scramble) {
       const n = length || this.def.scrambleLength || 25;
       const tokens = [];
       for (let k = 0; k < n; k++) {

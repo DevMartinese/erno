@@ -84,7 +84,7 @@ s.legalMoves()      // 12 of 36 tokens are open here
 s.canMove('AU')     // false: the layer would not come back to itself
 ```
 
-Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (12 of 36 from solved), Siamese (12 of 36 from solved), Tower (10 of 18 from solved), Twist (6 of 18 from solved).
+Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (12 of 36 from solved), Siamese (12 of 36 from solved), Tower (10 of 18 from solved).
 
 ### 5. Most variants are built at one size only
 
