@@ -62,6 +62,111 @@ function buildGeometry(piece) {
   return g; // unlit, so no normals are needed
 }
 
+
+/**
+ * Decals, as one texture.
+ *
+ * A decal is SVG drawn in a unit square, which is exactly what a texture
+ * tile is, so every distinct mark on the puzzle is rasterised once into a
+ * grid and each sticker gets the UVs of its own tile. A dice cube has six
+ * marks and a Sudokube nine, so the atlas stays small and there is one
+ * extra draw call for the whole puzzle rather than one per pip.
+ *
+ * Returns null when the puzzle wears no marks, which is most of them.
+ */
+async function buildDecalAtlas(pieces, size = 128) {
+  const marks = [...new Set(
+    pieces.flatMap((p) => p.faces.map((f) => f.decal)).filter(Boolean),
+  )];
+  if (!marks.length) return null;
+
+  const cols = Math.ceil(Math.sqrt(marks.length));
+  const rows = Math.ceil(marks.length / cols);
+  const canvas = document.createElement("canvas");
+  canvas.width = cols * size;
+  canvas.height = rows * size;
+  const ctx = canvas.getContext("2d");
+
+  await Promise.all(
+    marks.map(
+      (mark, i) =>
+        new Promise((done) => {
+          const svg =
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" ` +
+            `width="${size}" height="${size}">${mark}</svg>`;
+          const img = new Image();
+          img.onload = () => {
+            ctx.drawImage(img, (i % cols) * size, Math.floor(i / cols) * size, size, size);
+            done();
+          };
+          img.onerror = done; // a mark that will not rasterise is left blank
+          img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        }),
+    ),
+  );
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = false; // UVs are built in reading order, which runs down
+  const index = new Map(marks.map((m, i) => [m, i]));
+  return { texture, index, cols, rows };
+}
+
+/** Where a point sits inside its own sticker, as a fraction along u and v. */
+function uvOf(point, centre, u, v, halfU, halfV) {
+  const d = [point[0] - centre[0], point[1] - centre[1], point[2] - centre[2]];
+  const du = d[0] * u[0] + d[1] * u[1] + d[2] * u[2];
+  const dv = d[0] * v[0] + d[1] * v[1] + d[2] * v[2];
+  return [0.5 + du / (2 * halfU), 0.5 + dv / (2 * halfV)];
+}
+
+/** The decal quads of one piece, with UVs into the atlas. */
+function buildDecalGeometry(piece, atlas) {
+  const positions = [];
+  const uvs = [];
+  const index = [];
+  const LIFT = 0.008; // above the sticker, which is already above the body
+
+  for (const f of piece.faces) {
+    if (!f.decal || !f.sticker || !f.decalU || !f.decalV) continue;
+    const tile = atlas.index.get(f.decal);
+    if (tile === undefined) continue;
+    const pts = f.sticker;
+    const c = [0, 1, 2].map((k) => pts.reduce((a, q) => a + q[k], 0) / pts.length);
+    // half extents along the reading directions, so a rectangular sticker
+    // maps its own shape rather than a square guess
+    let halfU = 0;
+    let halfV = 0;
+    for (const q of pts) {
+      const d = [q[0] - c[0], q[1] - c[1], q[2] - c[2]];
+      halfU = Math.max(halfU, Math.abs(d[0] * f.decalU[0] + d[1] * f.decalU[1] + d[2] * f.decalU[2]));
+      halfV = Math.max(halfV, Math.abs(d[0] * f.decalV[0] + d[1] * f.decalV[1] + d[2] * f.decalV[2]));
+    }
+    if (halfU < 1e-9 || halfV < 1e-9) continue;
+
+    const col = tile % atlas.cols;
+    const row = Math.floor(tile / atlas.cols);
+    const base = positions.length / 3;
+    for (const q of pts) {
+      positions.push(
+        q[0] + f.normal[0] * LIFT,
+        q[1] + f.normal[1] * LIFT,
+        q[2] + f.normal[2] * LIFT,
+      );
+      const [s, t] = uvOf(q, c, f.decalU, f.decalV, halfU, halfV);
+      uvs.push((col + s) / atlas.cols, (row + t) / atlas.rows);
+    }
+    for (let i = 1; i + 1 < pts.length; i++) index.push(base, base + i, base + i + 1);
+  }
+
+  if (!index.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(index);
+  return g;
+}
+
 /**
  * A view bound to one container. Call `show(puzzle, turn)` as often as you
  * like; it rebuilds only when it is handed a different puzzle.
@@ -90,6 +195,9 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
   container.appendChild(renderer.domElement);
 
   let meshes = [];
+  let decalMeshes = [];
+  let atlas = null;
+  let decalMaterial = null;
   let builtFor = null; // which puzzle the geometry belongs to
   let radius = 3;
 
@@ -98,15 +206,42 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     side: THREE.DoubleSide,
   });
 
-  function rebuild(puzzle) {
-    for (const m of meshes) m.geometry.dispose();
+  async function rebuild(puzzle) {
+    for (const m of [...meshes, ...decalMeshes]) m.geometry.dispose();
+    if (atlas) atlas.texture.dispose();
+    if (decalMaterial) decalMaterial.dispose();
+    atlas = null;
+    decalMaterial = null;
+    decalMeshes = [];
     group.clear();
-    meshes = puzzle.getPieces().map((piece) => {
+    const pieces = puzzle.getPieces();
+    meshes = pieces.map((piece) => {
       const mesh = new THREE.Mesh(buildGeometry(piece), material);
       mesh.matrixAutoUpdate = false; // the whole point: we assign it ourselves
       group.add(mesh);
       return mesh;
     });
+
+    // The marks, if it wears any: one texture for the whole puzzle, and one
+    // extra mesh per piece that has something printed on it.
+    atlas = await buildDecalAtlas(pieces);
+    if (atlas) {
+      decalMaterial = new THREE.MeshBasicMaterial({
+        map: atlas.texture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      decalMeshes = pieces.map((piece) => {
+        const g = buildDecalGeometry(piece, atlas);
+        if (!g) return null;
+        const mesh = new THREE.Mesh(g, decalMaterial);
+        mesh.matrixAutoUpdate = false;
+        mesh.renderOrder = 1;
+        group.add(mesh);
+        return mesh;
+      });
+    }
     builtFor = puzzle;
     radius = puzzle.getRadius();
 
@@ -191,15 +326,17 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
 
   return {
     /** Draw `puzzle`, optionally mid-turn. Rebuilds only on a new puzzle. */
-    show(puzzle, turn) {
-      if (puzzle !== builtFor) rebuild(puzzle);
+    async show(puzzle, turn) {
+      if (puzzle !== builtFor) await rebuild(puzzle);
       else {
         aim(puzzle); // the camera panel moves without touching the geometry
         resize();
       }
       const pieces = puzzle.getPieces({ turn });
-      for (let i = 0; i < meshes.length; i++)
+      for (let i = 0; i < meshes.length; i++) {
         meshes[i].matrix.fromArray(pieces[i].matrix);
+        if (decalMeshes[i]) decalMeshes[i].matrix.fromArray(pieces[i].matrix);
+      }
       renderer.render(scene, camera);
     },
     /** Paint changed but the mechanism did not: colours live in the geometry. */
@@ -208,7 +345,9 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     },
     dispose() {
       observer.disconnect();
-      for (const m of meshes) m.geometry.dispose();
+      for (const m of [...meshes, ...decalMeshes]) if (m) m.geometry.dispose();
+      if (atlas) atlas.texture.dispose();
+      if (decalMaterial) decalMaterial.dispose();
       material.dispose();
       renderer.dispose();
       container.innerHTML = "";

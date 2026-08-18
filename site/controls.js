@@ -35,12 +35,16 @@ export function enhanceRange(input) {
   const count = choice ? steps : Math.max(2, Math.min(24, steps));
   wrap.dataset.scale = choice ? "choice" : "quantity";
 
+  // A choice names its cells. Usually the value is the name (a cube's size
+  // is 2, 3, 4), but where it is not, `data-labels` says what to write.
+  const labels = input.dataset.labels ? input.dataset.labels.split(",") : null;
+
   const cells = document.createElement("div");
   cells.className = "range-cells";
   cells.setAttribute("aria-hidden", "true");
   for (let i = 0; i < count; i++) {
     const cell = document.createElement("i");
-    if (choice) cell.textContent = String(min + i * step);
+    if (choice) cell.textContent = labels ? labels[i] : String(min + i * step);
     cells.appendChild(cell);
   }
   wrap.appendChild(cells);
@@ -64,7 +68,7 @@ export function enhanceRange(input) {
       if (i === on - 1) c.setAttribute("data-head", "");
       else c.removeAttribute("data-head");
     });
-    if (valueSpan) valueSpan.textContent = input.value;
+    if (valueSpan) valueSpan.textContent = labels ? labels[on - 1] : input.value;
   }
 
   input.addEventListener("input", syncVal);

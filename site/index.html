@@ -31,12 +31,17 @@
       </summary>
       <div class="settings-section-title">Renderer</div>
       <div class="settings-fields">
-        <label class="control-label">
+        <label class="control-label control-label--wide">
           <span>Draw with</span>
-          <select class="control-select" id="opt-renderer">
-            <option value="svg">SVG</option>
-            <option value="webgl">WebGL</option>
-          </select>
+          <input
+            type="range"
+            id="opt-renderer"
+            min="0"
+            max="1"
+            value="0"
+            data-scale="choice"
+            data-labels="SVG,WebGL"
+          />
         </label>
       </div>
 
@@ -300,7 +305,7 @@ cube.isSolved() // true, exactly</code></pre>
 
       <div class="section-row" id="state">
         <div class="section-demo">
-          <div class="demo" id="demo-state" data-svg-only="Erno is the facelet cube and has no pieces to draw">
+          <div class="demo" id="demo-state">
             <div class="demo-canvas"></div>
             <div class="demo-controls">
               <button data-bind="scramble">Scramble</button>
@@ -572,7 +577,7 @@ new Mirror({ paint: tetrisPaint })</code></pre>
 
       <div class="section-row" id="decals">
         <div class="section-demo">
-          <div class="demo" id="demo-decals" data-svg-only="a decal is SVG laid on a sticker, so this one stays SVG">
+          <div class="demo" id="demo-decals">
             <div class="demo-canvas"></div>
             <div class="demo-controls">
               <label class="control-label"
@@ -1163,7 +1168,7 @@ schemeFrom('#e63946', [..."URFDLB"])</code></pre>
 
       <div class="section-row" id="renderstate">
         <div class="section-demo">
-          <div class="demo" id="demo-renderstate" data-svg-only="renderState makes no instance, so there is nothing to place">
+          <div class="demo" id="demo-renderstate">
             <div class="demo-canvas"></div>
             <div class="demo-controls">
               <label class="control-label"

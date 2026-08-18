@@ -86,12 +86,18 @@ function retellSamples(useWebgl) {
     const src = el.dataset.svgSrc;
     if (!src) continue;
     let text = src;
-    if (useWebgl && src.includes(".toSVG(")) {
-      text =
-        swapCall(src, ".toSVG(", ".getPieces()")
-          .replace(/\bdocument\.body\.innerHTML = /g, "const pieces = ")
-          .replace(/^(\s*)const svg = /gm, "$1const pieces = ") +
-        "\n// each piece: mesh.matrix.fromArray(piece.matrix)";
+    if (useWebgl && /\bnew [A-Z]|\.move\(|\.toSVG\(/.test(src)) {
+      // Where a sample renders, the render call is the only line that
+      // differs. Where it only builds a puzzle, nothing differs, and the
+      // useful thing to show is what you would do with it next.
+      text = src.includes(".toSVG(")
+        ? swapCall(src, ".toSVG(", ".getPieces()")
+            .replace(/\bdocument\.body\.innerHTML = /g, "const pieces = ")
+            .replace(/^(\s*)const svg = /gm, "$1const pieces = ")
+        : src;
+      text += `\n\n// drawn with three.js: geometry once, a matrix per frame\n${
+        text.includes("getPieces") ? "" : "// const pieces = puzzle.getPieces()\n"
+      }// mesh.matrix.fromArray(pieces[i].matrix)`;
     }
     el.innerHTML = highlight(text);
   }
@@ -170,8 +176,8 @@ const optRenderer = document.getElementById("opt-renderer");
 // Same puzzles, other renderer. The engine is not told: it hands out
 // getPieces() either way and does not know what happens next.
 if (optRenderer)
-  optRenderer.addEventListener("change", () => {
-    webgl.on = optRenderer.value === "webgl";
+  optRenderer.addEventListener("input", () => {
+    webgl.on = optRenderer.value === "1";
     retellSamples(webgl.on);
     for (const redraw of demos) redraw();
   });
@@ -330,6 +336,24 @@ function paintFrame(ctx, canvas, svg, turn) {
   else canvas.innerHTML = typeof svg === "function" ? svg() : svg;
 }
 
+/**
+ * A facelet string as a puzzle you can draw from any renderer.
+ *
+ * `paint` runs at build time, when every sticker is still on its home face,
+ * so addressing it by face and index is addressing the string directly. The
+ * cube is never turned, so the picture is the string.
+ */
+function stateAsCube(state) {
+  const order = ["U", "R", "F", "D", "L", "B"];
+  const per = state.length / 6;
+  const size = Math.round(Math.sqrt(per));
+  const scheme = SCHEMES.classic;
+  return new Cube({
+    size,
+    paint: ({ face, index }) => scheme[state[order.indexOf(face) * per + index]],
+  });
+}
+
 const isMove = (t) => t && t.key.startsWith("move:");
 const moveToken = (t) => t.key.slice(5) + (t.shift ? "'" : "");
 
@@ -363,7 +387,7 @@ setupDemo("demo-scramble", (v, ctx, t) => {
 
 // ─── 4. State ────────────────────────
 setupDemo("demo-state", (v, ctx, t) => {
-  if (!ctx.p) ctx.p = new Erno();
+  if (!ctx.p) ctx.p = new Cube({ size: 3 });
   if (t && t.key === "scramble") {
     ctx.p.reset();
     ctx.p.scramble(12);
@@ -840,6 +864,12 @@ const POSITIONS = {
 
 setupDemo("demo-renderstate", (v, ctx) => {
   const state = POSITIONS[v.pos]().getState();
+  // renderState keeps no instance because SVG needs none: it turns a string
+  // straight into markup. WebGL needs something to place, so the string
+  // becomes a paint on a cube that is built and thrown away. Same picture,
+  // and it is still the string that decides every sticker.
+  ctx.p = stateAsCube(state);
+  tune(ctx.p);
   return Erno.renderState(state, {
     camera: getCamera(3),
     stickerInset: parseFloat(optInset.value),

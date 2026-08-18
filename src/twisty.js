@@ -226,6 +226,26 @@ function centroidOf(pts) {
 // first vertex is correct and preserves the outward winding the constructor
 // already fixed. Returned as indices rather than as copied vertices, because
 // that is what an indexed BufferGeometry wants.
+// The vertices on the OUTLINE of a group of facets: an edge used by one
+// facet is on the boundary, an edge used by two is interior. Keyed by
+// rounded coordinates, the way the rest of this file matches points.
+function boundaryOf(piece, letter) {
+  const uses = new Map();
+  for (const f of piece.faces) {
+    if (f.letter !== letter || f.hidden) continue;
+    for (let i = 0; i < f.pts.length; i++) {
+      const a = keyOf(f.pts[i]);
+      const b = keyOf(f.pts[(i + 1) % f.pts.length]);
+      const k = a < b ? `${a}|${b}` : `${b}|${a}`;
+      uses.set(k, (uses.get(k) || 0) + 1);
+    }
+  }
+  const onEdge = new Set();
+  for (const [k, n] of uses)
+    if (n === 1) for (const half of k.split("|")) onEdge.add(half);
+  return onEdge;
+}
+
 function fanTriangles(pts) {
   const out = [];
   for (let i = 1; i + 1 < pts.length; i++) out.push(0, i, i + 1);
@@ -1453,6 +1473,85 @@ export class Twisty {
       const slot = this._slotOf(i);
       const rot = this._rot[i];
 
+      // Grouped stickers: several facets of one piece drawn as ONE tile. A
+      // welded block wears a single sticker per face, and that is what makes
+      // the glue visible; a curved body needs it too. The SVG gets there by
+      // shrinking every facet toward a centre they SHARE rather than toward
+      // its own, so their common edges land on top of each other and the
+      // seams close. Same trick here, in rest space, which is the same
+      // answer because the placement is rigid.
+      let groupCenter = null;
+      if (this._stickerGroup) {
+        const acc = {};
+        for (const f of piece.faces)
+          if (f.letter && !f.hidden) (acc[f.letter] ||= []).push(...f.pts);
+        groupCenter = {};
+        for (const k in acc) {
+          const c = centroidOf(acc[k]);
+          let nx = 0,
+            ny = 0,
+            nz = 0;
+          for (const f of piece.faces)
+            if (f.letter === k && !f.hidden) {
+              const fn = polygonNormal(f.pts);
+              nx += fn[0];
+              ny += fn[1];
+              nz += fn[2];
+            }
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          const nrm = [nx / nl, ny / nl, nz / nl];
+          // Shrinking toward a point the facets SHARE is what closes the
+          // seams, and it only means anything while they share a plane. On a
+          // curved body they do not: the Twist's strip is a dozen triangles
+          // at a dozen angles, and pulling each toward one point lifts it off
+          // its own surface, so they cross and a depth buffer interleaves
+          // them into hatching. The SVG gets away with it by drawing in an
+          // order it chooses; nothing here chooses. So a curved group keeps
+          // its facets whole and lets the curve itself be the seam.
+          let flat = true;
+          for (const f of piece.faces)
+            if (f.letter === k && !f.hidden && dot(polygonNormal(f.pts), nrm) < 0.999)
+              flat = false;
+          if (!flat) {
+            // A curved group is inset on its OUTLINE only. Every vertex that
+            // sits inside the strip is shared by two facets and must stay
+            // exactly where it is, or the strip tears; only the ones on the
+            // boundary move, and they move along the facet they belong to
+            // rather than toward a point below the curve. What comes out is
+            // one tile with a border, which is what grouping means, without
+            // lifting anything off the surface.
+            // If the facets share no edge there is no seam to close, and
+            // shrinking each one only opens gaps between them: on the Twist
+            // that reads as hatching across a face the SVG draws solid. Then
+            // the honest thing is to draw them whole and let the curve be the
+            // only seam.
+            const edge = boundaryOf(piece, k);
+            const verts = new Set();
+            for (const f of piece.faces)
+              if (f.letter === k && !f.hidden) for (const q of f.pts) verts.add(keyOf(q));
+            // Shrinking a curved group tears it: an interior vertex belongs
+            // to two facets at two angles, and putting it back on each of
+            // their planes puts it in two places. On the Twist the gaps that
+            // opens read as hatching across a face the SVG draws solid. The
+            // facets already tile the surface exactly, so drawn whole they
+            // are one continuous strip, and the seam is where one piece ends
+            // and the next begins. The border a flat group gets is the price,
+            // and a curve does not need it to read as one tile.
+            groupCenter[k] = { curved: true, whole: true };
+            continue;
+          }
+          let lift = 0;
+          for (const f of piece.faces)
+            if (f.letter === k && !f.hidden)
+              lift = Math.max(lift, dot(nrm, sub(centroidOf(f.pts), c)));
+          groupCenter[k] = [
+            c[0] + nrm[0] * lift * 1.35,
+            c[1] + nrm[1] * lift * 1.35,
+            c[2] + nrm[2] * lift * 1.35,
+          ];
+        }
+      }
+
       const faces = [];
       for (const f of piece.faces) {
         if (f.hidden) continue;
@@ -1464,13 +1563,39 @@ export class Twisty {
               matVec(rot, f.normal),
             )
           : null;
+        const sortDirs =
+          f.letter && this.def.faceSortDirs ? this.def.faceSortDirs[f.letter] : null;
         // The SVG draws a face twice: the body in plastic, and the sticker
         // shrunk toward its own centre on top. That gap IS the black grid you
         // see, so a renderer that skips it draws a different puzzle.
+        const groupAt = groupCenter && f.letter ? groupCenter[f.letter] : undefined;
+        // A curved group keeps its facets WHOLE: they already tile the
+        // surface exactly, so drawn full they read as one continuous strip,
+        // and the seam is where one piece ends and the next begins. Shrinking
+        // is what would have lifted them off the curve.
         const sticker =
-          f.letter && inset > 0
+          f.letter && groupAt && groupAt.whole
+            ? f.pts
+            : f.letter && groupAt && groupAt.curved
             ? (() => {
-                const c = centroidOf(f.pts);
+                const n = polygonNormal(f.pts);
+                const c = groupAt.center;
+                return f.pts.map((q) => {
+                  if (!groupAt.edge.has(keyOf(q))) return q; // interior: stays
+                  const m = [
+                    q[0] + (c[0] - q[0]) * inset,
+                    q[1] + (c[1] - q[1]) * inset,
+                    q[2] + (c[2] - q[2]) * inset,
+                  ];
+                  // back onto this facet's own plane, so the strip stays on
+                  // the surface instead of sinking into the curve
+                  const d = dot(n, sub(m, q));
+                  return [m[0] - n[0] * d, m[1] - n[1] * d, m[2] - n[2] * d];
+                });
+              })()
+            : f.letter && inset > 0
+            ? (() => {
+                const c = groupAt || centroidOf(f.pts);
                 return f.pts.map(([x, y, z]) => [
                   x + (c[0] - x) * inset,
                   y + (c[1] - y) * inset,
@@ -1505,6 +1630,14 @@ export class Twisty {
           normal: f.normal,
           points: f.pts,
           sticker,
+          // The mark, and the two directions that say which way up it reads.
+          // A decal is printed at build time, when the piece is still
+          // unrotated, so the face's own reading directions ARE its local
+          // ones: `v` runs down the rows and `u` across them, the same order
+          // getState() counts stickers in.
+          decal: f.decal || null,
+          decalU: f.decal && sortDirs ? sortDirs[1] : null,
+          decalV: f.decal && sortDirs ? sortDirs[0] : null,
           ...(triangles
             ? { triangles: fanTriangles(f.pts), stickerTriangles: sticker ? fanTriangles(sticker) : null }
             : {}),
