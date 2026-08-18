@@ -33,11 +33,15 @@ const hex = (c) => new THREE.Color().setStyle(c, THREE.SRGBColorSpace);
  * face lifted a hair along the normal. Without the lift the two are coplanar
  * and the depth buffer picks a winner per pixel, which reads as noise.
  */
-function buildGeometry(piece) {
+function buildGeometry(piece, lift) {
   const positions = [];
   const colors = [];
   const index = [];
-  const LIFT = 0.004;
+  // A fraction of the puzzle's own size, not a fixed number: what the lift
+  // has to beat is depth-buffer precision, and that is measured against the
+  // range the camera covers. At a flat 0.004 a strongly curved sticker fought
+  // with the body under it and the Twist came out hatched.
+  const LIFT = lift;
 
   const emit = (points, colour, normal, lift) => {
     const base = positions.length / 3;
@@ -121,11 +125,11 @@ function uvOf(point, centre, u, v, halfU, halfV) {
 }
 
 /** The decal quads of one piece, with UVs into the atlas. */
-function buildDecalGeometry(piece, atlas) {
+function buildDecalGeometry(piece, atlas, lift) {
   const positions = [];
   const uvs = [];
   const index = [];
-  const LIFT = 0.008; // above the sticker, which is already above the body
+  const LIFT = lift; // above the sticker, which is already above the body
 
   for (const f of piece.faces) {
     if (!f.decal || !f.sticker || !f.decalU || !f.decalV) continue;
@@ -214,9 +218,10 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     decalMaterial = null;
     decalMeshes = [];
     group.clear();
+    radius = puzzle.getRadius();
     const pieces = puzzle.getPieces();
     meshes = pieces.map((piece) => {
-      const mesh = new THREE.Mesh(buildGeometry(piece), material);
+      const mesh = new THREE.Mesh(buildGeometry(piece, radius * 0.008), material);
       mesh.matrixAutoUpdate = false; // the whole point: we assign it ourselves
       group.add(mesh);
       return mesh;
@@ -233,7 +238,7 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
         depthWrite: false,
       });
       decalMeshes = pieces.map((piece) => {
-        const g = buildDecalGeometry(piece, atlas);
+        const g = buildDecalGeometry(piece, atlas, radius * 0.016);
         if (!g) return null;
         const mesh = new THREE.Mesh(g, decalMaterial);
         mesh.matrixAutoUpdate = false;
@@ -243,7 +248,6 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
       });
     }
     builtFor = puzzle;
-    radius = puzzle.getRadius();
 
     // How the whole puzzle is turned to be looked at: a Pyraminx is a
     // tetrahedron described in a cube's coordinates and would otherwise rest

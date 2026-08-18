@@ -1525,19 +1525,54 @@ export class Twisty {
             // that reads as hatching across a face the SVG draws solid. Then
             // the honest thing is to draw them whole and let the curve be the
             // only seam.
+            // A curved group is inset on its OUTLINE only, and every vertex
+            // is moved ONCE, as a point in space, not once per facet. That
+            // is the whole trick: a vertex two facets share has to land in
+            // one place or the strip tears, and the first attempt projected
+            // it onto each facet's own plane, which put it in two and opened
+            // the gaps that read as hatching on the Twist. Interior vertices
+            // do not move at all, so the facets stay welded; the boundary
+            // pulls in toward the group's centre, which is what puts a black
+            // line between one piece and the next.
             const edge = boundaryOf(piece, k);
-            const verts = new Set();
-            for (const f of piece.faces)
-              if (f.letter === k && !f.hidden) for (const q of f.pts) verts.add(keyOf(q));
-            // Shrinking a curved group tears it: an interior vertex belongs
-            // to two facets at two angles, and putting it back on each of
-            // their planes puts it in two places. On the Twist the gaps that
-            // opens read as hatching across a face the SVG draws solid. The
-            // facets already tile the surface exactly, so drawn whole they
-            // are one continuous strip, and the seam is where one piece ends
-            // and the next begins. The border a flat group gets is the price,
-            // and a curve does not need it to read as one tile.
-            groupCenter[k] = { curved: true, whole: true };
+            // Each boundary vertex needs a normal of its own, averaged over
+            // the facets that meet there, so its move can be taken ALONG the
+            // surface. Pulled straight at the centre it sinks under the
+            // curve and the black body wins the depth test.
+            const normalAt = new Map();
+            for (const f of piece.faces) {
+              if (f.letter !== k || f.hidden) continue;
+              const fn = polygonNormal(f.pts);
+              for (const q of f.pts) {
+                const key = keyOf(q);
+                if (!edge.has(key)) continue;
+                const acc = normalAt.get(key) || [0, 0, 0];
+                normalAt.set(key, [acc[0] + fn[0], acc[1] + fn[1], acc[2] + fn[2]]);
+              }
+            }
+            const moved = new Map();
+            for (const f of piece.faces) {
+              if (f.letter !== k || f.hidden) continue;
+              for (const q of f.pts) {
+                const key = keyOf(q);
+                if (moved.has(key) || !edge.has(key)) continue;
+                const a = normalAt.get(key);
+                const len = Math.hypot(a[0], a[1], a[2]) || 1;
+                const n = [a[0] / len, a[1] / len, a[2] / len];
+                const d = [
+                  (c[0] - q[0]) * inset,
+                  (c[1] - q[1]) * inset,
+                  (c[2] - q[2]) * inset,
+                ];
+                const along = dot(n, d); // the part that would sink it
+                moved.set(key, [
+                  q[0] + d[0] - n[0] * along,
+                  q[1] + d[1] - n[1] * along,
+                  q[2] + d[2] - n[2] * along,
+                ]);
+              }
+            }
+            groupCenter[k] = { curved: true, moved };
             continue;
           }
           let lift = 0;
@@ -1574,25 +1609,8 @@ export class Twisty {
         // and the seam is where one piece ends and the next begins. Shrinking
         // is what would have lifted them off the curve.
         const sticker =
-          f.letter && groupAt && groupAt.whole
-            ? f.pts
-            : f.letter && groupAt && groupAt.curved
-            ? (() => {
-                const n = polygonNormal(f.pts);
-                const c = groupAt.center;
-                return f.pts.map((q) => {
-                  if (!groupAt.edge.has(keyOf(q))) return q; // interior: stays
-                  const m = [
-                    q[0] + (c[0] - q[0]) * inset,
-                    q[1] + (c[1] - q[1]) * inset,
-                    q[2] + (c[2] - q[2]) * inset,
-                  ];
-                  // back onto this facet's own plane, so the strip stays on
-                  // the surface instead of sinking into the curve
-                  const d = dot(n, sub(m, q));
-                  return [m[0] - n[0] * d, m[1] - n[1] * d, m[2] - n[2] * d];
-                });
-              })()
+          f.letter && groupAt && groupAt.curved
+            ? f.pts.map((q) => groupAt.moved.get(keyOf(q)) || q)
             : f.letter && inset > 0
             ? (() => {
                 const c = groupAt || centroidOf(f.pts);
