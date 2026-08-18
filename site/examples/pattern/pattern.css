@@ -49,7 +49,7 @@ body.example {
 .example-note {
   max-width: var(--medida);
   font-size: var(--size-sm);
-  color: color-mix(in oklab, var(--text) 55%, var(--bg));
+  color: var(--text-quiet);
 }
 
 /* ── The plates ──────────────────────────────────────────────────────── */

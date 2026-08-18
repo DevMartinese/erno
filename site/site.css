@@ -17,15 +17,38 @@
   --blue: #00489f; /* oklch(42.0% 0.155 258) */
   --yellow: #f6ba00; /* oklch(82.1% 0.168 85) */
 
-  /* Semantic tokens. Which text a plane can carry is measured, not chosen:
-     ink on yellow 10.6:1 and on paper 16.4:1; paper on blue 7.6:1 and on
-     red 4.7:1. Ink on red is only 3.5:1, headline sizes at best, so red
-     always carries paper. */
+  /* Semantic tokens. Which text a plane can carry is measured, not chosen.
+     Measured twice over, in fact: WCAG gives ink on yellow 10.6:1 and on
+     paper 16.4:1, paper on blue 7.6:1 and on red 4.7:1, and ink on red only
+     3.5:1, which is why red always carries paper.
+
+     APCA is the better model of reading and it is stricter, so these are the
+     numbers that decide. Lc is signed: positive for dark text on light,
+     negative for the reverse, and its size is what matters.
+
+       ink on paper      Lc  96.0   preferred for body text
+       paper on ink      Lc -97.1   the same, inverted
+       paper on blue     Lc -83.3   fluent reading
+       ink on yellow     Lc  71.2   labels and headings, not paragraphs
+       paper on red      Lc -70.4   the same, which is all red carries
+
+     The floor for text at reading size is Lc 75, and small text needs more,
+     not less: the same ink over the same paper is harder to resolve the
+     smaller it gets. */
   --bg: var(--paper);
   --text: var(--ink);
   --on-red: var(--paper);
   --on-blue: var(--paper);
   --on-yellow: var(--ink);
+
+  /* The quiet voice: readouts, captions, credits, the version beside the
+     wordmark. It used to be mixed by eye, between 40% and 60% ink, and five
+     of the seven places it appeared fell under the floor: the masthead
+     subtitle sat at Lc 62 and the version number at Lc 51, both at reading
+     size. Two tokens now, each measured, and the smaller one carries MORE
+     ink rather than less, because that is what the size costs. */
+  --text-quiet: color-mix(in oklab, var(--text) 65%, var(--bg)); /* Lc 76.4 */
+  --text-quiet-xs: color-mix(in oklab, var(--text) 70%, var(--bg)); /* Lc 80.7 */
 
   --line: var(--ink);
   --rule: 2px;
@@ -723,7 +746,7 @@ h1 .version {
   font-weight: 400;
   letter-spacing: 0.08em;
   vertical-align: 0.35em;
-  color: color-mix(in oklab, var(--text) 40%, var(--bg));
+  color: var(--text-quiet);
 }
 
 /* A length line-height inherits as a LENGTH, so this two-line subtitle was
@@ -738,7 +761,7 @@ h1 small {
   font-weight: 400;
   font-stretch: 100%;
   letter-spacing: 0.02em;
-  color: color-mix(in oklab, var(--text) 50%, var(--bg) 50%);
+  color: var(--text-quiet);
   margin-top: 0.5em;
 }
 
@@ -1505,7 +1528,7 @@ input[type="color"]::-webkit-color-swatch {
 
 .note {
   font-size: var(--size-sm);
-  color: color-mix(in oklab, var(--text) 60%, var(--bg) 40%);
+  color: var(--text-quiet);
   margin-top: -0.3em;
   margin-bottom: 1.2em;
 }
@@ -1571,7 +1594,7 @@ input[type="color"]::-webkit-color-swatch {
   border-top: 1px solid var(--line);
   font-size: var(--size-sm);
   font-style: italic;
-  color: color-mix(in oklab, var(--text) 60%, var(--bg));
+  color: var(--text-quiet);
 }
 
 .site-footer {
@@ -1626,7 +1649,7 @@ input[type="color"]::-webkit-color-swatch {
 .credit {
   margin-top: var(--space-4);
   font-size: var(--size-sm);
-  color: color-mix(in oklab, var(--text) 50%, var(--bg));
+  color: var(--text-quiet);
 }
 
 .credit + .credit {
@@ -1654,7 +1677,7 @@ input[type="color"]::-webkit-color-swatch {
   overflow-wrap: anywhere;
   font-family: var(--mono);
   font-size: var(--size-sm);
-  color: color-mix(in oklab, var(--text) 55%, var(--bg));
+  color: var(--text-quiet);
   padding: var(--space-1) var(--space-1-5) var(--space-1-5);
   word-spacing: 0.25em;
   overflow-wrap: break-word;
@@ -1791,5 +1814,6 @@ input[type="color"]::-webkit-color-swatch {
   letter-spacing: 0.06em;
   text-align: center;
   padding: var(--space-1) var(--space-2) 0;
-  color: color-mix(in oklab, var(--text) 55%, var(--bg));
+  /* the smallest voice on the page, so it carries the most ink of the two */
+  color: var(--text-quiet-xs);
 }

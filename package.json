@@ -21,7 +21,7 @@
     "build": "vite build && npm run types",
     "build:site": "npm run llms && vite build --config site/vite.config.js",
     "preview": "vite preview site",
-    "test": "node tests/erno.test.js && node tests/twisty.test.js && node tests/readme.test.js",
+    "test": "node tests/erno.test.js && node tests/twisty.test.js && node tests/readme.test.js && node tests/contrast.test.js",
     "prepublishOnly": "npm test && npm run build",
     "types": "tsc --declaration --allowJs --emitDeclarationOnly --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --outDir dist/types src/erno.js",
     "llms": "node scripts/build-llms.mjs"
