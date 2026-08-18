@@ -1355,11 +1355,29 @@ export class Fisher extends Twisty {
   }
 }
 
-/** Windmill Cube — same idea at yaw 30°, pinwheel-shaped layers. */
+// The Windmill's yaw is not a round number, it is a condition: the cut planes
+// pass exactly through the cube's vertical edges. That is what the puzzle IS,
+// and it is why the top face reads as a pinwheel instead of a rotated grid.
+//
+// A cut has normal (cos0, 0, sin0) and sits at 0.5; the edge it must meet is
+// at (1.5, y, -1.5). So 1.5cos0 - 1.5sin0 = 0.5, which is cos0 - sin0 = 1/3,
+// which is cos(0 + 45°) = sqrt(2)/6. All four vertical cuts satisfy it at
+// once, by symmetry.
+//
+// Rounded to 30° instead, the second cut misses the edge by a whisker and
+// leaves a sliver of a column one part in fifty wide down the side of every
+// face: a hairline that is not on the real puzzle.
+const WINDMILL_YAW = (Math.acos(Math.SQRT2 / 6) * 180) / Math.PI - 45; // 31.367°
+
+/** Windmill Cube — the same idea as the Fisher, yawed until the cuts meet the
+ *  cube's edges: pinwheel top, two columns of different widths on each side. */
 export class Windmill extends Twisty {
   constructor(options = {}) {
     fixedSize("Windmill", options);
-    super(_windmillDef || (_windmillDef = buildConjugatedDef("windmill", rotY(30))), options);
+    super(
+      _windmillDef || (_windmillDef = buildConjugatedDef("windmill", rotY(WINDMILL_YAW))),
+      options,
+    );
   }
 }
 
