@@ -1516,6 +1516,60 @@ test("getPieces and toSVG paint the same stickers the same colour", () => {
   }
 });
 
+test("getViewMatrix orients a puzzle the way the SVG does", () => {
+  // getPieces hands back raw model space, so something has to say how the
+  // whole puzzle is turned to be looked at. Getting this subtly wrong is easy
+  // and invisible: it only shows on a puzzle that has both a view and an
+  // off-centre frame, and no puzzle in the catalogue has both.
+  const mv = (m, v) => [0, 1, 2].map((i) => m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2]);
+  const mul = (a, b) => a.map((r) => [0, 1, 2].map((j) => r[0] * b[0][j] + r[1] * b[1][j] + r[2] * b[2][j]));
+  const byMatrix = (m, v) => [
+    m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12],
+    m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13],
+    m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14],
+  ];
+  const IDENT3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+
+  const check = (label, p) => {
+    const V = p._deform ? mul(p._deform, p.def.view || IDENT3) : p.def.view || IDENT3;
+    const C = p._viewCenter;
+    const vm = p.getViewMatrix();
+    const pieces = p.getPieces();
+    for (let i = 0; i < p.pieces.length; i++)
+      for (const f of p.pieces[i].faces)
+        for (const q of f.pts) {
+          const placed = byMatrix(pieces[i].matrix, q);
+          const mine = byMatrix(vm, placed);
+          // what toSVG does: orient, THEN take the centre off
+          const want = mv(V, placed).map((v, k) => v - C[k]);
+          for (let k = 0; k < 3; k++)
+            assert(Math.abs(mine[k] - want[k]) < 1e-12, `${label}: off by ${Math.abs(mine[k] - want[k])}`);
+        }
+  };
+
+  for (const [label, make] of [
+    ["3×3", () => new Cube({ size: 3 })],
+    ["Pyraminx", () => new Pyraminx()],          // a view, centred on the origin
+    ["Mirror", () => new Mirror()],              // off-centre, no view
+    ["Siamese", () => new Siamese()],            // off-centre, no view
+    ["Megaminx squashed", () => new Megaminx({ deform: squash(0.6) })],
+    ["Pyraminx squashed", () => new Pyraminx({ deform: squash(0.6) })],
+  ]) {
+    const p = make();
+    p.scramble();
+    check(label, p);
+  }
+
+  // The case the catalogue does not contain, which is the only one that can
+  // tell the right formula from the plausible one: a definition with a view,
+  // given a displaced pivot. Taking the centre off first and orienting after
+  // misses by a third of a unit here, and by nothing anywhere else.
+  check(
+    "a viewed puzzle with a displaced frame",
+    new Twisty({ ...new Pyraminx().def, name: "off-centre", pivot: [0.25, -0.1, 0.15] }),
+  );
+});
+
 test("getPieces triangulates faces without inventing or losing area", () => {
   const p = new Megaminx();
   let faces = 0;

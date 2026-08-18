@@ -14,10 +14,6 @@
 
 let THREE = null;
 
-const IDENT3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-const matMul = (a, b) =>
-  a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
-
 /** Load three the first time anyone asks, and only then. */
 async function load() {
   if (!THREE) THREE = await import("three");
@@ -112,24 +108,16 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
       return mesh;
     });
     builtFor = puzzle;
-    radius = puzzle._radius || 3;
+    radius = puzzle.getRadius();
 
-    // `def.view` orients a definition inside its frame: a Pyraminx is a
-    // tetrahedron described in a cube's coordinates and would otherwise come
-    // out lying on a different face than the SVG shows. A caller's `deform`
-    // composes on top of it. getPieces hands back raw model space on purpose,
-    // so the two live here, on the group, where they are one matrix.
-    const V = puzzle._deform
-      ? matMul(puzzle._deform, puzzle.def.view || IDENT3)
-      : puzzle.def.view || IDENT3;
-    const c = puzzle._viewCenter || [0, 0, 0];
+    // How the whole puzzle is turned to be looked at: a Pyraminx is a
+    // tetrahedron described in a cube's coordinates and would otherwise rest
+    // on the wrong face, and a caller's deform composes on top. The engine
+    // works it out; this used to rebuild it from def.view and _deform by
+    // hand, which is exactly the kind of derivation a consumer should never
+    // have to repeat.
     group.matrixAutoUpdate = false;
-    group.matrix.set(
-      V[0][0], V[0][1], V[0][2], -(V[0][0] * c[0] + V[0][1] * c[1] + V[0][2] * c[2]),
-      V[1][0], V[1][1], V[1][2], -(V[1][0] * c[0] + V[1][1] * c[1] + V[1][2] * c[2]),
-      V[2][0], V[2][1], V[2][2], -(V[2][0] * c[0] + V[2][1] * c[1] + V[2][2] * c[2]),
-      0, 0, 0, 1,
-    );
+    group.matrix.fromArray(puzzle.getViewMatrix());
     aim(puzzle);
     resize();
   }

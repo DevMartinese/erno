@@ -1388,6 +1388,55 @@ export class Twisty {
    * @param {boolean} [options.triangles] - also emit each face fan-triangulated
    * @returns {Object[]} one entry per piece
    */
+  /**
+   * The matrix that orients the whole puzzle for display, as sixteen numbers
+   * in column-major order.
+   *
+   * getPieces hands back raw model space on purpose: a piece's geometry and
+   * its pose are the mechanism, and they do not depend on how you choose to
+   * look at it. But two things sit between that and a picture. `def.view`
+   * orients a definition inside its frame, because a Pyraminx is a
+   * tetrahedron described in a cube's coordinates and would otherwise come
+   * out resting on the wrong face; and a caller's `deform` composes on top.
+   * Both live in the definition, so without this a consumer would have to
+   * reach into it and rebuild the product by hand.
+   *
+   * Apply it once, to the whole puzzle, not per piece.
+   *
+   * @returns {number[]} 16 numbers for THREE.Matrix4().fromArray, or any
+   *   other column-major consumer
+   */
+  getViewMatrix() {
+    const V = this._deform
+      ? matMul(this._deform, this.def.view || IDENT)
+      : this.def.view || IDENT;
+    // The centre is taken off AFTER the orientation, which is what toSVG
+    // does: it applies `view` and hands the result to a toRender that
+    // subtracts the centre. Subtracting first and orienting after is the
+    // reformulation that looks equally right, and it agrees on every puzzle
+    // in the catalogue, but only because the two features never co-occur:
+    // the puzzles with an off-centre frame have no view, and the ones with a
+    // view are centred on the origin. Match the renderer, not the
+    // coincidence.
+    const c = this._viewCenter;
+    return [
+      V[0][0], V[1][0], V[2][0], 0,
+      V[0][1], V[1][1], V[2][1], 0,
+      V[0][2], V[1][2], V[2][2], 0,
+      -c[0],   -c[1],   -c[2],   1,
+    ];
+  }
+
+  /**
+   * The sphere the puzzle is framed in: every state it can reach fits inside
+   * it, so a renderer that fits to this does not have to resize as the
+   * puzzle turns or shape-shifts. The SVG's `fitSphere` uses the same number.
+   * @returns {number}
+   */
+  getRadius() {
+    return this._radius;
+  }
+
   getPieces(options = {}) {
     const { turn, triangles = false } = options;
     const spin = this._spinFor(turn);
