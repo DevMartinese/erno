@@ -44,8 +44,58 @@ import { enhanceRange } from "./controls.js";
 import { highlight } from "https://esm.sh/sugar-high";
 
 document.querySelectorAll("pre code").forEach((el) => {
+  // Keep the raw source: highlighting replaces it with markup, and the
+  // renderer switch rewrites these samples afterwards.
+  el.dataset.svgSrc = el.textContent;
   el.innerHTML = highlight(el.textContent);
 });
+
+/**
+ * Show the sample for the renderer you are looking at.
+ *
+ * Only one line differs. Everything up to the render call is the mechanism,
+ * which is the same either way; `toSVG` returns markup and `getPieces`
+ * returns geometry and a matrix, and what you do with the second is the
+ * comment underneath.
+ */
+/**
+ * Replace `call(...)` with `replacement`, counting brackets rather than
+ * matching them with a regular expression, because the arguments nest:
+ * `toSVG({ turn: { move, progress } })` ends three characters after the
+ * first `}` a lazy pattern would stop at.
+ */
+function swapCall(src, call, replacement) {
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const at = src.indexOf(call, i);
+    if (at === -1) return out + src.slice(i);
+    out += src.slice(i, at) + replacement;
+    let depth = 0;
+    let j = at + call.length - 1;
+    for (; j < src.length; j++) {
+      if (src[j] === "(") depth++;
+      else if (src[j] === ")" && --depth === 0) break;
+    }
+    i = j + 1;
+  }
+}
+
+function retellSamples(useWebgl) {
+  for (const el of document.querySelectorAll("pre code")) {
+    const src = el.dataset.svgSrc;
+    if (!src) continue;
+    let text = src;
+    if (useWebgl && src.includes(".toSVG(")) {
+      text =
+        swapCall(src, ".toSVG(", ".getPieces()")
+          .replace(/\bdocument\.body\.innerHTML = /g, "const pieces = ")
+          .replace(/^(\s*)const svg = /gm, "$1const pieces = ") +
+        "\n// each piece: mesh.matrix.fromArray(piece.matrix)";
+    }
+    el.innerHTML = highlight(text);
+  }
+}
 
 document.querySelector("h1 .version").textContent = version;
 
@@ -122,6 +172,7 @@ const optRenderer = document.getElementById("opt-renderer");
 if (optRenderer)
   optRenderer.addEventListener("change", () => {
     webgl.on = optRenderer.value === "webgl";
+    retellSamples(webgl.on);
     for (const redraw of demos) redraw();
   });
 
@@ -211,10 +262,18 @@ function setupDemo(id, fn) {
     // The demo still runs whichever renderer is on: it is what applies the
     // move. Only where the result is drawn changes.
     const svg = fn(vals, ctx, trigger);
+    // Some demos cannot be drawn in WebGL, and each says why on the page
+    // rather than ignoring the switch and looking broken.
+    if (webgl.on && root.dataset.svgOnly) {
+      if (svg) canvas.innerHTML = svg;
+      note(root, root.dataset.svgOnly);
+      return;
+    }
+    note(root, null);
     if (webgl.on && ctx.p && typeof ctx.p.getPieces === "function") {
       // A move only reassigns matrices; anything else may have changed the
       // colours, which live in the geometry, so rebuild then.
-      drawWebgl(ctx, canvas, !isMove(trigger));
+      drawWebgl(ctx, canvas, !isMove(trigger), ctx.turn);
       return;
     }
     if (ctx.view) {
@@ -237,11 +296,38 @@ function setupDemo(id, fn) {
 // who never does never downloads it.
 const webgl = { on: false, module: null };
 
-async function drawWebgl(ctx, canvas, rebuild) {
+/** Say, on the demo itself, why it did not switch. */
+function note(root, why) {
+  let el = root.querySelector(".demo-note");
+  if (!why) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("p");
+    el.className = "demo-note";
+    root.querySelector(".demo-canvas").after(el);
+  }
+  el.textContent = `SVG only: ${why}.`;
+}
+
+async function drawWebgl(ctx, canvas, rebuild, turn) {
   if (!webgl.module) webgl.module = await import("./three-view.js");
   if (!ctx.view) ctx.view = await webgl.module.createThreeView(canvas);
   if (rebuild) ctx.view.invalidate();
-  ctx.view.show(ctx.p);
+  ctx.view.show(ctx.p, turn);
+}
+
+/**
+ * One frame, drawn by whichever renderer is on. The demos that animate run
+ * their own loop and used to assign innerHTML straight; they call this
+ * instead, so a turn in flight reaches WebGL too rather than snapping.
+ * `svg` is a thunk so the string is never built when nothing will read it.
+ */
+function paintFrame(ctx, canvas, svg, turn) {
+  if (webgl.on && ctx.p && typeof ctx.p.getPieces === "function")
+    drawWebgl(ctx, canvas, false, turn);
+  else canvas.innerHTML = typeof svg === "function" ? svg() : svg;
 }
 
 const isMove = (t) => t && t.key.startsWith("move:");
@@ -679,10 +765,8 @@ setupDemo("demo-animation", (v, ctx, t) => {
     if (token) {
       try {
         ctx.p.parseMove(token);
-        return tune(ctx.p).toSVG({
-          fitSphere: true,
-          turn: { move: token, progress: v.scrub / 100 },
-        });
+        ctx.turn = { move: token, progress: v.scrub / 100 };
+        return tune(ctx.p).toSVG({ fitSphere: true, turn: ctx.turn });
       } catch {
         /* a sequence that does not parse simply does not scrub */
       }
@@ -718,14 +802,13 @@ setupDemo("demo-animation", (v, ctx, t) => {
       const frame = (now) => {
         const p = Math.min(1, (now - start) / total);
         tune(ctx.p);
-        canvas.innerHTML = ctx.p.toSVG({
-          fitSphere: true,
-          turn: { move: token, progress: easeOut(p) },
-        });
+        const turn = { move: token, progress: easeOut(p) };
+        paintFrame(ctx, canvas, () => ctx.p.toSVG({ fitSphere: true, turn }), turn);
         if (p < 1) ctx.raf = requestAnimationFrame(frame);
         else {
           ctx.p.move(token);
-          canvas.innerHTML = tune(ctx.p).toSVG({ fitSphere: true });
+          ctx.turn = null;
+          paintFrame(ctx, canvas, () => tune(ctx.p).toSVG({ fitSphere: true }), null);
           playNext();
         }
       };

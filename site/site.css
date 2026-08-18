@@ -1781,3 +1781,15 @@ input[type="color"]::-webkit-color-swatch {
 .spec-editor {
   transition: background 0.4s ease;
 }
+
+/* Why a demo did not follow the renderer switch. Stated on the demo rather
+   than hidden, because a puzzle that quietly ignores a control reads as
+   broken. */
+.demo-note {
+  font-family: var(--mono);
+  font-size: var(--size-xs);
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: var(--space-1) var(--space-2) 0;
+  color: color-mix(in oklab, var(--text) 55%, var(--bg));
+}

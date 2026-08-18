@@ -101,6 +101,27 @@ test("the install line names the package that is published", () => {
   assert(!wrongImport.length, `imports from ${[...new Set(wrongImport)].join(", ")}, not ${pkg.name}`);
 });
 
+test("the guide's code samples name the package that is published", () => {
+  // The same bug as the README's, in the other public place: the site showed
+  // `from 'erno'` in thirteen samples while the package is erno.js, so every
+  // one of them installed nothing.
+  const pkg = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+  );
+  const wrong = [];
+  for (const file of ["../site/index.html", "../site/playground.html", "../site/gallery.html"]) {
+    let text;
+    try {
+      text = readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+    } catch {
+      continue; // the site is not shipped, so its absence is not a failure
+    }
+    for (const [, spec] of text.matchAll(/from ['"]([^'"]+)['"]/g))
+      if (/^erno/.test(spec) && spec !== pkg.name) wrong.push(`${file}: ${spec}`);
+  }
+  assert(!wrong.length, `imports the wrong package: ${[...new Set(wrong)].join(", ")}`);
+});
+
 test("the counts the README states are the counts the library has", () => {
   const claims = [
     ["3×3 facelets", new E.Erno().getState().length, 54],

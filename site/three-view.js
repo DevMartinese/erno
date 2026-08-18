@@ -14,6 +14,10 @@
 
 let THREE = null;
 
+const IDENT3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+const matMul = (a, b) =>
+  a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+
 /** Load three the first time anyone asks, and only then. */
 async function load() {
   if (!THREE) THREE = await import("three");
@@ -75,12 +79,9 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
   renderer.domElement.style.cssText = "width:100%;height:100%;display:block";
 
   const scene = new THREE.Scene();
-  // An orthographic camera down the body diagonal is what erno's default
-  // isometric projection IS, so flipping the switch changes the renderer and
-  // not the picture.
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-  camera.position.set(1, 1, 1).normalize().multiplyScalar(20);
-  camera.lookAt(0, 0, 0);
+  const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 400);
+  const persp = new THREE.PerspectiveCamera(35, 1, 0.01, 400);
+  let camera = ortho;
 
   // No lights. The SVG has no shading either: it reads as solid because of
   // the black plastic between the stickers, not because of a light. Lambert
@@ -112,9 +113,67 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     });
     builtFor = puzzle;
     radius = puzzle._radius || 3;
-    // centre the composition the way the SVG frames it
-    group.position.set(...(puzzle._viewCenter || [0, 0, 0]).map((v) => -v));
+
+    // `def.view` orients a definition inside its frame: a Pyraminx is a
+    // tetrahedron described in a cube's coordinates and would otherwise come
+    // out lying on a different face than the SVG shows. A caller's `deform`
+    // composes on top of it. getPieces hands back raw model space on purpose,
+    // so the two live here, on the group, where they are one matrix.
+    const V = puzzle._deform
+      ? matMul(puzzle._deform, puzzle.def.view || IDENT3)
+      : puzzle.def.view || IDENT3;
+    const c = puzzle._viewCenter || [0, 0, 0];
+    group.matrixAutoUpdate = false;
+    group.matrix.set(
+      V[0][0], V[0][1], V[0][2], -(V[0][0] * c[0] + V[0][1] * c[1] + V[0][2] * c[2]),
+      V[1][0], V[1][1], V[1][2], -(V[1][0] * c[0] + V[1][1] * c[1] + V[1][2] * c[2]),
+      V[2][0], V[2][1], V[2][2], -(V[2][0] * c[0] + V[2][1] * c[1] + V[2][2] * c[2]),
+      0, 0, 0, 1,
+    );
+    aim(puzzle);
     resize();
+  }
+
+  /**
+   * Point the camera the way erno's projector does.
+   *
+   * Its parallel view direction is [sinT·cosP, sinP, cosT·cosP] in render
+   * space, with sinT negated so a positive angle orbits toward the R face,
+   * and render space flips y and z. Undo the flip and the camera sits at
+   * [sin(angle)·cosP, sinP, cos(angle)·cosP].
+   *
+   * Isometric locks the pitch to atan(1/√2), which is what makes the three
+   * axes foreshorten equally, so it is that same formula with the pitch
+   * taken out of the caller's hands.
+   *
+   * Oblique is not a camera at all: it is a shear, and no position or
+   * orientation produces it. It falls back to orthographic at the same angle,
+   * and the page says so rather than quietly showing something else.
+   */
+  function aim(puzzle) {
+    const spec = puzzle.camera || { type: "isometric", angle: 30 };
+    const type = spec.type || "isometric";
+    const angle = ((spec.angle ?? 30) * Math.PI) / 180;
+    const pitch =
+      type === "isometric"
+        ? Math.atan(1 / Math.SQRT2)
+        : ((spec.pitch ?? 30) * Math.PI) / 180;
+    const dist = Math.max(20, radius * 6);
+
+    if (type === "perspective") {
+      camera = persp;
+      const d = spec.distance ?? radius * 3.5;
+      camera.position.set(radius * 1.2, radius * 0.9, d);
+      camera.lookAt(0, 0, 0);
+    } else {
+      camera = ortho;
+      camera.position.set(
+        Math.sin(angle) * Math.cos(pitch) * dist,
+        Math.sin(pitch) * dist,
+        Math.cos(angle) * Math.cos(pitch) * dist,
+      );
+      camera.lookAt(0, 0, 0);
+    }
   }
 
   function resize() {
@@ -125,10 +184,14 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     // the puzzle does not appear to breathe as it shape-shifts
     const half = radius * 1.08;
     const aspect = w / h;
-    camera.left = -half * Math.max(1, aspect);
-    camera.right = half * Math.max(1, aspect);
-    camera.top = half * Math.max(1, 1 / aspect);
-    camera.bottom = -half * Math.max(1, 1 / aspect);
+    if (camera === persp) {
+      persp.aspect = aspect;
+    } else {
+      ortho.left = -half * Math.max(1, aspect);
+      ortho.right = half * Math.max(1, aspect);
+      ortho.top = half * Math.max(1, 1 / aspect);
+      ortho.bottom = -half * Math.max(1, 1 / aspect);
+    }
     camera.updateProjectionMatrix();
   }
 
@@ -142,6 +205,10 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     /** Draw `puzzle`, optionally mid-turn. Rebuilds only on a new puzzle. */
     show(puzzle, turn) {
       if (puzzle !== builtFor) rebuild(puzzle);
+      else {
+        aim(puzzle); // the camera panel moves without touching the geometry
+        resize();
+      }
       const pieces = puzzle.getPieces({ turn });
       for (let i = 0; i < meshes.length; i++)
         meshes[i].matrix.fromArray(pieces[i].matrix);

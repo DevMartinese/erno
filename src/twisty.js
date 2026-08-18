@@ -1429,11 +1429,27 @@ export class Twisty {
                 ]);
               })()
             : null;
+        // The same colour toSVG would paint, overrides and all. A styled
+        // puzzle whose two renderers disagree about colour is two puzzles,
+        // and `style` is how the guide greys out everything but the cross.
+        let color = this.plastic;
+        if (f.letter) {
+          color = f.tint || this.colors[f.letter];
+          if (this._styleObj && this._styleObj.fill) color = this._styleObj.fill;
+          if (this._styleFn) {
+            const custom = this._styleFn({
+              face: at ? at.posLetter : f.letter,
+              index: at ? at.index : -1,
+              letter: f.letter,
+              piece: i,
+              tint: f.tint,
+            });
+            if (custom && custom.fill) color = custom.fill;
+          }
+        }
         faces.push({
           letter: f.letter || null,
-          // A wall is not a sticker and wears the body colour, the same
-          // decision toSVG makes.
-          color: f.letter ? f.tint || this.colors[f.letter] : this.plastic,
+          color,
           plastic: this.plastic,
           face: at ? at.posLetter : null,
           index: at ? at.index : -1,

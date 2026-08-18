@@ -1473,29 +1473,46 @@ test("getPieces places every vertex exactly where the engine does", () => {
 });
 
 test("getPieces and toSVG paint the same stickers the same colour", () => {
-  // Two renderers that disagree about colour are two puzzles. This is what
-  // keeps a WebGL view and the SVG view showing the same thing.
-  for (const make of [
-    () => new Cube({ size: 3 }),
-    () => new Tetris(),
-    () => new Void(),
-    () => new Cube({ size: 3, paint: ({ slot: [x] }) => (x > 0.5 ? "#e2231a" : null) }),
+  // Compared against the SVG the renderer actually emits, not against the
+  // base colour, because the interesting cases are the ones where something
+  // overrides it: a paint, a scheme, a style callback greying out everything
+  // but the cross. Two renderers that disagree about colour are two puzzles.
+  for (const [label, make] of [
+    ["3×3", () => new Cube({ size: 3 })],
+    ["Tetris paint", () => new Tetris()],
+    ["Void", () => new Void()],
+    ["half-painted", () => new Cube({ size: 3, paint: ({ slot: [x] }) => (x > 0.5 ? "#e2231a" : null) })],
+    ["style object", () => new Cube({ size: 3 }).style({ fill: "#123456" })],
+    ["style callback", () => {
+      const p = new Cube({ size: 3 });
+      return p.style(({ letter }) => (letter === "U" ? null : { fill: "#d4d4d4" }));
+    }],
+    ["style by piece", () => {
+      const p = new Cube({ size: 3 });
+      const ramp = generateRamp(p.pieces.length);
+      return p.style(({ piece }) => ({ fill: ramp[piece] }));
+    }],
   ]) {
     const p = make();
     p.scramble();
-    const fromSvg = new Map();
-    for (const f of p.getFaces())
-      if (f.part === "sticker") fromSvg.set(`${f.piece}:${f.face}:${f.index}`, f.tint || p.colors[f.letter]);
+    // what the SVG paints, keyed the way both renderers address a sticker
+    const painted = new Map();
+    for (const m of p
+      .toSVG()
+      .matchAll(/<polygon[^>]*fill="([^"]*)"[^>]*data-part="sticker"[^>]*data-face="([^"]*)"[^>]*data-index="([^"]*)"[^>]*data-piece="([^"]*)"/g))
+      painted.set(`${m[4]}:${m[2]}:${m[3]}`, m[1]);
+    assert(painted.size > 10, `${label}: only ${painted.size} stickers found in the SVG`);
+
     let checked = 0;
     for (const piece of p.getPieces())
       for (const f of piece.faces) {
         if (!f.letter) continue;
         const key = `${piece.index}:${f.face}:${f.index}`;
-        if (!fromSvg.has(key)) continue; // hidden by the SVG's own culling
-        assertEqual(f.color, fromSvg.get(key), `${p.def.name} sticker ${key}`);
+        if (!painted.has(key)) continue; // culled from this view by the SVG
+        assertEqual(f.color, painted.get(key), `${label} sticker ${key}`);
         checked++;
       }
-    assert(checked > 10, `only ${checked} stickers compared on ${p.def.name}`);
+    assert(checked > 10, `${label}: only ${checked} stickers compared`);
   }
 });
 
