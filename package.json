@@ -44,6 +44,7 @@
   "author": "DevMartinese",
   "license": "MIT",
   "devDependencies": {
+    "three": "^0.185.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.1"
   },

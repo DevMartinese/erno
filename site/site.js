@@ -115,6 +115,15 @@ const camDistLabel = document.getElementById("cam-dist-label");
 const optInset = document.getElementById("opt-inset");
 const optPlastic = document.getElementById("opt-plastic");
 const optScheme = document.getElementById("opt-scheme");
+const optRenderer = document.getElementById("opt-renderer");
+
+// Same puzzles, other renderer. The engine is not told: it hands out
+// getPieces() either way and does not know what happens next.
+if (optRenderer)
+  optRenderer.addEventListener("change", () => {
+    webgl.on = optRenderer.value === "webgl";
+    for (const redraw of demos) redraw();
+  });
 
 function getCamera(span = 4) {
   const type = camProj.value;
@@ -199,7 +208,19 @@ function setupDemo(id, fn) {
     const vals = {};
     for (const [k, el] of Object.entries(controls))
       vals[k] = el.type === "range" ? parseFloat(el.value) : el.value;
+    // The demo still runs whichever renderer is on: it is what applies the
+    // move. Only where the result is drawn changes.
     const svg = fn(vals, ctx, trigger);
+    if (webgl.on && ctx.p && typeof ctx.p.getPieces === "function") {
+      // A move only reassigns matrices; anything else may have changed the
+      // colours, which live in the geometry, so rebuild then.
+      drawWebgl(ctx, canvas, !isMove(trigger));
+      return;
+    }
+    if (ctx.view) {
+      ctx.view.dispose();
+      ctx.view = null;
+    }
     if (svg) canvas.innerHTML = svg;
   }
 
@@ -208,12 +229,27 @@ function setupDemo(id, fn) {
   return render;
 }
 
+// ─── WebGL, on demand ────────────────
+//
+// erno knows nothing about three.js. It hands out getPieces(), which is the
+// geometry in each piece's own space plus a matrix, and this draws that. The
+// module is imported the first time somebody flips the switch, so a reader
+// who never does never downloads it.
+const webgl = { on: false, module: null };
+
+async function drawWebgl(ctx, canvas, rebuild) {
+  if (!webgl.module) webgl.module = await import("./three-view.js");
+  if (!ctx.view) ctx.view = await webgl.module.createThreeView(canvas);
+  if (rebuild) ctx.view.invalidate();
+  ctx.view.show(ctx.p);
+}
+
 const isMove = (t) => t && t.key.startsWith("move:");
 const moveToken = (t) => t.key.slice(5) + (t.shift ? "'" : "");
 
 // ─── 2. Moves ────────────────────────
 setupDemo("demo-moves", (v, ctx, t) => {
-  if (!ctx.p) ctx.p = new Erno();
+  if (!ctx.p) ctx.p = new Cube();
   if (t && (t.key === "apply" || t.key === "seq")) {
     try {
       ctx.p.move(v.seq);
@@ -227,7 +263,7 @@ setupDemo("demo-moves", (v, ctx, t) => {
 
 // ─── 3. Scramble ─────────────────────
 setupDemo("demo-scramble", (v, ctx, t) => {
-  if (!ctx.p) ctx.p = new Erno();
+  if (!ctx.p) ctx.p = new Cube();
   if (t && t.key === "scramble") {
     ctx.p.reset();
     ctx.readout.textContent = ctx.p.scramble(v.len);
@@ -254,7 +290,7 @@ setupDemo("demo-state", (v, ctx, t) => {
 // ─── 5. Sizes ────────────────────────
 setupDemo("demo-sizes", (v, ctx, t) => {
   if (!ctx.p || ctx.size !== v.size) {
-    ctx.p = new Erno({ size: v.size });
+    ctx.p = new Cube({ size: v.size });
     ctx.size = v.size;
   }
   if (t && t.key === "scramble") ctx.p.scramble();
@@ -531,7 +567,7 @@ setupDemo("demo-mirror", (v, ctx, t) => {
 // ─── 10. Schemes ─────────────────────
 setupDemo("demo-schemes", (v, ctx, t) => {
   // start rotated x2: western vs japanese only differ on the D and B faces
-  if (!ctx.p) ctx.p = new Erno().move("x2");
+  if (!ctx.p) ctx.p = new Cube().move("x2");
   if (t && isMove(t)) ctx.p.move(moveToken(t));
   tune(ctx.p, { scheme: false });
   ctx.p.colors = { ...SCHEMES[v.scheme] };
@@ -550,7 +586,7 @@ setupDemo("demo-generative", (v, ctx, t) => {
       ctx.p.style(({ piece }) => ({ fill: ctx.ramp[piece] }));
       ctx.readout.textContent = "a ramp across the pieces, scramble it";
     } else {
-      ctx.p = new Erno();
+      ctx.p = new Cube();
       ctx.scheme = generateScheme(CUBE_LETTERS);
       ctx.p.colors = ctx.scheme;
       ctx.readout.textContent = `“${ctx.scheme.name}”, seed ${ctx.scheme.seed}`;
@@ -613,7 +649,7 @@ const STYLE_PRESETS = {
 };
 
 setupDemo("demo-styles", (v, ctx) => {
-  if (!ctx.p) ctx.p = new Erno();
+  if (!ctx.p) ctx.p = new Cube();
   tune(ctx.p);
   ctx.p.style(STYLE_PRESETS[v.preset](ctx.p));
   return ctx.p.toSVG();
@@ -621,7 +657,7 @@ setupDemo("demo-styles", (v, ctx) => {
 
 // ─── 12. Animation ───────────────────
 setupDemo("demo-animation", (v, ctx, t) => {
-  if (!ctx.p) ctx.p = new Erno();
+  if (!ctx.p) ctx.p = new Cube();
   const stop = () => {
     if (ctx.raf) cancelAnimationFrame(ctx.raf);
     ctx.raf = 0;
@@ -711,12 +747,12 @@ function controlsValue(ctx, key) {
 // ─── 13. renderState ─────────────────
 const POSITIONS = {
   superflip: () =>
-    new Erno().move(
+    new Cube().move(
       "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2",
     ),
-  checkerboard: () => new Erno().move("M2 E2 S2"),
+  checkerboard: () => new Cube().move("M2 E2 S2"),
   cubeincube: () =>
-    new Erno().move("F L F U' R U F2 L2 U' L' B D' B' L2 U"),
+    new Cube().move("F L F U' R U F2 L2 U' L' B D' B' L2 U"),
 };
 
 setupDemo("demo-renderstate", (v, ctx) => {

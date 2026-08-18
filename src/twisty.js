@@ -221,6 +221,17 @@ function centroidOf(pts) {
 }
 
 /** Newell normal of a planar polygon (unit length, follows winding). */
+// A face fan-triangulated, as indices into its own point list. Every face
+// here comes from slicing a convex solid, so it is convex, so a fan from the
+// first vertex is correct and preserves the outward winding the constructor
+// already fixed. Returned as indices rather than as copied vertices, because
+// that is what an indexed BufferGeometry wants.
+function fanTriangles(pts) {
+  const out = [];
+  for (let i = 1; i + 1 < pts.length; i++) out.push(0, i, i + 1);
+  return out;
+}
+
 function polygonNormal(pts) {
   let x = 0,
     y = 0,
@@ -1345,6 +1356,112 @@ export class Twisty {
    *   filter rejects are omitted — partial builds, exploded views, tutorials
    * @returns {Object[]} projected faces, back-to-front
    */
+  /**
+   * The rotation a partly-finished turn applies, or null when nothing is
+   * turning. Shared by every renderer: the mechanism does not care whether
+   * the frame ends up as SVG or as a WebGL matrix.
+   * @param {Object} [turn] - { move, progress }
+   */
+  _spinFor(turn) {
+    if (!turn || !turn.progress) return null;
+    const spec = this.parseMove(turn.move);
+    const mat = rotationMatrix(spec.axis, spec.angle * turn.progress);
+    return { spec, mat, off: offsetFor(mat, spec.center || this._pivot) };
+  }
+
+  /**
+   * Where each piece is, and what it is made of, for a renderer that is not
+   * this one.
+   *
+   * `toSVG` and `getFaces` bake in a camera: what comes back is already flat.
+   * This does not. Points are in the piece's OWN space, unmoved, and the
+   * matrix says where that space currently sits, so a consumer builds each
+   * piece's geometry once and moves it by assigning a matrix per frame. In
+   * three.js that is `mesh.matrix.fromArray(piece.matrix)` with
+   * `matrixAutoUpdate` off, and the geometry is never touched again.
+   *
+   * The matrix is sixteen numbers in column-major order, which is the layout
+   * `THREE.Matrix4.fromArray` expects.
+   *
+   * @param {Object} [options]
+   * @param {Object} [options.turn] - { move, progress } for a turn in flight
+   * @param {boolean} [options.triangles] - also emit each face fan-triangulated
+   * @returns {Object[]} one entry per piece
+   */
+  getPieces(options = {}) {
+    const { turn, triangles = false } = options;
+    const spin = this._spinFor(turn);
+    const inset = Math.max(0, Math.min(0.45, this.stickerInset));
+
+    return this.pieces.map((piece, i) => {
+      let M = this._rot[i];
+      let T = this._bodyT[i];
+      const moving = !!spin && this._selected(i, spin.spec);
+      if (moving) {
+        M = matMul(spin.mat, M);
+        T = add(matVec(spin.mat, T), spin.off);
+      }
+      const slot = this._slotOf(i);
+      const rot = this._rot[i];
+
+      const faces = [];
+      for (const f of piece.faces) {
+        if (f.hidden) continue;
+        // Where this sticker sits on the facelet grid right now, which is how
+        // getState() addresses it; null on a plastic wall, which is nowhere.
+        const at = f.letter
+          ? this._faceletAt(
+              f.slotShift ? add(slot, matVec(rot, f.slotShift)) : slot,
+              matVec(rot, f.normal),
+            )
+          : null;
+        // The SVG draws a face twice: the body in plastic, and the sticker
+        // shrunk toward its own centre on top. That gap IS the black grid you
+        // see, so a renderer that skips it draws a different puzzle.
+        const sticker =
+          f.letter && inset > 0
+            ? (() => {
+                const c = centroidOf(f.pts);
+                return f.pts.map(([x, y, z]) => [
+                  x + (c[0] - x) * inset,
+                  y + (c[1] - y) * inset,
+                  z + (c[2] - z) * inset,
+                ]);
+              })()
+            : null;
+        faces.push({
+          letter: f.letter || null,
+          // A wall is not a sticker and wears the body colour, the same
+          // decision toSVG makes.
+          color: f.letter ? f.tint || this.colors[f.letter] : this.plastic,
+          plastic: this.plastic,
+          face: at ? at.posLetter : null,
+          index: at ? at.index : -1,
+          normal: f.normal,
+          points: f.pts,
+          sticker,
+          ...(triangles
+            ? { triangles: fanTriangles(f.pts), stickerTriangles: sticker ? fanTriangles(sticker) : null }
+            : {}),
+        });
+      }
+
+      return {
+        index: i,
+        slot,
+        moving,
+        faces,
+        // column-major, ready for THREE.Matrix4().fromArray(...)
+        matrix: [
+          M[0][0], M[1][0], M[2][0], 0,
+          M[0][1], M[1][1], M[2][1], 0,
+          M[0][2], M[1][2], M[2][2], 0,
+          T[0],    T[1],    T[2],    1,
+        ],
+      };
+    });
+  }
+
   getFaces(turn, pieceFilter) {
     const proj = this._project();
     // `view` orients a definition (the Pyraminx sits in a cube frame);
@@ -1353,21 +1470,14 @@ export class Twisty {
       ? matMul(this._deform, this.def.view || IDENT)
       : this.def.view || IDENT;
     const R = this._radius;
-    let spin = null;
-    if (turn && turn.progress) {
-      const spec = this.parseMove(turn.move);
-      const mat = rotationMatrix(spec.axis, spec.angle * turn.progress);
+    const spin = this._spinFor(turn);
+    if (spin) {
       // The turn axis carried into render space. A layer is bounded by cut
       // planes perpendicular to it, so this direction is the one along which
       // a turning piece and a resting one are guaranteed to come apart —
       // see _paintOrder, which uses it to order them exactly.
-      const va = matVec(view, spec.axis);
-      spin = {
-        spec,
-        mat,
-        off: offsetFor(mat, spec.center || this._pivot),
-        renderAxis: [va[0], -va[1], -va[2]], // toRender flips y and z
-      };
+      const va = matVec(view, spin.spec.axis);
+      spin.renderAxis = [va[0], -va[1], -va[2]]; // toRender flips y and z
     }
 
     const inset = Math.max(0, Math.min(0.45, this.stickerInset));

@@ -1419,6 +1419,99 @@ test("the frame holds every state, and wastes no room on the Mirror", () => {
   }
 });
 
+// ── Geometry for other renderers ────────────────────────────────────────────
+
+test("getPieces places every vertex exactly where the engine does", () => {
+  // The matrix is the whole contract: a consumer builds the geometry once, in
+  // the piece's own space, and moves it by assigning this. If it were even
+  // slightly off, a cube would render with seams that open and close as it
+  // turned, and no amount of staring at the renderer would find the cause.
+  const mul = (a, b) => a.map((r) => [0, 1, 2].map((j) => r[0] * b[0][j] + r[1] * b[1][j] + r[2] * b[2][j]));
+  const mv = (m, v) => [0, 1, 2].map((i) => m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2]);
+  const byMatrix = (m, v) => [
+    m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12],
+    m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13],
+    m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14],
+  ];
+
+  for (const [label, make, mv2] of [
+    ["3×3", () => new Cube({ size: 3 }), "R"],
+    ["Megaminx", () => new Megaminx(), "A"],
+    ["Siamese", () => new Siamese(), "AD"],
+    ["Mirror", () => new Mirror(), "U"],
+    ["Skewb", () => new Skewb(), "U"],
+  ]) {
+    const p = make();
+    for (let k = 0; k < 8; k++) {
+      const open = p.legalMoves();
+      p.move(open[(k * 5) % open.length]);
+    }
+    for (const progress of [0, 0.37, 1]) {
+      const turn = progress ? { move: mv2, progress } : undefined;
+      const pieces = p.getPieces({ turn });
+      const spin = p._spinFor(turn);
+      for (let i = 0; i < p.pieces.length; i++) {
+        let M = p._rot[i];
+        let T = p._bodyT[i];
+        if (spin && p._selected(i, spin.spec)) {
+          M = mul(spin.mat, M);
+          T = mv(spin.mat, T).map((v, k) => v + spin.off[k]);
+        }
+        for (const f of p.pieces[i].faces)
+          for (const q of f.pts) {
+            const want = mv(M, q).map((v, k) => v + T[k]);
+            const got = byMatrix(pieces[i].matrix, q);
+            for (let k = 0; k < 3; k++)
+              assert(
+                Math.abs(want[k] - got[k]) < 1e-12,
+                `${label} @${progress}: piece ${i} vertex off by ${Math.abs(want[k] - got[k])}`,
+              );
+          }
+      }
+    }
+  }
+});
+
+test("getPieces and toSVG paint the same stickers the same colour", () => {
+  // Two renderers that disagree about colour are two puzzles. This is what
+  // keeps a WebGL view and the SVG view showing the same thing.
+  for (const make of [
+    () => new Cube({ size: 3 }),
+    () => new Tetris(),
+    () => new Void(),
+    () => new Cube({ size: 3, paint: ({ slot: [x] }) => (x > 0.5 ? "#e2231a" : null) }),
+  ]) {
+    const p = make();
+    p.scramble();
+    const fromSvg = new Map();
+    for (const f of p.getFaces())
+      if (f.part === "sticker") fromSvg.set(`${f.piece}:${f.face}:${f.index}`, f.tint || p.colors[f.letter]);
+    let checked = 0;
+    for (const piece of p.getPieces())
+      for (const f of piece.faces) {
+        if (!f.letter) continue;
+        const key = `${piece.index}:${f.face}:${f.index}`;
+        if (!fromSvg.has(key)) continue; // hidden by the SVG's own culling
+        assertEqual(f.color, fromSvg.get(key), `${p.def.name} sticker ${key}`);
+        checked++;
+      }
+    assert(checked > 10, `only ${checked} stickers compared on ${p.def.name}`);
+  }
+});
+
+test("getPieces triangulates faces without inventing or losing area", () => {
+  const p = new Megaminx();
+  let faces = 0;
+  for (const piece of p.getPieces({ triangles: true }))
+    for (const f of piece.faces) {
+      const n = f.points.length;
+      assertEqual(f.triangles.length, (n - 2) * 3, `a ${n}-gon fans into ${n - 2} triangles`);
+      for (const idx of f.triangles) assert(idx >= 0 && idx < n, "index inside the point list");
+      faces++;
+    }
+  assert(faces > 100, `only ${faces} faces triangulated`);
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);
