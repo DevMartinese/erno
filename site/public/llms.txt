@@ -1,0 +1,165 @@
+# erno.js
+
+> An engine for twisty puzzles and the permutations underneath them, rendered
+> to SVG. 29 puzzles, zero dependencies. A puzzle is described as a convex
+> solid plus cut planes plus moves, and the engine derives the pieces, the
+> state and which turns are possible.
+
+Version 0.1.0. Every code block below is executed against the library
+before this file is written, so it runs as printed.
+
+## Install
+
+```bash
+npm install erno.js
+```
+
+```js
+import { Cube, Skewb, Megaminx } from 'erno.js'
+```
+
+The package name is **erno.js**, not `erno`. The bare name is refused by the
+registry for being too close to `errno`.
+
+## Instructions for Large Language Models
+
+### 1. There is no renderer, no canvas and no animation loop
+
+Output is a string of SVG. There is nothing to mount, nothing to tick, and no
+WebGL context. Put the string in the DOM.
+
+```js
+const cube = new Cube({ size: 3 })
+cube.move("R U R' U'")
+document.body.innerHTML = cube.toSVG()
+```
+
+To animate, render successive frames of one turn and apply the move at the end.
+Use `fitSphere` so the viewBox does not resize between frames.
+
+```js
+cube.toSVG({ fitSphere: true, turn: { move: 'R', progress: 0.5 } })
+```
+
+### 2. Erno is the facelet cube, Cube is the piece cube
+
+Both are 3x3s and both take the same moves. They are different representations
+and only one of them has pieces.
+
+```js
+new Cube({ paint: () => '#e2231a' })   // correct
+new Erno({ paint: () => '#e2231a' })   // throws
+```
+
+`paint`, `remove`, `bandage`, `decal` and `blocking` all need `Cube`. Reach for
+`Erno` only when you want the facelet string and nothing else.
+
+### 3. Notation is not the same for every puzzle
+
+Do not assume cube notation. Each family has its own, and the puzzle will tell
+you rather than making you guess.
+
+```js
+new Skewb().legalMoves()      // U R L B
+new Megaminx().legalMoves()   // A B C D E F G H I J K L
+new Dino().legalMoves()       // FRU FLU BRU BLU and four more
+```
+
+- **Cube, Erno, Cuboid, Mirror, Void, Tetris, Fisher, Windmill, Axis, Ghost, Twist, Penrose**: Face notation: U R F D L B, with ' for anticlockwise and 2 for a half turn. Wide turns Rw or r, and 3Rw on big cubes. Slices M E S on odd cubes. Whole-puzzle rotations x y z.
+- **Skewb, MasterSkewb, SkewbDiamond, Compy**: Corner notation: one letter per corner, turning 120 degrees.
+- **Pyraminx, MasterPyraminx**: Lowercase turns the tip, uppercase turns the tip and the layer under it.
+- **Megaminx, Kilominx**: One letter per face, A to L, turning a fifth of a circle.
+- **Dino**: Three-letter corner names, in any letter order: URF, DBL'.
+- **Helicopter**: Two-letter edge names, 180 degree flips about an edge axis.
+- **Fused, Siamese**: Each face is prefixed with its body's letter: AU, BR', AF2.
+
+### 4. Not every move is legal from every position
+
+On a bandaged, welded or non-cubic puzzle the available moves change as pieces
+move. Ask before offering a move; `move()` throws on a blocked one.
+
+```js
+const s = new Siamese()
+s.legalMoves()      // 12 of 36 tokens are open here
+s.canMove('AU')     // false: the layer would not come back to itself
+```
+
+Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (12 of 36 from solved), Siamese (12 of 36 from solved), Tower (10 of 18 from solved).
+
+### 5. Most variants are built at one size only
+
+```js
+new Cube({ size: 7 })     // fine, any size
+new Cuboid({ size: [3, 2, 3] })
+new Skewb({ size: 4 })    // throws
+```
+
+Fixed at 3x3: Axis, Compy, Dino, Fisher, Ghost, Helicopter, Kilominx, MasterPyraminx, MasterSkewb, Mastermorphix, Megaminx, Mirror, Penrose, Pyraminx, Pyramorphix, Skewb, SkewbDiamond, Tetris, Twist, Void, Windmill.
+
+### 6. getState is the facelets, getPattern is what you see
+
+`getState()` names each sticker's home face. `getPattern()` returns the
+colours on a painted puzzle and the facelets on a plain one, because two
+cubies of the same colour cannot be told apart by eye. Compare patterns with
+`getPattern`, and hand a state string to a solver with `getState`.
+
+```js
+const target = new Cube().move('U2 D2 F2 B2 L2 R2').getPattern()
+const c = new Cube()
+c.distanceTo(target)   // 24 stickers out of place
+c.matches(target)      // false, and true once it is wearing the pattern
+```
+
+### 7. A position is not a facelet string
+
+`getPosition()` saves where every piece is and how it is turned, exactly, and
+round-trips through `setPosition()`. A facelet string cannot: two placements
+can wear the same face.
+
+```js
+const saved = cube.getPosition()
+cube.scramble()
+cube.setPosition(saved)
+```
+
+## The puzzles
+
+- `Axis` (26 pieces)
+- `Compy` (21 pieces)
+- `Cube` (26 pieces)
+- `Cuboid` (18 pieces)
+- `Dino` (12 pieces)
+- `Domino` (18 pieces)
+- `Erno`
+- `Fisher` (26 pieces)
+- `Floppy` (9 pieces)
+- `Fused` (48 pieces)
+- `Ghost` (26 pieces)
+- `Helicopter` (32 pieces)
+- `Kilominx` (32 pieces)
+- `MasterPyraminx` (30 pieces)
+- `MasterSkewb` (50 pieces)
+- `Mastermorphix` (22 pieces)
+- `Megaminx` (62 pieces)
+- `Mirror` (26 pieces)
+- `Penrose` (26 pieces)
+- `Pyraminx` (14 pieces)
+- `Pyramorphix` (8 pieces)
+- `Siamese` (48 pieces)
+- `Skewb` (14 pieces)
+- `SkewbDiamond` (14 pieces)
+- `Tetris` (26 pieces)
+- `Tower` (12 pieces)
+- `Twist` (26 pieces)
+- `Void` (20 pieces)
+- `Windmill` (26 pieces)
+
+Plus `Twisty`, the generic engine every one of them runs on, and
+`buildPuzzle` for describing one that is not on the list.
+
+## More
+
+- Full API: /llms-full.txt
+- Interactive guide: /
+- A game built on the engine: /examples/pattern/
+- Source: https://github.com/DevMartinese/erno
