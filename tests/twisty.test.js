@@ -367,14 +367,54 @@ test("shape mods: piece counts and turn orders", () => {
   assert(new Fisher().move("U U U U").isSolved(), "fisher U⁴");
   assert(new Fisher().move("R R R R").isSolved(), "fisher R⁴");
   assert(new Windmill().move("F F F F").isSolved(), "windmill F⁴");
-  assert(new Twist().move("M M M M").isSolved(), "twist M⁴");
+  assert(new Twist().move("U U U U").isSolved(), "twist U⁴");
   assert(new Penrose().move("R R R R").isSolved(), "penrose R⁴");
 });
 
 test("shape mods: shape-shifted stickers report ? until they realign", () => {
   assert(new Fisher().move("R").getState().includes("?"), "fisher R");
-  assert(new Twist().move("R").getState().includes("?"), "twist R");
+  assert(new Ghost().move("R").getState().includes("?"), "ghost R");
   assert(!new Fisher().move("U").getState().includes("?"), "fisher U keeps alignment");
+  // The Twist used to be the second example here, and it cannot be any more:
+  // it refuses every turn that would misalign it. See the clearance test.
+});
+
+test("a wrung body only turns about the axis it was wrung about", () => {
+  // The Twist is moulded, not sliced: a vertical slab is a twisted chunk of
+  // material, and turned ninety degrees about a horizontal axis it lands
+  // where nothing of that shape fits. On the real puzzle your hand stops.
+  const t = new Twist();
+  assertEqual(t.legalMoves().join(" "), "U U' U2 D D' D2", "only the wrung axis");
+  for (const token of ["R", "L", "F", "B", "M"]) {
+    assert(!t.canMove(token), `${token} would drive the layer through the body`);
+    let refused = false;
+    try {
+      t.move(token);
+    } catch (err) {
+      refused = /pass through/.test(err.message);
+    }
+    assert(refused, `${token} throws, and says why`);
+  }
+  // and it still turns, scrambles and inverts on the axis it has
+  assert(new Twist().move("U U U U").isSolved(), "U⁴ is identity");
+  const seq = t.scramble();
+  assert(!t.isSolved(), "scrambled");
+  t.move(Twisty.inverse(seq));
+  assert(t.isSolved(), "scramble and inverse restore it");
+
+  // The law is asked of the shape, so it must not touch a puzzle whose
+  // blocks merely stick out into free air. A Mirror's do, on every turn.
+  for (const [label, make] of [
+    ["Mirror", () => new Mirror()],
+    ["Fisher", () => new Fisher()],
+    ["Ghost", () => new Ghost()],
+    ["Penrose", () => new Penrose()],
+    ["3×3", () => new Cube({ size: 3 })],
+  ]) {
+    const p = make();
+    for (const token of ["U", "R", "F", "D", "L", "B"])
+      assert(p._turnClears(p.parseMove(token)), `${label} ${token} has room`);
+  }
 });
 
 test("shape mods: scramble + inverse restores", () => {

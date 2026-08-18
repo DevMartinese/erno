@@ -84,7 +84,7 @@ s.legalMoves()      // 12 of 36 tokens are open here
 s.canMove('AU')     // false: the layer would not come back to itself
 ```
 
-Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (12 of 36 from solved), Siamese (12 of 36 from solved), Tower (10 of 18 from solved).
+Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (12 of 36 from solved), Siamese (12 of 36 from solved), Tower (10 of 18 from solved), Twist (6 of 18 from solved).
 
 ### 5. Most variants are built at one size only
 
@@ -390,8 +390,12 @@ restores the solved state bit for bit, with zero float drift.
   edges-only diagonals, Master Skewb's 50 pieces).
 - **Twist**: a 3×3 molded with a continuous 90° twist: top and bottom
   squares sit axis-aligned with all the twisting in the body, side stickers
-  are kite-shaped tiles. Full cube notation; `U D E` turns keep the
-  silhouette coherent, side turns go wild.
+  are kite-shaped tiles. `U D E` turns keep the
+  silhouette coherent, and the sides do not turn at all: a vertical slab is
+  a twisted chunk of material, and ninety degrees about a horizontal axis
+  lands it where nothing of that shape fits. `clearance: true` is the
+  engine asking the question your hand asks, and `legalMoves()` answers
+  `U D` and their primes and doubles.
 - **Penrose**: the classic three-color shape mod: pairs of adjacent faces
   share a color and their shared edge (UB, FL, DR, mutually skew and 3-fold
   symmetric) is rounded off with a big fillet. Every face keeps its sticker
@@ -690,6 +694,34 @@ One consequence worth knowing: because the law is about the shape of the
 material, subtraction takes part in it. A Void cube keeps all eighteen turns
 (its holes are symmetric), but hollowing out one corner and switching blocking
 on will close the turns that no longer come back to themselves.
+
+## Clearance
+
+Blocking asks whether a layer comes back to itself on the grid, which is what
+glue needs. A moulded body asks something else: whether the turn has room.
+
+```js
+new Twist().legalMoves()   // U U' U2 D D' D2, and nothing else
+new Twist().move('R')      // throws: it would pass through the rest
+```
+
+The Twist is wrung about its vertical axis, so a vertical slab is a twisted
+chunk of material. Turned ninety degrees about a horizontal axis it lands
+where nothing of that shape fits, and on the real puzzle your hand simply
+stops. `clearance: true` is the engine asking the question the hand asks: it
+places the layer where the turn would put it and checks whether anything that
+moved now sits inside anything that did not.
+
+It is off unless a definition asks for it, and it has to be. A Mirror cube's
+blocks stick out into free air on every turn and would fail any test that
+demanded a layer look like its own socket, but nothing of it ever passes
+through anything, so it has clearance for all six faces. So do the Fisher, the
+Ghost, the Axis, the Windmill and the Penrose. The Twist is the one puzzle in
+the catalogue whose shape refuses a turn its mechanism would otherwise allow.
+
+The two laws are separate questions and neither implies the other: clearance
+lets a Siamese make the turns that would tear it, and blocking lets the Twist
+make the turns that would drive it through itself.
 
 ## Bandaging
 

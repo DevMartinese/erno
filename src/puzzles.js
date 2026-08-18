@@ -1751,9 +1751,14 @@ function buildTwistDef() {
     cuts,
     parseMove: cubeParse3,
     slotPointOf: untwistedSlot,
-    // each side sticker is a stack of hull triangles — group them into one
+    // each side sticker is a stack of hull triangles, grouped into one
     // clean tile per piece
     stickerGroup: true,
+    // The body is wrung about its vertical axis, so only that axis can turn:
+    // a vertical slab is a twisted chunk of material and lands, ninety
+    // degrees about a horizontal axis, where nothing of that shape fits. On
+    // the real puzzle your hand stops. This is the engine's hand.
+    clearance: true,
     faceOrder: ["U", "R", "F", "D", "L", "B"],
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },

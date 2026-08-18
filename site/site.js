@@ -280,6 +280,7 @@ function setupDemo(id, fn) {
       // A move only reassigns matrices; anything else may have changed the
       // colours, which live in the geometry, so rebuild then.
       drawWebgl(ctx, canvas, !isMove(trigger), ctx.turn);
+      markMoves();
       return;
     }
     if (ctx.view) {
@@ -287,6 +288,20 @@ function setupDemo(id, fn) {
       ctx.view = null;
     }
     if (svg) canvas.innerHTML = svg;
+    markMoves();
+  }
+
+  // Grey out the turns this puzzle refuses from where it is now. The rule is
+  // the puzzle's, not the page's: a Twist is moulded and only turns about the
+  // axis it was wrung about, a Domino cannot make a quarter turn that would
+  // leave it misshapen, a welded pair refuses whatever would tear it. The
+  // button says so rather than doing nothing when pressed.
+  function markMoves() {
+    if (!ctx.p || typeof ctx.p.canMove !== "function") return;
+    for (const el of root.querySelectorAll('button[data-bind^="move:"]')) {
+      const token = el.dataset.bind.slice(5);
+      el.disabled = !ctx.p.canMove(token);
+    }
   }
 
   render();
