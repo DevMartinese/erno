@@ -43,11 +43,36 @@ function buildGeometry(piece, lift) {
   // with the body under it and the Twist came out hatched.
   const LIFT = lift;
 
+  // A vertex is lifted along a normal it SHARES, averaged over the stickers
+  // that meet there, never along one facet's own.
+  //
+  // This is what the stripes were. On a curved strip two facets meet at an
+  // edge with different normals; lifting that shared vertex once per facet
+  // sent the two copies apart, opening a hairline V through which the black
+  // body showed, along every interior edge. It also explains why a bigger
+  // lift looked worse rather than better: it was widening the gap it was
+  // supposed to be closing.
+  const lifted = new Map();
+  const at = (q) => `${Math.round(q[0] * 1e6)},${Math.round(q[1] * 1e6)},${Math.round(q[2] * 1e6)}`;
+  for (const f of piece.faces) {
+    if (!f.sticker) continue;
+    for (const q of f.sticker) {
+      const k = at(q);
+      const acc = lifted.get(k) || [0, 0, 0];
+      lifted.set(k, [acc[0] + f.normal[0], acc[1] + f.normal[1], acc[2] + f.normal[2]]);
+    }
+  }
+  for (const [k, n] of lifted) {
+    const len = Math.hypot(n[0], n[1], n[2]) || 1;
+    lifted.set(k, [n[0] / len, n[1] / len, n[2] / len]);
+  }
+
   const emit = (points, colour, normal, lift) => {
     const base = positions.length / 3;
     const col = hex(colour);
-    for (const [x, y, z] of points) {
-      positions.push(x + normal[0] * lift, y + normal[1] * lift, z + normal[2] * lift);
+    for (const q of points) {
+      const n = lift ? lifted.get(at(q)) || normal : normal;
+      positions.push(q[0] + n[0] * lift, q[1] + n[1] * lift, q[2] + n[2] * lift);
       colors.push(col.r, col.g, col.b);
     }
     for (let i = 1; i + 1 < points.length; i++) index.push(base, base + i, base + i + 1);
