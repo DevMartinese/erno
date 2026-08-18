@@ -231,7 +231,7 @@ restores the solved state bit for bit, with zero float drift.
 Color schemes ship as presets for any cube-faced puzzle:
 
 ```js
-import { SCHEMES } from 'erno.js'
+import { SCHEMES, Mirror, Void } from 'erno.js'
 
 new Void({ colors: SCHEMES.japanese })   // blue down, yellow back
 new Mirror({ colors: SCHEMES.gold })
@@ -245,7 +245,7 @@ gives an endless supply of harmonious schemes (concepts borrowed from
 [dittoTones](https://github.com/meodai/dittoTones)):
 
 ```js
-import { generateScheme, schemeFrom, generateRamp } from 'erno.js'
+import { Erno, Void, generateScheme, schemeFrom, generateRamp, nameScheme } from 'erno.js'
 
 const scheme = generateScheme([..."URFDLB"], { seed: 42 })
 scheme.name                       // "Vivid Cyan", every scheme is named
@@ -302,7 +302,7 @@ grid, and still inverts exactly.
 and unlike a style callback it becomes part of the puzzle's state:
 
 ```js
-import { Cube, Skewb, Cuboid, Mirror, tetrisPaint } from 'erno.js'
+import { Cube, Skewb, Cuboid, Mirror, Tetris, tetrisPaint } from 'erno.js'
 
 // the Tetris cube is a plain 3×3 wearing a paint; this renders
 // identically to `new Tetris()`
@@ -370,7 +370,7 @@ draws the interior walls they leave behind, so the holes go all the way
 through.
 
 ```js
-import { Cube, Megaminx } from 'erno.js'
+import { Cube, Megaminx, Void } from 'erno.js'
 
 new Cube({ remove: 'centers' })            // this IS the Void cube
 new Cube({ size: 5, remove: 'centers' })   // and there is no 5×5 Void on sale
@@ -523,7 +523,7 @@ Fusion welds bodies; bandaging welds cubies inside one. It is the other way a
 twisty puzzle gets its blocked turns, and it runs through the same law.
 
 ```js
-import { Cube } from 'erno.js'
+import { Cube, Fused } from 'erno.js'
 
 // the Fused Cube: a 2×2×2 block set into a 3×3
 new Cube({ bandage: ({ slot }) => slot.every(v => v >= 0) ? 'block' : null })
