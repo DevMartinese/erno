@@ -445,24 +445,12 @@ restores the solved state bit for bit, with zero float drift.
   `Uw` three. Master Skewb and Compy Cube join the corner-turning family:
   the cut depth decides the puzzle (shallow Compy caps-and-wings, Dino's
   edges-only diagonals, Master Skewb's 50 pieces).
-- **Twist**: an ordinary 3×3 whose SHAPE is wrung. The cuts are the plain
-  straight ones and the mechanism underneath is a 3×3 exactly: 26 pieces, 54
-  facelets, one colour per face, full cube notation, and a state a solver
-  could take. What is twisted is the outside, by a rotation about the
-  vertical that grows with height, so the top and bottom squares stay square
-  and the columns between them spiral. It never shape-shifts and never loses
-  a sticker, because the twist is a way of LOOKING at the cube rather than a
-  change to it:
-
-  ```js
-  import { Cube, twist } from 'erno.js'
-  new Cube({ size: 3, deform: twist(90) })  // the twisted cube, spelled out
-  new Cube({ size: 4, deform: twist(45) })  // and it composes with any cube
-  ```
-
-  `deform` takes a matrix or a function. A function bends the picture point
-  by point, which a matrix cannot do, and it is applied last, so the puzzle
-  underneath is untouched.
+- **Twist**: a 3×3 molded with a continuous 90° twist: top and bottom
+  squares sit axis-aligned with all the twisting in the body, side stickers
+  are kite-shaped tiles. Full cube notation; `U D E` turns keep the
+  silhouette coherent, side turns shape-shift it, as they do on the real
+  puzzle: a twist cube is a 3×3 mechanism in a moulded shell, and the shell
+  is what changes.
 - **Penrose**: the classic three-color shape mod: pairs of adjacent faces
   share a color and their shared edge (UB, FL, DR, mutually skew and 3-fold
   symmetric) is rounded off with a big fillet. Every face keeps its sticker
@@ -637,16 +625,25 @@ the SVG is drawn, so it can squash a Megaminx or stretch a weld without
 touching a mechanism.
 
 ```js
-import { Cube, Megaminx, squash } from 'erno.js'
+import { Cube, Megaminx, squash, twist } from 'erno.js'
 
 new Cube({ deform: squash(0.6) })
 new Megaminx({ deform: squash(0.6) })
-new Cube({ deform: squash(1.7) })     // above 1 stretches
+new Cube({ deform: squash(1.7) })       // above 1 stretches
+new Cube({ deform: twist(90) })         // a function, not a matrix
 ```
 
 `squash(k, axis)` compresses by `k` along an axis that defaults to the body
 diagonal: `I + (k − 1)·nnᵀ`. The viewBox widens by the map's largest stretch
 so nothing is clipped. Any invertible 3×3 works.
+
+`deform` also takes a **function**, for bends no matrix can express. A matrix
+turns every point by the same amount; `twist(degrees)` turns each one by an
+amount that grows with its height, which is why it needs to be a function.
+The viewBox is then measured by running it over the puzzle's corners rather
+than read off the map. A warped puzzle's `getPieces()` hands back geometry
+already placed and bent, flagged `warped: true`, since there is no matrix for
+a renderer to apply.
 
 Because it is only a way of looking, the state is untouched: a deformed
 puzzle's facelets are its undeformed one's, exactly.
