@@ -481,6 +481,30 @@ function normalizeRemove(remove) {
 
 // ── The engine ──────────────────────────────────────────────────────────────
 
+/**
+ * The options every puzzle takes, whatever its shape. Spelled out once
+ * because the classes used to say "Twisty options plus:" in prose while
+ * their generated type quietly closed over the two options they added —
+ * so a strict TypeScript consumer writing `new Cuboid({ deform })` was
+ * told deform does not exist.
+ *
+ * @typedef {Object} TwistyOptions
+ * @property {number} [tile] - sticker size in SVG units
+ * @property {Object} [camera] - projection, e.g. { type: "isometric", angle: 30 }
+ * @property {Object<string, string>} [colors] - face letter to colour
+ * @property {string} [plastic] - the body colour between stickers
+ * @property {number} [stickerInset] - gap between sticker and piece edge
+ * @property {boolean} [stickerGroup] - group a piece's sticker fragments
+ * @property {Function} [paint] - per-facelet colour: ({slot, letter, index}) => colour
+ * @property {Array|Function} [deform] - a 3×3 matrix, or a point function, bending the picture
+ * @property {Function} [decal] - per-facelet mark
+ * @property {Array} [bandage] - groups of slots to weld
+ * @property {Array} [remove] - slots to take out
+ * @property {boolean} [blocking] - refuse turns the bandaging cannot make
+ * @property {boolean} [anyOrientation] - count a piece home in any spin
+ * @property {Object} [style] - stroke and fill overrides
+ */
+
 export class Twisty {
   /**
    * @param {Object} def - Puzzle definition:
@@ -501,8 +525,7 @@ export class Twisty {
    *   keepPiece:    optional (slotPoint, stickerCount) → boolean
    *   scramble:     (randomFn) → sequence string
    *   camera:       default camera spec
-   * @param {Object} [options] - tile, camera, colors, plastic, stickerInset,
-   *   style — same semantics as the Erno cube.
+   * @param {TwistyOptions} [options]
    */
   constructor(def, options = {}) {
     this.def = def;

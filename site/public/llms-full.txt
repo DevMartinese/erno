@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.1.1. Every code block below is executed against the library
+Version 0.2.0. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
@@ -168,7 +168,7 @@ Plus `Twisty`, the generic engine every one of them runs on, and
 
 # Full documentation
 
-What follows is the complete README of erno.js 0.1.1, unabridged.
+What follows is the complete README of erno.js 0.2.0, unabridged.
 
 ---
 
@@ -353,11 +353,42 @@ pieces but never changes what *kind* of piece one is, so a pattern that only
 asks about the kind is the same however you turn it, and there is nothing to
 solve. See `site/examples/pattern` for a game built on all of this.
 
+### Renderers that are not this one
+
+The SVG is one consumer of the engine, not the engine. `getPieces()` hands
+any renderer the same truth the SVG draws from: each piece's geometry in its
+own space, plus a column-major matrix saying where that space is — ready for
+`THREE.Matrix4().fromArray(...)`. Build the geometry once, then move it by
+matrix every frame; mid-turn included.
+
+```js
+import { Cube } from 'erno.js'
+
+const cube = new Cube({ size: 3 })
+const pieces = cube.getPieces({ turn: { move: "R", progress: 0.5 } })
+// [{ faces, matrix, moving, warped, ... }, ...]  one entry per piece
+
+cube.getViewMatrix()   // how the whole puzzle is held, same contract
+cube.getFrame()        // the frame toSVG would draw in, in world units
+cube.getRadius()       // the sphere every reachable state fits inside
+```
+
+`getFrame()` exists because two renderers guessing at margins agree only by
+accident: it returns the exact frame `toSVG` uses, so a WebGL view and the
+SVG are the same picture. A puzzle bent by a `deform` *function* says
+`warped: true` and hands its geometry back already placed and bent, since a
+twist is not a rigid motion and has no matrix. `site/three-view.js` is a
+complete three.js adapter built on nothing but these calls: 20 of 20 site
+demos, decals, one shared WebGL context.
+
 ### Stateless rendering
 
 Render a facelet string without keeping an instance (size is inferred):
 
 ```js
+import { Cube, Erno } from 'erno.js'
+
+const stateString = new Cube({ size: 3 }).move("R U R' U'").getState()
 Erno.renderState(stateString, { camera: { type: 'isometric', angle: 30 } })
 // → '<svg …>'
 ```
@@ -521,6 +552,8 @@ cannot make the move, while a 3×3×5 is sold precisely because it can, so it
 is a policy rather than a law:
 
 ```js
+import { Cuboid } from 'erno.js'
+
 new Cuboid({ size: [3, 2, 3] }).move("R")                     // throws
 new Cuboid({ size: [3, 3, 5], shapeShift: true }).move("R")   // deforms
 ```

@@ -802,10 +802,12 @@ const _cuboidDefs = new Map();
 
 export class Cuboid extends Twisty {
   /**
-   * @param {Object} [options] - Twisty options plus:
-   * @param {[number,number,number]} [options.size=[3,2,3]] - layers per axis
-   *   (x = R–L, y = U–D, z = F–B)
-   * @param {boolean} [options.shapeShift=false] - allow the quarter turns
+   * @param {import('./twisty.js').TwistyOptions & {
+   *   size?: [number, number, number],
+   *   shapeShift?: boolean,
+   * }} [options] - Twisty options plus `size`, layers per axis
+   *   (x = R–L, y = U–D, z = F–B, default [3,2,3]), and `shapeShift`,
+   *   which allows the quarter turns
    *   that leave the box misshapen. Off, the puzzle refuses them the way a
    *   Domino's mechanism does; on, it shifts shape the way a 3×3×5 does.
    */
@@ -1147,8 +1149,9 @@ const _fusedDefs = new Map();
 /**
  * Two or more boxes welded into one puzzle.
  *
- * @param {Object} [options] - Twisty options plus:
- * @param {Array} [options.bodies] - `[{ size: [nx,ny,nz], at: [x,y,z] }]` —
+ * @param {import('./twisty.js').TwistyOptions & {
+ *   bodies?: { size: [number, number, number], at: [number, number, number] }[],
+ * }} [options] - Twisty options plus `bodies`: `[{ size: [nx,ny,nz], at: [x,y,z] }]` —
  *   each body's layer counts and the position of its centre, in cubies. The
  *   bodies must share a unit lattice.
  *
@@ -1179,9 +1182,11 @@ export class Fused extends Twisty {
 /**
  * The Siamese cube: two cubes sharing a block of cubies.
  *
- * @param {Object} [options] - Fused options plus:
- * @param {number} [options.size=3] - layers per side of each cube
- * @param {[number,number,number]} [options.offset=[2,2,0]] - how far the
+ * @param {import('./twisty.js').TwistyOptions & {
+ *   size?: number,
+ *   offset?: [number, number, number],
+ * }} [options] - Twisty options plus `size` (layers per side of each cube,
+ *   default 3) and `offset` (default [2,2,0]): how far the
  *   second cube is displaced, in cubies. The shared block is what is left
  *   where they overlap: the default gives the classic 1×1×3 bar, `[1,2,0]`
  *   the 2×1×3, `[2,0,0]` the 1×3×3 slab (which is really a 5×3×3 cuboid,

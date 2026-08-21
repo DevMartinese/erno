@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.1.1. Every code block below is executed against the library
+Version 0.2.0. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
