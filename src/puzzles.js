@@ -752,6 +752,39 @@ export class Void extends Twisty {
 // cross section, half turns everywhere — so the puzzle always stays a box.
 // The classics: Domino 3×2×3 (Rubik's pre-cube 1978 puzzle), Tower 2×3×2,
 // Floppy 3×1×3 (only 180° flips exist).
+/**
+ * Every move a box this size can name, sized to the box in hand.
+ *
+ * All cubes used to share a 3×3's eighteen face tokens, which meant a 5×5
+ * could not SAY most of what it could DO: parseMove turned `Uw`, `3Uw` and
+ * `M` happily, but vocabulary() never named them, so legalMoves() withheld
+ * them, keypads never drew them, and a 7×7 scramble moved nothing but its
+ * outer skin. The parser was never the gap; the naming was.
+ *
+ * Faces always; wide blocks two deep and deeper, up to half the axis, the
+ * way big-cube notation spells them (`Uw`, then `3Uw`); and the middle
+ * slice letter where an odd axis has a middle. Single inner layers need no
+ * tokens of their own: `3Uw Uw'` reaches any of them, which is why big-cube
+ * notation never named them either.
+ */
+function boxTokens(dims) {
+  const suffixes = ["", "'", "2"];
+  const faces = [];
+  const wides = [];
+  const slices = [];
+  for (const f of FACES) for (const x of suffixes) faces.push(f + x);
+  for (const f of FACES) {
+    const m = dims[FACE_AXIS[f][0]];
+    for (let k = 2; k <= Math.floor(m / 2); k++)
+      for (const x of suffixes) wides.push((k === 2 ? "" : k) + f + "w" + x);
+  }
+  for (const [sl, [axis]] of Object.entries(SLICE_AXIS))
+    if (dims[axis] >= 3 && dims[axis] % 2 === 1)
+      for (const x of suffixes) slices.push(sl + x);
+  // faces first, so the first eighteen stay what they have always been
+  return [...faces, ...wides, ...slices];
+}
+
 function buildCuboidDef(dims, shapeShift = false) {
   const [nx, ny, nz] = dims;
   const cuts = [];
@@ -768,8 +801,8 @@ function buildCuboidDef(dims, shapeShift = false) {
     name: `cuboid-${nx}x${ny}x${nz}${shapeShift ? "-shift" : ""}`,
     solid: boxSolid(nx / 2, ny / 2, nz / 2),
     cuts,
-    // the face-turn vocabulary, so legalMoves() can answer on a box too
-    tokens: FACES.flatMap((f) => ["", "'", "2"].map((s) => f + s)),
+    // the sized vocabulary, so legalMoves() can answer on any box
+    tokens: boxTokens(dims),
     // Only a cube can be held every way up. Tip a Domino onto its side and
     // the layer counts no longer match the axes, so the rotation is not a
     // way of holding the puzzle — it is a different puzzle.
@@ -779,19 +812,32 @@ function buildCuboidDef(dims, shapeShift = false) {
     faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
     scramble: (rand, length) => {
-      const faces = "URFDLB";
+      // Faces and wide blocks, the way big-cube scrambles are written: a
+      // 5×5 scrambled with face turns alone moves nothing but its outer
+      // skin. Slices stay out of scrambles, as they do in cubers' own,
+      // being spans of what the wides already reach; they are in the
+      // vocabulary for hands and algebra, not for shuffling. The quarter
+      // versus half policy is the same one the faces answer to, because a
+      // wide block misshapes a box exactly as its face does.
+      const bases = [];
+      for (const f of "URFDLB") {
+        const axis = AXIS_OF[f];
+        if (dims[axis] === 1) continue;
+        bases.push({ base: f, axis });
+        for (let k = 2; k <= Math.floor(dims[axis] / 2); k++)
+          bases.push({ base: (k === 2 ? "" : k) + f + "w", axis });
+      }
       const count = length || Math.min(30, 3 * (nx + ny + nz));
       const tokens = [];
       let last = null;
       while (tokens.length < count) {
-        const f = faces[Math.floor(rand() * 6)];
-        const axis = AXIS_OF[f];
-        if (f === last || dims[axis] === 1) continue;
-        last = f;
+        const pick = bases[Math.floor(rand() * bases.length)];
+        if (pick.base === last) continue;
+        last = pick.base;
         tokens.push(
-          square[axis] || shapeShift
-            ? f + ["", "'", "2"][Math.floor(rand() * 3)]
-            : f + "2",
+          square[pick.axis] || shapeShift
+            ? pick.base + ["", "'", "2"][Math.floor(rand() * 3)]
+            : pick.base + "2",
         );
       }
       return tokens.join(" ");

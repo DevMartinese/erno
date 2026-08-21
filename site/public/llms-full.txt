@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.2.3. Every code block below is executed against the library
+Version 0.2.4. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
@@ -84,7 +84,7 @@ s.legalMoves()      // 24 of 54 tokens are open here
 s.canMove('AU')     // false: the layer would not come back to itself
 ```
 
-Puzzles that restrict their own moves: Cuboid (10 of 18 from solved), Domino (10 of 18 from solved), Floppy (10 of 18 from solved), Fused (24 of 54 from solved), Siamese (24 of 54 from solved), Tower (10 of 18 from solved).
+Puzzles that restrict their own moves: Cuboid (12 of 24 from solved), Domino (12 of 24 from solved), Floppy (12 of 24 from solved), Fused (24 of 54 from solved), Siamese (24 of 54 from solved), Tower (13 of 21 from solved).
 
 ### 5. Most variants are built at one size only
 
@@ -168,7 +168,7 @@ Plus `Twisty`, the generic engine every one of them runs on, and
 
 # Full documentation
 
-What follows is the complete README of erno.js 0.2.3, unabridged.
+What follows is the complete README of erno.js 0.2.4, unabridged.
 
 ---
 

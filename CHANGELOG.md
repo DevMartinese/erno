@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.4 (2026-08-21)
+
+- Big cubes and cuboids can say what they could always do. Every box
+  shared a 3×3's eighteen face tokens, so a 5×5's parseMove happily turned
+  `Uw`, `3Uw` and `M` while vocabulary() never named them: legalMoves()
+  withheld them, keypads never drew them, and a 7×7 scramble moved nothing
+  but its outer skin. The vocabulary is sized now — faces, wide blocks up
+  to half the axis (`Uw`, `3Uw`), and the middle slice letters where an
+  odd axis has a middle — and scrambles draw faces and wides the way
+  big-cube scrambles are written. The quarter-versus-half policy of
+  cuboids rules the new tokens exactly as it rules faces, so a 3×3×5
+  offers `S` and `Fw` in quarters and `M2`/`E2` in halves. A 3×3 gains
+  only `M E S`; a 2×2 is untouched.
+- Bandaging rules the slices it was never told about: glue a centre to an
+  edge and the slice band holding one half without the other refuses,
+  exactly as the face does.
+
 ## 0.2.3 (2026-08-21)
 
 - Welded bodies turn their middle slices (issue #2). `Fused` and `Siamese`

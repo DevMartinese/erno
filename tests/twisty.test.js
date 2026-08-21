@@ -1312,13 +1312,18 @@ test("bandaging glues cubies, and the glue is what blocks the turns", () => {
 
 test("bandaging takes a list of slots as readily as a rule", () => {
   // Glue the U centre to the UF edge: the pair straddles the F layer, so F
-  // is gone and nothing else is.
+  // is gone — and so is S, since the sized vocabulary now names the slices
+  // and the z-mid band holds one half of the pair without the other. M
+  // survives because the mid-x band holds BOTH, so the glued pair rides it
+  // whole, and E survives holding neither. None of that is written down
+  // anywhere: the same law that took F away rules on every slice it was
+  // never told about.
   const p = new Cube({ bandage: [[[0, 1, 1], [0, 1, 0]]] });
   assertEqual(p.pieces.length, 25, "two cubies became one");
   assertEqual(
     p.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
-    "U R D L B",
-    "F is the only casualty",
+    "U R D L B M E",
+    "F and S are the casualties",
   );
 });
 
