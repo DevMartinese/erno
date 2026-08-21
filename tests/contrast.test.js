@@ -11,7 +11,8 @@
    the next hand-picked grey fails here instead of on the page.
    ───────────────────────────────────────────────────────────────────── */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CSS = readFileSync(
@@ -165,6 +166,37 @@ test("red and yellow planes carry only what they can", () => {
     Math.abs(apca(ink, tokenOf("red"))) < onRed,
     "ink on red must stay the worse choice, which is why red carries paper",
   );
+});
+
+test("the site has no em dashes, and neither do the words it can show", () => {
+  // Asked for twice, so it is checked rather than remembered: the em dash is
+  // the tell that a page was written by a machine, and this site is kept at
+  // none. The library's error messages count, because they are printed on
+  // the page the moment a reader types something a puzzle will not do.
+  const guilty = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "public" && entry.name !== "node_modules") walk(path);
+        continue;
+      }
+      if (!/\.(html|js|css)$/.test(entry.name)) continue;
+      readFileSync(path, "utf8").split("\n").forEach((line, i) => {
+        if (line.includes("\u2014")) guilty.push(`${path}:${i + 1}`);
+      });
+    }
+  };
+  walk(new URL("../site", import.meta.url).pathname);
+
+  // and every message the library can put in front of a reader
+  const source = readFileSync(new URL("../src/puzzles.js", import.meta.url).pathname, "utf8")
+    + readFileSync(new URL("../src/twisty.js", import.meta.url).pathname, "utf8")
+    + readFileSync(new URL("../src/erno.js", import.meta.url).pathname, "utf8");
+  for (const m of source.matchAll(/`erno:[^`]*`/g))
+    if (m[0].includes("\u2014")) guilty.push(`an error message: ${m[0].slice(0, 60)}`);
+
+  assert(guilty.length === 0, `em dashes in:\n  ${guilty.join("\n  ")}`);
 });
 
 test("no colour is mixed by hand where a token should be", () => {

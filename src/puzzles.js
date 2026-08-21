@@ -149,7 +149,7 @@ function makeBoxParser(dims, shapeShift = false) {
     const { axis, lo, hi, quarters } = parseBoxMove(token, dims);
     if (!shapeShift && !square[axis] && ((quarters % 2) + 2) % 2 !== 0)
       throw new Error(
-        `erno: '${token}' would leave this cuboid misshapen — only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2), or build it with { shapeShift: true }`,
+        `erno: '${token}' would leave this cuboid misshapen. Only half turns about that axis (use ${token.replace(/['\d]+$/, "")}2), or build it with { shapeShift: true }`,
       );
     const u = [0, 0, 0];
     u[axis] = 1;
@@ -173,7 +173,7 @@ const cubeParse3 = makeBoxParser([3, 3, 3]);
 function fixedSize(name, options) {
   if (options.size)
     throw new Error(
-      `erno: ${name} is built at 3×3 only — for other sizes use Erno or Cuboid, which take { size }`,
+      `erno: ${name} is built at 3×3 only. For other sizes use Erno or Cuboid, which take { size }`,
     );
 }
 
@@ -864,7 +864,7 @@ export class Cube extends Cuboid {
     const n = options.size === undefined ? 3 : options.size;
     if (typeof n !== "number")
       throw new Error(
-        `erno: Cube takes a single number for size, not [${n}] — use Cuboid for uneven sides`,
+        `erno: Cube takes a single number for size, not [${n}]: use Cuboid for uneven sides`,
       );
     super({ ...options, size: [n, n, n] });
   }
@@ -1074,7 +1074,7 @@ function buildFusedDef(name, bodies) {
       const shift = originOf(bodies[i], ax) - originOf(bodies[0], ax);
       if (Math.abs(shift - Math.round(shift)) > 1e-9)
         throw new Error(
-          `erno: body ${i} is off the shared lattice on axis ${"xyz"[ax]} by ${shift.toFixed(3)} — fused bodies must line up cubie to cubie`,
+          `erno: body ${i} is off the shared lattice on axis ${"xyz"[ax]} by ${shift.toFixed(3)}. Fused bodies must line up cubie to cubie`,
         );
     }
 
@@ -1119,7 +1119,7 @@ function buildFusedDef(name, bodies) {
       const bi = m ? letters.indexOf(m[1]) : -1;
       if (bi < 0)
         throw new Error(
-          `erno: bad ${name} move '${token}' — bodies are ${letters.split("").join("/")}, as in ${letters[0]}U or ${letters[0]}R2`,
+          `erno: bad ${name} move '${token}': bodies are ${letters.split("").join("/")}, as in ${letters[0]}U or ${letters[0]}R2`,
         );
       const [ax, dir] = FACE_AXIS[m[2]];
       const count = (m[3] ? parseInt(m[3], 10) : 1) * (m[4] ? -1 : 1);

@@ -110,7 +110,7 @@ export class Erno {
     ])
       if (options[opt])
         throw new Error(
-          `erno: Erno is the facelet cube and has no pieces — use Cube({ ${hint} }) for a piece-based 3×3`,
+          `erno: Erno is the facelet cube and has no pieces: use Cube({ ${hint} }) for a piece-based 3×3`,
         );
     this._styleFn = null;
     this._styleObj = null;

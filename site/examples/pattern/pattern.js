@@ -73,7 +73,7 @@ const PUZZLES = {
 // The half this page was missing. Writing your own target and then reaching
 // it is a sandbox: you cannot lose. A challenge hands you the picture and
 // keeps the function to itself, and scores you on how few characters you
-// needed — which is the game Replicube is actually playing, and the reason
+// needed, which is the game Replicube is actually playing, and the reason
 // insight beats brute force there. `par` is the length of the solution this
 // page knows; shorter than par is a real win over the author.
 const CHALLENGES = [
@@ -286,7 +286,7 @@ function renderChallenge(puzzle) {
   panel.dataset.state = hit ? "hit" : "miss";
   $("goal-status").textContent = hit
     ? `Matched, in ${mine} characters. Par is ${par}` +
-      (mine < par ? " — you beat it." : mine === par ? " — exactly." : ".")
+      (mine < par ? ", and you beat it." : mine === par ? ", exactly." : ".")
     : `Not it yet. Par is ${par} characters; you are at ${mine}.`;
 }
 
@@ -419,7 +419,7 @@ function readSequence(text) {
   // The puzzle's own words, not a summary of them. This used to answer every
   // refusal with "this puzzle has no move 'R'", which on a 3×3×5 is simply
   // false: it has R and will not turn it, and the library already says so
-  // far better — that a quarter turn of that axis would leave it misshapen,
+  // far better: that a quarter turn of that axis would leave it misshapen,
   // and that R2 is the one to reach for.
   for (const t of tokens) {
     try {
@@ -456,7 +456,7 @@ function renderSequence() {
     : "";
   out.textContent =
     `${read.tokens.length} moves: ${read.flat}\n` +
-    `${permutation}${spun} — ${e.moved} pieces touched\n` +
+    `${permutation}${spun}, touching ${e.moved} pieces\n` +
     `order ${e.order}: repeat it ${e.order} times and it is back`;
 }
 
