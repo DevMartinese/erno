@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.2 (2026-08-21)
+
+- Says who this library is for first, on the page where a reader decides:
+  cubes, cuboids, and cubes fused into one are the priority. The algebra,
+  the permutation tools and the pattern game are aimed at them; the other
+  puzzles are real, tested and kept working, second in line.
+- That priority is enforced, not remembered: the suite now runs the
+  algebra's laws with each family member's own tokens (a sequence with
+  brackets cancels against its inverse, a commutator against its reverse,
+  the order effectOf declares brings the pattern back, inverting a
+  conjugate is conjugating the inverse), and checks all 284 token/inverse
+  pairs across cubes 2 through 7, cuboids, Domino, Tower, Floppy, Siamese
+  and Fused parse and come home.
+
 ## 0.2.1 (2026-08-21)
 
 - Inversion no longer assumes a cube. Both inverters treated a trailing
