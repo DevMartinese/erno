@@ -237,3 +237,66 @@ body.example {
 .example-foot p {
   max-width: var(--medida);
 }
+
+/* ── The sequence console ──────────────────────────────────────────────────
+   A place to type a sentence, and a place for the puzzle to answer. The
+   answer is set in the mono face and left as a <pre>, because it is three
+   lines that line up with each other and reflowing them loses the point. */
+.seq-console {
+  margin-top: var(--gap);
+}
+.seq-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.seq-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-family: var(--mono);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+.seq-row input[data-bad] {
+  border-color: var(--accent);
+}
+.seq-hint {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.seq-hint button {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--text-quiet);
+  cursor: pointer;
+}
+.seq-hint button:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.seq-read {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-quiet-xs);
+  min-height: 3.4em;
+}
+
+/* ── The challenge plate ───────────────────────────────────────────────────
+   Free play has no picture to show, so the plate collapses rather than
+   holding an empty frame. */
+#goal-panel[data-state="free"] .example-goal-art {
+  display: none;
+}
+#goal-panel[data-state="hit"] .example-goal-art {
+  outline: 2px solid var(--ok, #009b48);
+  outline-offset: 3px;
+}

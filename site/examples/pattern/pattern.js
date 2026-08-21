@@ -13,7 +13,10 @@
    mechanism cannot reach.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Twisty } from "../../../src/erno.js";
+import {
+  Cube, Void, Skewb, Pyraminx, Megaminx, Dino,
+  Twisty, expand, parse, isAlgebra,
+} from "../../../src/erno.js";
 import { enhanceRange } from "../../controls.js";
 
 // The page's own colours and the puzzle's, and nothing else. Replicube hands
@@ -27,6 +30,39 @@ const PALETTE = [
   "#009b48", // 5 green
   "#ff5800", // 6 orange
   "#ffffff", // 7 white
+];
+
+// ── The puzzles you can point it at ─────────────────────────────────────────
+//
+// The page was written against a cube and then pointed at five more without
+// changing how it plays, which is the claim the Solve half already makes in
+// prose: it asks `legalMoves` and `canMove` rather than assuming. A Skewb
+// turns about corners and a Megaminx has twelve faces, and neither needed a
+// line here beyond a name.
+const PUZZLES = {
+  cube: { label: "Cube", sized: true, make: (o) => new Cube(o) },
+  void: { label: "Void", sized: false, make: (o) => new Void(o) },
+  skewb: { label: "Skewb", sized: false, make: (o) => new Skewb(o) },
+  pyraminx: { label: "Pyraminx", sized: false, make: (o) => new Pyraminx(o) },
+  megaminx: { label: "Megaminx", sized: false, make: (o) => new Megaminx(o) },
+  dino: { label: "Dino", sized: false, make: (o) => new Dino(o) },
+};
+
+// ── Challenges ──────────────────────────────────────────────────────────────
+//
+// The half this page was missing. Writing your own target and then reaching
+// it is a sandbox: you cannot lose. A challenge hands you the picture and
+// keeps the function to itself, and scores you on how few characters you
+// needed — which is the game Replicube is actually playing, and the reason
+// insight beats brute force there. `par` is the length of the solution this
+// page knows; shorter than par is a real win over the author.
+const CHALLENGES = [
+  { name: "Sky and ground", kind: "cube", size: 3, solution: "return y > 0 ? 2 : 5" },
+  { name: "Quadrants", kind: "cube", size: 3, solution: "return (x > 0) == (z > 0) ? 6 : 2" },
+  { name: "Cage", kind: "cube", size: 3, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : 3" },
+  { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? 1 : 7" },
+  { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? 1 : 7" },
+  { name: "Pyramid tips", kind: "pyraminx", size: 3, solution: "return abs(x) + abs(y) + abs(z) > 2.5 ? 3 : 4" },
 ];
 
 const PRESETS = {
@@ -55,11 +91,26 @@ function compile(source, n) {
   return fn;
 }
 
-function build(source, size) {
-  const n = (size - 1) / 2;
+// How far the lattice reaches, measured rather than assumed. On a cube it is
+// the half width and could have been computed; on a Megaminx the slots are
+// wherever the geometry put them, and the only honest way to tell a writer
+// what `n` means is to go and look. One throwaway build, cached.
+const reach = new Map();
+function halfWidth(kind, size) {
+  const key = `${kind}:${size}`;
+  if (reach.has(key)) return reach.get(key);
+  const probe = PUZZLES[kind].make(PUZZLES[kind].sized ? { size } : {});
+  let n = 0;
+  for (const piece of probe.pieces)
+    for (const v of piece.slotPoint) n = Math.max(n, Math.abs(v));
+  reach.set(key, n);
+  return n;
+}
+
+function build(source, kind, size) {
+  const n = halfWidth(kind, size);
   const f = compile(source, n);
-  return new Cube({
-    size,
+  const options = {
     paint: ({ slot: [x, y, z] }) => {
       const v = f(x, y, z, n);
       if (typeof v === "string") return v;
@@ -67,7 +118,9 @@ function build(source, size) {
       return PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length];
     },
     stickerInset: 0.1,
-  });
+  };
+  if (PUZZLES[kind].sized) options.size = size;
+  return PUZZLES[kind].make(options);
 }
 
 // Can this pattern be a puzzle at all? Some cannot, and the reason is worth
@@ -97,7 +150,19 @@ const draw = (host, puzzle, turn) => {
 
 // One turn, animated. The whole reason a turning layer has to be drawn in the
 // right order lives in these few frames.
+//
+// Unless the reader asked not to be animated, in which case the turn simply
+// happens. A puzzle that snaps is still the whole game; a page that ignores
+// the request is just a page that did not listen.
+const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+
 function animate(host, puzzle, move, done) {
+  if (still.matches) {
+    puzzle.move(move);
+    draw(host, puzzle);
+    done();
+    return;
+  }
   const ms = 190;
   const start = performance.now();
   const step = (now) => {
@@ -119,6 +184,8 @@ function animate(host, puzzle, move, done) {
 
 const game = {
   source: PRESETS.Bands,
+  kind: "cube",
+  challenge: null, // index into CHALLENGES, or null for free play
   size: 3,
   target: null, // the pattern to reach
   targetPos: null, // and the position that wears it
@@ -133,7 +200,7 @@ function refreshWrite() {
   const code = $("write-code");
   let puzzle;
   try {
-    puzzle = build(code.value, game.size);
+    puzzle = build(code.value, game.kind, game.size);
     code.removeAttribute("data-bad");
   } catch (err) {
     code.setAttribute("data-bad", "");
@@ -142,6 +209,7 @@ function refreshWrite() {
   }
   game.source = code.value;
   draw($("write-canvas"), puzzle);
+  renderChallenge(puzzle);
 
   const depth = scrambleDepth(puzzle);
   const stickers = puzzle.getPattern().length;
@@ -164,10 +232,43 @@ function refreshWrite() {
   startGame(depth > 0);
 }
 
+// ── Challenges ──────────────────────────────────────────────────────────────
+
+const targets = new Map();
+function targetOf(i) {
+  if (!targets.has(i)) {
+    const c = CHALLENGES[i];
+    targets.set(i, build(c.solution, c.kind, c.size).getPattern());
+  }
+  return targets.get(i);
+}
+
+/** Show the challenge picture, and say whether the function matches it. */
+function renderChallenge(puzzle) {
+  const panel = $("goal-panel");
+  if (game.challenge === null) {
+    panel.dataset.state = "free";
+    $("goal-status").textContent =
+      "Free play: whatever you write becomes the target.";
+    $("goal-art").innerHTML = "";
+    return;
+  }
+  const c = CHALLENGES[game.challenge];
+  draw($("goal-art"), build(c.solution, c.kind, c.size));
+  const hit = puzzle.getPattern() === targetOf(game.challenge);
+  const mine = game.source.trim().length;
+  const par = c.solution.length;
+  panel.dataset.state = hit ? "hit" : "miss";
+  $("goal-status").textContent = hit
+    ? `Matched, in ${mine} characters. Par is ${par}` +
+      (mine < par ? " — you beat it." : mine === par ? " — exactly." : ".")
+    : `Not it yet. Par is ${par} characters; you are at ${mine}.`;
+}
+
 // ── Solve ───────────────────────────────────────────────────────────────────
 
 function startGame(scramble) {
-  game.puzzle = build(game.source, game.size);
+  game.puzzle = build(game.source, game.kind, game.size);
   if (scramble) {
     // Walk the scramble one move at a time out of what is legal from here.
     // On a plain cube every move always is; the moment this example is
@@ -199,6 +300,9 @@ function renderGame() {
     : `${distance} stickers out of place, ${p.history.length} moves made.`;
   if (won) $("play-panel").setAttribute("data-won", "");
   else $("play-panel").removeAttribute("data-won");
+  // What a sequence does depends on where the puzzle is standing, which on
+  // a puzzle that blocks is not a formality, so the readout follows it.
+  if ($("seq-input")) renderSequence();
 }
 
 function renderMoves() {
@@ -257,6 +361,109 @@ function undo() {
   renderGame();
 }
 
+// ── The sequence console ────────────────────────────────────────────────────
+//
+// The buttons turn one face. This turns a SENTENCE, in the notation cubers
+// have written for fifty years: `[R, U]` for a commutator, `[R: U]` for a
+// conjugate, `(R U)3` for a repeat, `'` to undo. It is the same parser the
+// library exports, so anything that works here works in `move`.
+//
+// The half that makes it worth having is the readout beside it. A sequence
+// is not its list of moves, it is what it DOES, and effectOf says that in
+// the terms the notation was invented for: which pieces travel together,
+// how many are touched at all, and how many repeats bring it home. Type
+// `[R, U]` and watch it move three pieces and nothing else. That is the
+// whole argument for commutators, and it is one line rather than a lecture.
+
+/** Read a sequence without running it. Returns what to show. */
+function readSequence(text) {
+  const source = text.trim();
+  if (!source) return { empty: true };
+  let flat;
+  try {
+    parse(source);
+    flat = expand(source);
+  } catch (err) {
+    return { error: err.message };
+  }
+  const tokens = flat.split(/\s+/).filter(Boolean);
+  const unknown = tokens.filter((t) => {
+    try {
+      game.puzzle.parseMove(t);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (unknown.length)
+    return { error: `erno: this puzzle has no move '${unknown[0]}'` };
+  return { flat, tokens, effect: game.puzzle.effectOf(source) };
+}
+
+function renderSequence() {
+  const read = readSequence($("seq-input").value);
+  const out = $("seq-read");
+  const run = $("seq-run");
+  $("seq-input").toggleAttribute("data-bad", !!read.error);
+  run.disabled = game.busy || !!read.error || !!read.empty;
+  if (read.empty) {
+    out.textContent = "";
+    return;
+  }
+  if (read.error) {
+    out.textContent = read.error;
+    return;
+  }
+  const e = read.effect;
+  const shape = e.cycles.map((c) => c.length).sort((a, b) => b - a);
+  // A commutator's whole point is the shape of this line.
+  const permutation = shape.length
+    ? shape.map((n) => `${n}-cycle`).join(" + ")
+    : "nothing moves";
+  const spun = e.turnedInPlace.length
+    ? `, ${e.turnedInPlace.length} turned in place`
+    : "";
+  out.textContent =
+    `${read.tokens.length} moves: ${read.flat}\n` +
+    `${permutation}${spun} — ${e.moved} pieces touched\n` +
+    `order ${e.order}: repeat it ${e.order} times and it is back`;
+}
+
+/** Run it. Short ones are animated; a long one would be a wait, not a show. */
+function runSequence() {
+  const read = readSequence($("seq-input").value);
+  if (read.error || read.empty || game.busy) return;
+  const tokens = read.tokens;
+  game.busy = true;
+  renderMoves();
+  renderSequence();
+
+  const stopped = (i) => {
+    game.busy = false;
+    renderGame();
+    renderSequence();
+    if (i < tokens.length)
+      $("play-status").textContent =
+        `Stopped at "${tokens[i]}": this puzzle will not make that turn from here.`;
+  };
+
+  // Animating two hundred and ten moves is not a demonstration, it is a
+  // wait. Past a dozen it is applied at once and the page says so.
+  if (tokens.length > 12) {
+    for (let i = 0; i < tokens.length; i++) {
+      if (!game.puzzle.canMove(tokens[i])) return stopped(i);
+      game.puzzle.move(tokens[i]);
+    }
+    return stopped(tokens.length);
+  }
+  const step = (i) => {
+    if (i >= tokens.length) return stopped(i);
+    if (!game.puzzle.canMove(tokens[i])) return stopped(i);
+    animate($("play-canvas"), game.puzzle, tokens[i], () => step(i + 1));
+  };
+  step(0);
+}
+
 // ── Wiring ──────────────────────────────────────────────────────────────────
 
 function init() {
@@ -287,6 +494,65 @@ function init() {
     refreshWrite();
   });
 
+  // Which puzzle. A size only means something on a cube, so the control for
+  // it goes away rather than sitting there doing nothing.
+  const kind = $("write-kind");
+  for (const [id, def] of Object.entries(PUZZLES)) {
+    const o = document.createElement("option");
+    o.value = id;
+    o.textContent = def.label;
+    kind.append(o);
+  }
+  const syncKind = () => {
+    game.kind = kind.value;
+    $("write-size-row").hidden = !PUZZLES[game.kind].sized;
+  };
+  kind.addEventListener("input", () => {
+    syncKind();
+    refreshWrite();
+  });
+
+  // Which challenge, or none.
+  const goal = $("write-goal");
+  for (const [i, c] of CHALLENGES.entries()) {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = c.name;
+    goal.append(o);
+  }
+  goal.addEventListener("input", () => {
+    game.challenge = goal.value === "" ? null : +goal.value;
+    if (game.challenge !== null) {
+      // A challenge names its own puzzle: matching a picture drawn on a
+      // Pyraminx by painting a cube is not the same game.
+      const c = CHALLENGES[game.challenge];
+      kind.value = c.kind;
+      game.size = c.size;
+      size.value = String(c.size);
+      size.dispatchEvent(new Event("input"));
+      syncKind();
+    }
+    refreshWrite();
+  });
+  syncKind();
+
+  // The sequence console.
+  const seq = $("seq-input");
+  seq.addEventListener("input", renderSequence);
+  seq.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runSequence();
+    }
+  });
+  $("seq-run").addEventListener("click", runSequence);
+  for (const b of document.querySelectorAll("[data-seq]"))
+    b.addEventListener("click", () => {
+      seq.value = b.dataset.seq;
+      renderSequence();
+      seq.focus();
+    });
+
   $("play-start").addEventListener("click", () => startGame(true));
   $("play-reset").addEventListener("click", () => startGame(false));
   $("play-undo").addEventListener("click", undo);
@@ -315,6 +581,7 @@ function init() {
     code.value = saved.get("f");
   }
   refreshWrite();
+  renderSequence();
   if (saved.get("at")) {
     try {
       game.puzzle.setPosition(saved.get("at"));

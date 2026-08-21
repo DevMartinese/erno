@@ -23,9 +23,10 @@
       <span class="example-kind">Example</span>
       <h1>Pattern</h1>
       <p class="example-lede">
-        Write a function of a cubie's position and the engine paints a cube
-        with it. Then scramble that cube and bring the pattern back. Two
-        puzzles stacked: one you write, one you turn.
+        Write a function of a cubie's position and the engine paints a
+        puzzle with it. Then scramble it and bring the pattern back, by
+        hand or by writing the sequence. Two puzzles stacked: one you
+        write, one you turn.
       </p>
       <p class="example-note">
         This page is not part of the library. It is one file of glue over the
@@ -62,6 +63,19 @@
 
         <div class="demo-controls">
           <label class="control-label">
+            <span>Puzzle</span>
+            <select id="write-kind"></select>
+          </label>
+          <label class="control-label">
+            <span>Challenge</span>
+            <select id="write-goal">
+              <option value="">Free play</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="demo-controls" id="write-size-row">
+          <label class="control-label">
             <span>Size</span>
             <input
               type="range"
@@ -72,6 +86,14 @@
               data-scale="choice"
             />
           </label>
+        </div>
+
+        <div class="example-goal" id="goal-panel" data-state="free">
+          <div class="example-goal-art" id="goal-art"></div>
+          <div class="example-goal-text">
+            <span class="example-label">Reach this</span>
+            <p class="demo-readout" id="goal-status"></p>
+          </div>
         </div>
 
         <div class="example-presets" id="write-presets"></div>
@@ -97,6 +119,16 @@
           at a welded or bandaged puzzle and it stops being true, which is why
           the question is asked at all.
         </p>
+        <p>
+          The buttons turn one face; the box below turns a sentence, in the
+          notation cubers already write. <code>[R, U]</code> is a commutator,
+          <code>[R: U]</code> a conjugate, <code>(R U)3</code> a repeat. What
+          it prints back is not the move list but what the sequence
+          <em>does</em>: which pieces travel together, how many are touched,
+          and how many repeats bring it home. A commutator moving three
+          pieces and nothing else is the whole reason they are taught, and
+          it is one line here rather than a lecture.
+        </p>
 
         <div class="example-goal">
           <div class="example-goal-art" id="play-target"></div>
@@ -116,6 +148,24 @@
         </div>
 
         <div class="move-grid" id="play-moves"></div>
+
+        <div class="example-editor seq-console">
+          <label class="example-label" for="seq-input">
+            Sequence
+            <span class="seq-hint">
+              <button type="button" data-seq="[R, U]">[R, U]</button>
+              <button type="button" data-seq="[R: [U, D]]">[R: [U, D]]</button>
+              <button type="button" data-seq="(R U)3">(R U)3</button>
+            </span>
+          </label>
+          <div class="seq-row">
+            <input id="seq-input" spellcheck="false" autocomplete="off"
+                   placeholder="[R, U]" />
+            <button id="seq-run">Run</button>
+          </div>
+          <pre class="seq-read" id="seq-read"></pre>
+        </div>
+
         <p class="demo-readout" id="play-status"></p>
       </div>
       <div class="example-demo">
@@ -125,11 +175,13 @@
 
     <footer class="example-foot">
       <p>
-        Everything on this page goes through six public methods:
+        Everything on this page goes through the public API and nothing else:
         <code>paint</code> to build it, <code>legalMoves</code> and
         <code>canMove</code> to offer only the turns that exist,
-        <code>getPattern</code> and <code>distanceTo</code> to score it, and
-        <code>getPosition</code> to put a game in a link.
+        <code>getPattern</code> and <code>distanceTo</code> to score it,
+        <code>getPosition</code> to put a game in a link, and
+        <code>expand</code> with <code>effectOf</code> to read a sequence as
+        a permutation rather than as a list of moves.
       </p>
       <p><a href="../../index.html">Back to the guide</a></p>
     </footer>
