@@ -274,6 +274,8 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
   let decalMaterial = null;
   let builtFor = null; // which puzzle the geometry belongs to
   let radius = 3;
+  let frameW = 3;
+  let frameH = 3;
 
   const material = new THREE.MeshBasicMaterial({
     vertexColors: true,
@@ -289,6 +291,14 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     decalMeshes = [];
     group.clear();
     radius = puzzle.getRadius();
+    if (typeof puzzle.getFrame === "function") {
+      const f = puzzle.getFrame();
+      frameW = f.halfWidth;
+      frameH = f.halfHeight;
+    } else {
+      frameW = radius * 1.08;
+      frameH = frameW;
+    }
     const pieces = puzzle.getPieces();
     meshes = pieces.map((piece) => {
       const mesh = new THREE.Mesh(buildGeometry(piece, radius * 0.008), material);
@@ -389,17 +399,21 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
       surface.width = pw;
       surface.height = ph;
     }
-    // fit the puzzle's own sphere, the same reservation fitSphere makes, so
-    // the puzzle does not appear to breathe as it shape-shifts
-    const half = radius * 1.08;
+    // Frame it exactly as the SVG does. The engine is asked rather than
+    // guessed at: an eight percent margin here against the SVG's absolute
+    // twenty units drew the same puzzle nine percent too large, and the two
+    // renderers are supposed to be the same picture.
     const aspect = w / h;
     if (camera === persp) {
       persp.aspect = aspect;
     } else {
-      ortho.left = -half * Math.max(1, aspect);
-      ortho.right = half * Math.max(1, aspect);
-      ortho.top = half * Math.max(1, 1 / aspect);
-      ortho.bottom = -half * Math.max(1, 1 / aspect);
+      // preserveAspectRatio="xMidYMid meet", which is what an <svg> does:
+      // scale until the frame fits, and letterbox the rest.
+      const HW = Math.max(frameW, frameH * aspect);
+      ortho.left = -HW;
+      ortho.right = HW;
+      ortho.top = HW / aspect;
+      ortho.bottom = -HW / aspect;
     }
     camera.updateProjectionMatrix();
   }

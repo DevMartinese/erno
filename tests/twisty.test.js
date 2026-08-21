@@ -69,6 +69,32 @@ function assertEqual(a, b, msg) {
 
 // ── Generated geometry ──────────────────────────────────────────────────────
 
+test("both renderers frame a puzzle the same way", () => {
+  // The SVG reserves an ABSOLUTE margin around the projected sphere and the
+  // WebGL view was reserving a RELATIVE one, so the same puzzle came out
+  // about nine percent larger there. getFrame is the one answer both ask.
+  for (const P of [Cube, Megaminx, Ghost, Pyraminx, Skewb, Mirror]) {
+    const p = new P();
+    const f = p.getFrame();
+    const vb = svgViewBox(p.toSVG({ fitSphere: true }));
+    // The frame is in world units and the viewBox in projected ones, so what
+    // has to match is the SHAPE, which is what decides how big it draws.
+    const mine = f.halfWidth / f.halfHeight;
+    const theirs = vb[2] / vb[3];
+    assert(
+      Math.abs(mine - theirs) < 1e-6,
+      `${P.name}: frame ${mine.toFixed(6)} vs viewBox ${theirs.toFixed(6)}`,
+    );
+    // and padding has to reach it: a bigger margin is a bigger frame
+    const wide = p.getFrame({ padding: 60 });
+    assert(wide.halfWidth > f.halfWidth, `${P.name}: padding does nothing`);
+  }
+});
+
+function svgViewBox(svg) {
+  return svg.match(/viewBox="([^"]+)"/)[1].split(/\s+/).map(Number);
+}
+
 test("piece and facelet counts", () => {
   assertEqual(new Skewb().pieces.length, 14, "skewb pieces");
   assertEqual(new Skewb().getState().length, 30, "skewb facelets");

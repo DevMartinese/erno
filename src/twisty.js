@@ -1587,6 +1587,39 @@ export class Twisty {
     return this._radius;
   }
 
+  /**
+   * The frame the SVG would draw in, in WORLD units, for a renderer that is
+   * not the SVG.
+   *
+   * This exists because the two disagreed, and disagreed for a reason worth
+   * naming: `toSVG` reserves an ABSOLUTE margin — `padding`, twenty units by
+   * default — around the projected sphere, while the WebGL view was
+   * reserving a RELATIVE one, eight percent. Those are different rules, so
+   * they only ever agree by accident, and they did not: measured against the
+   * SVG the same puzzle came out about nine percent larger in WebGL.
+   *
+   * The fix is not a better guess on the renderer's side. It is that the
+   * puzzle already knows how it is framed and should say so, the same
+   * argument `getViewMatrix` settled for how it is held.
+   *
+   * @param {Object} [options] - `padding` and `fitSphere`, as toSVG takes them
+   * @returns {{halfWidth: number, halfHeight: number}} half extents in world units
+   */
+  getFrame(options = {}) {
+    const pad = options.padding === undefined ? 20 : options.padding;
+    const C = this._radius;
+    const R =
+      typeof options.fitSphere === "number" ? options.fitSphere : C;
+    const proj = this._project();
+    const vb = sphereViewBox(proj, C, C, C, R, pad);
+    // How many projected units one world unit spans. Taken from the sphere
+    // itself with no padding rather than from an axis, because under an
+    // isometric projection the axes foreshorten and the sphere does not.
+    const bare = sphereViewBox(proj, C, C, C, R, 0);
+    const scale = bare[2] / (2 * R) || 1;
+    return { halfWidth: vb[2] / 2 / scale, halfHeight: vb[3] / 2 / scale };
+  }
+
   getPieces(options = {}) {
     const { turn, triangles = false } = options;
     const spin = this._spinFor(turn);
