@@ -924,7 +924,15 @@ test("a fused puzzle turns, scrambles and inverts like any other", () => {
     assert(p.isSolved(), `${label} starts solved`);
     assert(p.legalMoves().length > 0, `${label} has somewhere to go`);
     assert(p.toSVG().startsWith("<svg"), `${label} renders`);
-    const seq = p.scramble(12);
+    // A random walk can land back home, and on these it is not rare: a
+    // 1×1×3 has few enough states that twelve moves return it solved about
+    // one time in seven hundred, and with five shapes here that is a test
+    // failing by itself about one run in two hundred. That is a fact about
+    // the puzzle, not a fault in it, so this asks for a scramble that
+    // actually scrambled rather than betting on one.
+    let seq = p.scramble(12);
+    for (let tries = 0; p.isSolved() && tries < 20; tries++)
+      seq += ` ${p.scramble(12)}`;
     assert(!p.isSolved(), `${label} scrambles to something`);
     p.move(Twisty.inverse(seq));
     assert(p.isSolved(), `${label}: inverse of "${seq}"`);
