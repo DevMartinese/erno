@@ -15,12 +15,29 @@
 
 import {
   Cube, Cuboid, Void, Siamese, Fused,
-  Twisty, expand, parse, isAlgebra,
+  SCHEMES, Twisty, expand, parse, isAlgebra,
 } from "../../../src/erno.js";
 import { enhanceRange } from "../../controls.js";
 
-// The page's own colours and the puzzle's, and nothing else. Replicube hands
-// you sixteen; these eight are the ones this site already speaks.
+// ── What a colour is called ─────────────────────────────────────────────────
+//
+// Two vocabularies, and the first one is the cube's.
+//
+// A cube already names six colours, and it does not name them red and blue:
+// it names them U, R, F, D, L and B, which is the same alphabet its moves
+// are written in. So `return y > 0 ? U : D` reads like a cube, and
+// `return y > 0 ? 7 : 3` reads like an index into a list you cannot see.
+// Both work; the first is the one to reach for.
+//
+// It is worth being plain about where the notation stops. Cubers' notation
+// says how to TURN a cube, and there is none for how to PAINT one, because
+// nobody needed one until a game asked. Solve speaks the real thing exactly.
+// Write borrows the only part of it that is about colour, which is the face
+// letters, and is otherwise ordinary JavaScript, on purpose.
+const FACES = SCHEMES.classic;
+
+// And a wider palette for the pictures a cube's own six cannot make: ink and
+// paper, and the site's accents.
 const PALETTE = [
   "#17110c", // 0 ink
   "#cc2823", // 1 red
@@ -77,21 +94,21 @@ const PUZZLES = {
 // insight beats brute force there. `par` is the length of the solution this
 // page knows; shorter than par is a real win over the author.
 const CHALLENGES = [
-  { name: "Sky and ground", kind: "cube", size: 3, solution: "return y > 0 ? 2 : 5" },
-  { name: "Quadrants", kind: "cube", size: 3, solution: "return (x > 0) == (z > 0) ? 6 : 2" },
-  { name: "Cage", kind: "cube", size: 3, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : 3" },
-  { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? 1 : 7" },
-  { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? 1 : 7" },
-  { name: "Long caps", kind: "cuboid", size: 5, solution: "return abs(z) > 1.5 ? 3 : 4" },
+  { name: "Sky and ground", kind: "cube", size: 3, solution: "return y > 0 ? B : F" },
+  { name: "Quadrants", kind: "cube", size: 3, solution: "return (x > 0) == (z > 0) ? L : B" },
+  { name: "Cage", kind: "cube", size: 3, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : D" },
+  { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? R : U" },
+  { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? R : U" },
+  { name: "Long caps", kind: "cuboid", size: 5, solution: "return abs(z) > 1.5 ? D : U" },
 ];
 
 const PRESETS = {
-  Bands: "return y + 1",
-  Checker: "return (x + y + z) % 2 ? 1 : 0",
-  Corners: "return abs(x) + abs(y) + abs(z) > n - 1.5 ? 1 : 4",
-  Ring: "return abs(y) < 0.5 ? 2 : 3",
-  Diagonal: "return floor((x + z) / 2) + 1",
-  Shell: "return hypot(x, y, z) > n - 1.2 ? 6 : 0",
+  Bands: "return y > 0 ? U : D",
+  Checker: "return (x + y + z) % 2 ? F : B",
+  Corners: "return abs(x) + abs(y) + abs(z) > n - 1.5 ? R : U",
+  Ring: "return abs(y) < 0.5 ? L : B",
+  Diagonal: "return floor((x + z) / 2) % 2 ? F : U",
+  Shell: "return hypot(x, y, z) > n - 1.2 ? R : 0",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -105,10 +122,11 @@ const $ = (id) => document.getElementById(id);
 function compile(source, n) {
   const body = `"use strict";
     const {abs, floor, ceil, round, min, max, hypot, sign, sqrt, sin, cos, atan2, PI} = Math;
+    const {U, R, F, D, L, B} = FACES;
     ${source}`;
-  const fn = new Function("x", "y", "z", "n", body);
-  fn(0, 0, 0, n); // fail here rather than once per cubie
-  return fn;
+  const fn = new Function("x", "y", "z", "n", "FACES", body);
+  fn(0, 0, 0, n, FACES); // fail here rather than once per cubie
+  return (x, y, z, m) => fn(x, y, z, m, FACES);
 }
 
 // How far the lattice reaches, measured rather than assumed. On a cube it is
@@ -260,10 +278,20 @@ function refreshWrite() {
 // ── Challenges ──────────────────────────────────────────────────────────────
 
 const targets = new Map();
+
+// Compared by TINT, not by pattern.
+//
+// `getPattern` asks which stickers match each other, which is the right
+// question for solving a puzzle and the wrong one for hitting a picture: it
+// cannot tell blue-over-green from white-over-yellow, so a challenge showing
+// one was quietly accepting the other. Found by a bench that asked whether a
+// challenge starts unsolved, and was told it was already done.
+const shownOn = (puzzle) => puzzle.getTints().join("|");
+
 function targetOf(i) {
   if (!targets.has(i)) {
     const c = CHALLENGES[i];
-    targets.set(i, build(c.solution, c.kind, c.size).getPattern());
+    targets.set(i, shownOn(build(c.solution, c.kind, c.size)));
   }
   return targets.get(i);
 }
@@ -273,6 +301,8 @@ function renderChallenge(puzzle) {
   const panel = $("goal-panel");
   if (game.challenge === null) {
     panel.dataset.state = "free";
+    $("write-kind").disabled = false;
+    $("write-size").disabled = false;
     $("goal-status").textContent =
       "Free play: whatever you write becomes the target.";
     $("goal-art").innerHTML = "";
@@ -280,7 +310,13 @@ function renderChallenge(puzzle) {
   }
   const c = CHALLENGES[game.challenge];
   draw($("goal-art"), build(c.solution, c.kind, c.size));
-  const hit = puzzle.getPattern() === targetOf(game.challenge);
+  // A challenge names its own board, so the board is not yours to change
+  // while it is up. Leaving it open meant you could select a challenge, type
+  // its exact answer, switch the puzzle underneath it and be told "not it
+  // yet" forever, with no way to see why. Free play is one option away.
+  $("write-kind").disabled = true;
+  $("write-size").disabled = true;
+  const hit = shownOn(puzzle) === targetOf(game.challenge);
   const mine = game.source.trim().length;
   const par = c.solution.length;
   panel.dataset.state = hit ? "hit" : "miss";

@@ -40,7 +40,15 @@
         <p>
           Your function runs once per cubie, with <code>x</code>,
           <code>y</code> and <code>z</code> at its place on the lattice and
-          <code>n</code> at the half width. Return a colour, by number.
+          <code>n</code> at how far that lattice reaches. Return a colour.
+        </p>
+        <p>
+          A cube already names six of them, and not red and blue:
+          <code>U</code>, <code>R</code>, <code>F</code>, <code>D</code>,
+          <code>L</code>, <code>B</code>, the same alphabet its moves are
+          written in. So <code>return y &gt; 0 ? U : D</code> reads like a
+          cube. Numbers 0 to 7 reach a wider palette for the pictures six
+          face colours cannot make.
         </p>
         <p>
           Nothing here is a special mode. <code>paint</code> is an ordinary
