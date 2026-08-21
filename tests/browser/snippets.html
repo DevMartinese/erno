@@ -21,6 +21,16 @@ f.onload = () => setTimeout(async () => {
   $("play-start").click(); await wait(150); grab("tras Scramble");
   $("write-code").value = "return hypot(x, y, z) > n - 1.2 ? 6 : 0"; fire($("write-code")); await wait(450);
   await mover(2); grab("paleta por numero");
+  // el compuesto, cuerpo a cuerpo
+  $("write-kind").value = "compose"; fire($("write-kind")); await wait(500);
+  await mover(2); grab("compuesto, un cuerpo");
+  $("body-add").click(); await wait(550); await mover(2); grab("compuesto, dos cuerpos");
+  $("body-add").click(); await wait(550); await mover(2); grab("compuesto, tres cuerpos");
+  {
+    const inputs = $("body-list").querySelectorAll("input");
+    inputs[3].value = "2"; fire(inputs[3]); await wait(550);   // achico el primero
+    await mover(1); grab("compuesto con un cuerpo mas chico");
+  }
   for (const k of ["cuboid","void","siamese","fused"]) {
     $("write-kind").value = k; fire($("write-kind"));
     if (k === "cuboid") { $("write-size").value = "5"; fire($("write-size")); }

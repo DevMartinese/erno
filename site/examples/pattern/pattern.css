@@ -318,3 +318,75 @@ body.example {
   line-height: 1.65;
   white-space: pre;
 }
+
+
+/* ── Composing out of bodies ───────────────────────────────────────────────
+   A row per body: its three sides, then where it sits. Numbers rather than
+   sliders, because half a cubie is a real offset and a slider hides that. */
+.compose {
+  margin: var(--gap) 0;
+}
+.body-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+.body-tag {
+  font-family: var(--mono);
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.1rem 0.45rem;
+}
+.body-at {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--text-quiet-xs);
+  padding: 0 0.15rem;
+}
+.body-field input {
+  width: 3.2rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+.body-field span {
+  display: none;
+}
+.body-drop,
+#body-add {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--text-quiet);
+  cursor: pointer;
+}
+.body-drop:hover,
+#body-add:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.compose-note {
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--text-quiet-xs);
+  margin: 0.5rem 0 0;
+}
+
+
+/* `hidden` means hidden.
+   The attribute only carries `display: none` from the user agent stylesheet,
+   which any explicit display in a class beats without a word. .demo-controls
+   is a flex row, so the Size strip stayed on screen while composing even
+   though the attribute was set, and a test that read the attribute agreed
+   with itself and saw nothing. */
+[hidden] {
+  display: none !important;
+}

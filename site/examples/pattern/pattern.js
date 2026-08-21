@@ -60,7 +60,25 @@ const PALETTE = [
 // most of its turns are not available most of the time, and the page has
 // been claiming since it was written that it asks the puzzle rather than
 // assuming. This is where that claim is worth something.
+// The composed one is not a sixth puzzle beside these. It is the answer to
+// "what happens if I add another body", which is a question the dropdown
+// could not ask: one body is a cube and turns freely, two are welded and
+// most of their turns stop existing, three leave almost nothing. You do not
+// read that, you watch it happen and the code underneath rewrites itself
+// from `new Cube` to `new Fused`.
+function composed(options) {
+  const bodies = game.bodies;
+  if (bodies.length === 1) {
+    const [a, b, c] = bodies[0].size;
+    return a === b && b === c
+      ? new Cube({ ...options, size: a })
+      : new Cuboid({ ...options, size: [a, b, c] });
+  }
+  return new Fused({ ...options, bodies });
+}
+
 const PUZZLES = {
+  compose: { label: "Compose", sized: false, make: (o) => composed(o) },
   cube: { label: "Cube", sized: true, make: (o, n) => new Cube({ ...o, size: n }) },
   cuboid: {
     label: "Cuboid",
@@ -135,7 +153,10 @@ function compile(source, n) {
 // what `n` means is to go and look. One throwaway build, cached.
 const reach = new Map();
 function halfWidth(kind, size) {
-  const key = `${kind}:${size}`;
+  const key =
+    kind === "compose"
+      ? `compose:${game.bodies.map((b) => `${b.size}@${b.at}`).join("+")}`
+      : `${kind}:${size}`;
   if (reach.has(key)) return reach.get(key);
   const probe = PUZZLES[kind].make({}, size);
   let n = 0;
@@ -236,6 +257,7 @@ const game = {
   challenge: null, // index into CHALLENGES, or null for free play
   usesPalette: false, // did the reader's function return a number?
   scramble: "", // the walk that dealt this board, kept so the code can say it
+  bodies: [{ size: [3, 3, 3], at: [0, 0, 0] }], // for the composed puzzle
   size: 3,
   target: null, // the pattern to reach
   targetPos: null, // and the position that wears it
@@ -248,13 +270,21 @@ const game = {
 
 function refreshWrite() {
   const code = $("write-code");
+  renderBodies();
   let puzzle;
   try {
     puzzle = build(code.value, game.kind, game.size);
     code.removeAttribute("data-bad");
   } catch (err) {
-    code.setAttribute("data-bad", "");
-    $("write-status").textContent = `${err.message}`;
+    // Two different failures wearing one message before this: a function
+    // that will not compile is yours, and bodies that do not line up are
+    // the puzzle's. Marking the code box red for the second was pointing at
+    // the wrong thing.
+    const mine = !/erno:/.test(err.message);
+    if (mine) code.setAttribute("data-bad", "");
+    else code.removeAttribute("data-bad");
+    $("write-status").textContent = err.message;
+    $("play-start").disabled = true;
     return;
   }
   game.source = code.value;
@@ -265,8 +295,15 @@ function refreshWrite() {
   const depth = scrambleDepth(puzzle);
   const stickers = puzzle.getPattern().length;
   const colours = new Set(puzzle.getPattern()).size;
+  // Named against offered, because that gap IS the weld: a single cube shows
+  // 18 and 18, and the moment a second body is welded on most of them stop
+  // being turns at all.
+  const names = puzzle.vocabulary().length;
+  const offers = puzzle.legalMoves().length;
+  const welded =
+    offers < names ? ` Names ${names} moves, offers ${offers} from here.` : "";
   $("write-status").textContent =
-    `${puzzle.pieces.length} cubies, ${stickers} stickers, ${colours} colours. ` +
+    `${puzzle.pieces.length} cubies, ${stickers} stickers, ${colours} colours.${welded} ` +
     (depth === 0
       ? "This pattern is the same however you turn it, so there is nothing to solve. It asks only what kind of piece a cubie is, and turning never changes that."
       : `Scrambles to ${depth} stickers out of place.`);
@@ -444,6 +481,79 @@ function undo() {
   renderGame();
 }
 
+// ── Composing a puzzle out of bodies ────────────────────────────────────────
+//
+// One body is a cube and every turn is open. Add a second and the two are
+// welded: the class underneath changes from Cube to Fused, most of the turns
+// stop existing, and the keypad greys out to show which. Add a third and
+// almost nothing is left. None of that is asserted anywhere on this page;
+// it is the mechanism, and the point of the control is that you can watch it
+// rather than be told.
+
+const clampBody = (b) => ({
+  size: b.size.map((v) => Math.max(2, Math.min(5, Math.round(v)))),
+  at: b.at.map((v) => Math.round(v * 2) / 2),
+});
+
+function renderBodies() {
+  const host = $("body-list");
+  if (!host) return;
+  host.innerHTML = "";
+  game.bodies.forEach((body, i) => {
+    const row = document.createElement("div");
+    row.className = "body-row";
+    row.innerHTML = `<span class="body-tag">${String.fromCharCode(65 + i)}</span>`;
+
+    const field = (label, value, onChange, step = 1, min = -6, max = 6) => {
+      const wrap = document.createElement("label");
+      wrap.className = "body-field";
+      wrap.innerHTML = `<span>${label}</span>`;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.value = String(value);
+      input.step = String(step);
+      input.min = String(min);
+      input.max = String(max);
+      input.addEventListener("input", () => onChange(parseFloat(input.value)));
+      wrap.append(input);
+      return wrap;
+    };
+
+    for (const ax of [0, 1, 2])
+      row.append(
+        field("wxyz"[ax + 1] || "", body.size[ax], (v) => {
+          game.bodies[i].size[ax] = v;
+          game.bodies[i] = clampBody(game.bodies[i]);
+          refreshWrite();
+        }, 1, 2, 5),
+      );
+    const at = document.createElement("span");
+    at.className = "body-at";
+    at.textContent = "at";
+    row.append(at);
+    for (const ax of [0, 1, 2])
+      row.append(
+        field("xyz"[ax], body.at[ax], (v) => {
+          game.bodies[i].at[ax] = v;
+          game.bodies[i] = clampBody(game.bodies[i]);
+          refreshWrite();
+        }, 0.5),
+      );
+
+    if (game.bodies.length > 1) {
+      const drop = document.createElement("button");
+      drop.className = "body-drop";
+      drop.textContent = "remove";
+      drop.addEventListener("click", () => {
+        game.bodies.splice(i, 1);
+        refreshWrite();
+      });
+      row.append(drop);
+    }
+    host.append(row);
+  });
+}
+
 // ── The code for what you are looking at ────────────────────────────────────
 //
 // Not an example written once and left to rot beside the thing it claims to
@@ -471,6 +581,26 @@ function constructorFor() {
   // right puzzle and not the right picture. An example is not honest at
   // "close enough" when it claims to be what you are looking at.
   const inset = "  stickerInset: 0.1,";
+  if (kind === "compose") {
+    const bodies = game.bodies;
+    if (bodies.length === 1) {
+      const [a, b, c] = bodies[0].size;
+      return a === b && b === c
+        ? { name: "Cube", args: [`  size: ${a},`, paint, inset] }
+        : { name: "Cuboid", args: [`  size: ${lit([a, b, c])},`, paint, inset] };
+    }
+    return {
+      name: "Fused",
+      args: [
+        "  bodies: [",
+        ...bodies.map((b) => `    { size: ${lit(b.size)}, at: ${lit(b.at)} },`),
+        "  ],",
+        paint,
+        inset,
+      ],
+      note: "welded where they meet, which is what takes the turns away",
+    };
+  }
   if (kind === "cube")
     return { name: "Cube", args: [`  size: ${game.size},`, paint, inset] };
   if (kind === "cuboid")
@@ -725,6 +855,7 @@ function init() {
   const syncKind = () => {
     game.kind = kind.value;
     $("write-size-row").hidden = !PUZZLES[game.kind].sized;
+    $("compose-row").hidden = game.kind !== "compose";
   };
   kind.addEventListener("input", () => {
     syncKind();
@@ -754,6 +885,18 @@ function init() {
     refreshWrite();
   });
   syncKind();
+
+  $("body-add").addEventListener("click", () => {
+    // Placed a body's width along the diagonal, which is where two cubes
+    // meet on a shared lattice: the offset has to land cubie on cubie or the
+    // library refuses it, and refusing is the interesting half.
+    const last = game.bodies[game.bodies.length - 1];
+    game.bodies.push({
+      size: [3, 3, 3],
+      at: [last.at[0] + 2, last.at[1] + 2, last.at[2]],
+    });
+    refreshWrite();
+  });
 
   // The sequence console.
   const seq = $("seq-input");

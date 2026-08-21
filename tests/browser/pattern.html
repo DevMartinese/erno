@@ -43,7 +43,8 @@ f.onload = () => setTimeout(async () => {
   paso("1 puzzles");
   // ── 1. los seis puzzles ────────────────────────────────────────────────
   const kinds = [...$("write-kind").options].map(o => o.value);
-  check("hay cinco puzzles", kinds.length === 5, kinds.join(","));
+  check("hay seis puzzles", kinds.length === 6, kinds.join(","));
+  check("el compuesto esta primero", kinds[0] === "compose", kinds[0]);
   for (const k of kinds) {
     $("write-kind").value = k; fire($("write-kind")); await wait(320);
     const st = $("write-status").textContent;
@@ -51,7 +52,12 @@ f.onload = () => setTimeout(async () => {
     check(`${k}: dibuja svg`, $("write-canvas").innerHTML.startsWith("<svg"));
     check(`${k}: hay algo que jugar`, $("play-moves").childElementCount > 0);
     check(`${k}: el tablero dibuja`, $("play-canvas").innerHTML.startsWith("<svg"));
-    check(`${k}: size solo donde hay tamano`, $("write-size-row").hidden === !["cube","cuboid"].includes(k));
+    // Lo que se VE, no el atributo: `hidden` solo trae display:none del
+    // navegador y cualquier display en una clase se lo lleva por delante,
+    // asi que el atributo puede estar puesto y el control seguir en pantalla.
+    const visible = (id) => w.getComputedStyle($(id)).display !== "none";
+    check(`${k}: size solo donde hay tamano`, visible("write-size-row") === ["cube","cuboid"].includes(k), `${k} -> se ve ${visible("write-size-row")}`);
+    check(`${k}: cuerpos solo al componer`, visible("compose-row") === (k === "compose"), `${k} -> se ve ${visible("compose-row")}`);
     // un movimiento cualquiera de este puzzle
     const b = [...$("play-moves").children].find(x => !x.disabled);
     check(`${k}: tiene un movimiento disponible`, !!b);
