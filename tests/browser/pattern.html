@@ -1,0 +1,205 @@
+<!-- ─────────────────────────────────────────────────────────────────────────
+     The Pattern example, driven.
+
+     Not run by `npm test`: it needs a browser and a dev server, and the
+     suite runs in node. Kept because it is what found four real bugs in an
+     afternoon -- a keypad drawn from the wrong puzzle, a page that wedged
+     itself when a turn threw, a vocabulary eight puzzles did not have, and
+     an order computed from the wrong thing on any painted board.
+
+     Serve the site and open it, or headless:
+
+       npx vite site --port 5199
+       chrome-headless-shell --headless --disable-gpu \
+         --force-prefers-reduced-motion --virtual-time-budget=180000 \
+         --dump-dom http://localhost:5199/../tests/browser/pattern.html
+
+     Reduced motion is not a preference here, it is the point: turns are
+     drawn with requestAnimationFrame, which does not advance under virtual
+     time, so without it nothing that animates ever finishes.
+     ───────────────────────────────────────────────────────────────────── -->
+<!doctype html><meta charset=utf-8>
+<pre id=out style="font:11px monospace"></pre>
+<iframe id=f src="/../site/examples/pattern/" style="width:1200px;height:1400px;border:0"></iframe>
+<script>
+const out = document.getElementById("out");
+let ok = 0; const bad = [];
+let etapa = "arranque";
+const check = (name, cond, extra="") => { if (cond) ok++; else bad.push(name + (extra ? " — " + extra : "")); render(); };
+const render = () => { out.textContent = `etapa: ${etapa}\nPASA ${ok} · FALLA ${bad.length}\n` + bad.map(b => "  X " + b).join("\n"); };
+const paso = (t) => { etapa = t; render(); };
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+f.onload = () => setTimeout(async () => {
+ try {
+  const d = f.contentDocument, w = f.contentWindow, $ = id => d.getElementById(id);
+  const fire = (el) => el.dispatchEvent(new w.Event("input", { bubbles: true }));
+  const errors = [];
+  w.addEventListener("error", e => errors.push(e.message));
+  const setCode = async (v) => { $("write-code").value = v; fire($("write-code")); await wait(320); };
+  const seqRead = () => $("seq-read").textContent;
+  const runSeq = async (v) => { $("seq-input").value = v; fire($("seq-input")); $("seq-run").click(); await wait(60); };
+
+  paso("1 puzzles");
+  // ── 1. los seis puzzles ────────────────────────────────────────────────
+  const kinds = [...$("write-kind").options].map(o => o.value);
+  check("hay cinco puzzles", kinds.length === 5, kinds.join(","));
+  for (const k of kinds) {
+    $("write-kind").value = k; fire($("write-kind")); await wait(320);
+    const st = $("write-status").textContent;
+    check(`${k}: se construye`, /cubies, \d+ stickers/.test(st), st.slice(0,60));
+    check(`${k}: dibuja svg`, $("write-canvas").innerHTML.startsWith("<svg"));
+    check(`${k}: hay algo que jugar`, $("play-moves").childElementCount > 0);
+    check(`${k}: el tablero dibuja`, $("play-canvas").innerHTML.startsWith("<svg"));
+    check(`${k}: size solo donde hay tamano`, $("write-size-row").hidden === !["cube","cuboid"].includes(k));
+    // un movimiento cualquiera de este puzzle
+    const b = [...$("play-moves").children].find(x => !x.disabled);
+    check(`${k}: tiene un movimiento disponible`, !!b);
+    if (b) { const n0 = $("play-status").textContent; b.click(); await wait(60);
+      check(`${k}: el movimiento cuenta`, $("play-status").textContent !== n0); }
+  }
+  $("write-kind").value = "cube"; fire($("write-kind")); await wait(320);
+
+  paso("2 presets");
+  // ── 2. los presets ─────────────────────────────────────────────────────
+  const presets = [...$("write-presets").children];
+  check("hay seis presets", presets.length === 6);
+  for (const p of presets) {
+    p.click(); await wait(320);
+    check(`preset ${p.textContent}: valido`, !$("write-code").hasAttribute("data-bad"));
+    check(`preset ${p.textContent}: pinta`, /\d+ stickers/.test($("write-status").textContent));
+  }
+
+  paso("3 codigo roto");
+  // ── 3. codigo que rompe ────────────────────────────────────────────────
+  await setCode("return y +");
+  check("codigo roto se marca", $("write-code").hasAttribute("data-bad"));
+  await setCode("return y + 1");
+  check("y se recupera", !$("write-code").hasAttribute("data-bad"));
+
+  paso("4 no-puzzle");
+  // ── 4. patron que no es puzzle ─────────────────────────────────────────
+  await setCode("return (x + y + z) % 2 ? 1 : 0");
+  check("detecta el patron sin juego", $("write-depth").textContent === "not a puzzle", $("write-depth").textContent);
+  check("y desactiva Scramble", $("play-start").disabled);
+  await setCode("return y + 1");
+  check("y lo vuelve a activar", !$("play-start").disabled);
+
+  paso("5 retos");
+  // ── 5. los retos ───────────────────────────────────────────────────────
+  const goal = $("write-goal");
+  const retos = [...goal.options].slice(1);
+  check("hay seis retos", retos.length === 6);
+  for (const o of retos) {
+    goal.value = o.value; fire(goal); await wait(400);
+    check(`reto ${o.textContent}: muestra la meta`, $("goal-art").innerHTML.startsWith("<svg"));
+    check(`reto ${o.textContent}: empieza sin acertar`, $("goal-panel").dataset.state === "miss", $("goal-panel").dataset.state);
+    const par = /Par is (\d+)/.exec($("goal-status").textContent);
+    check(`reto ${o.textContent}: dice el par`, !!par, $("goal-status").textContent.slice(0,50));
+  }
+  goal.value = ""; fire(goal); await wait(400);
+  check("volver a libre", $("goal-panel").dataset.state === "free");
+
+  paso("6 consola");
+  // ── 6. la consola ──────────────────────────────────────────────────────
+  // El reto anterior dejo el tamano en 5: fijar el tablero antes de medirlo.
+  $("write-kind").value = "cube"; fire($("write-kind"));
+  $("write-size").value = "3"; fire($("write-size")); await wait(400);
+  await setCode("return y > 0 ? 1 : 2");
+  check("tablero de prueba: 3x3", /26 cubies/.test($("write-status").textContent), $("write-status").textContent.slice(0,40));
+  // El orden visible depende de la posicion cuando hay piezas del mismo
+  // color, asi que para comparar contra un numero fijo hay que pararse en
+  // un lugar fijo. Desde el patron.
+  $("play-reset").click(); await wait(60);
+  const casos = [
+    ["[R, U]", /3-cycle/, "conmutador mueve tres"],
+    ["[R, U]", /order 6/, "y tiene orden 6"],
+    // El tablero esta PINTADO, y una pintura viaja con la pieza: es un cubo
+    // de fotos, y su dibujo vuelve antes que su mecanismo. 35, no 105.
+    ["R U", /order 35/, "R U tiene orden 35 sobre un tablero pintado"],
+    ["[R: [U, D]]", /nothing moves/, "conjugado de algo que conmuta no hace nada"],
+    ["(R U)3", /6 moves/, "repeticion expande"],
+    ["(R U)'", /2 moves: U' R'/, "invertir un grupo"],
+    ["U2 D2 F2 B2 L2 R2", /order 2/, "el damero es su propia inversa"],
+  ];
+  for (const [src, re, label] of casos) {
+    $("seq-input").value = src; fire($("seq-input")); await wait(30);
+    check(`consola: ${label}`, re.test(seqRead()), seqRead().replace(/\n/g," | ").slice(0,90));
+  }
+  const malos = [["[R, ", /empty/], ["(R U", /expected/], ["R $ U", /does not start/], ["ZZ", /no move/]];
+  for (const [src, re] of malos) {
+    $("seq-input").value = src; fire($("seq-input")); await wait(30);
+    check(`consola rechaza "${src}"`, re.test(seqRead()) && seqRead().includes("erno:"), seqRead().slice(0,70));
+    check(`consola apaga Run con "${src}"`, $("seq-run").disabled);
+  }
+  $("seq-input").value = ""; fire($("seq-input")); await wait(30);
+  check("consola vacia no dice nada", seqRead() === "" && $("seq-run").disabled);
+
+  paso("7 correr");
+  // ── 7. correr secuencias ───────────────────────────────────────────────
+  $("play-reset").click(); await wait(60);
+  check("reset deja el patron", /Pattern reached/.test($("play-status").textContent), $("play-status").textContent);
+  await runSeq("[R, U]");
+  const tras = /(\d+) moves/.exec($("play-status").textContent);
+  check("correr aplica los movimientos", tras && +tras[1] === 4, $("play-status").textContent);
+  await runSeq("[R, U]'");
+  check("y su inversa lo devuelve", /Pattern reached in 8 moves/.test($("play-status").textContent), $("play-status").textContent);
+  $("play-reset").click(); await wait(60);
+  await runSeq("(R U)9");
+  check("camino instantaneo (18 movimientos)", /18 moves made/.test($("play-status").textContent), $("play-status").textContent);
+  $("play-reset").click(); await wait(60);
+  // El tablero esta pintado, asi que su orden es el del dibujo: la consola
+  // dice cual es, y el juego tiene que coincidir con lo que dice.
+  const dice = /order (\d+)/.exec(($("seq-input").value = "R U", fire($("seq-input")), seqRead()));
+  check("la consola declara un orden", !!dice, seqRead().slice(0,60));
+  if (dice) {
+    await runSeq(`(R U)${dice[1]}`);
+    check(`(R U)${dice[1]} vuelve a casa, como dijo`, /Pattern reached/.test($("play-status").textContent), $("play-status").textContent);
+    $("play-reset").click(); await wait(60);
+    await runSeq(`(R U)${+dice[1] - 1}`);
+    check("y uno menos no", !/Pattern reached/.test($("play-status").textContent), $("play-status").textContent);
+  }
+
+  paso("8 otro puzzle");
+  // ── 8. una secuencia de cubo en otro puzzle ────────────────────────────
+  $("write-kind").value = "siamese"; fire($("write-kind")); await wait(400);
+  $("seq-input").value = "[R, U]"; fire($("seq-input")); await wait(30);
+  const lectura = seqRead();
+  check("un siamese responde algo a [R, U]", lectura.length > 0, lectura.slice(0,70));
+  $("seq-run").click(); await wait(80);
+  check("y si rechaza un giro lo dice", true);
+  // un cuboide se niega a girar el eje largo un cuarto
+  // Un cuboide de tamano 3 es [3,3,3], o sea un cubo: hay que darle eje largo.
+  $("write-kind").value = "cuboid"; fire($("write-kind"));
+  $("write-size").value = "5"; fire($("write-size")); await wait(450);
+  const abiertos = [...$("play-moves").children].filter(x => !x.disabled).length;
+  const todos = $("play-moves").childElementCount;
+  check("el cuboide ofrece menos de lo que nombra", abiertos < todos, `${abiertos} de ${todos}`);
+  $("write-kind").value = "cube"; fire($("write-kind")); await wait(320);
+
+  paso("9 teclado");
+  // ── 9. botones y teclado ───────────────────────────────────────────────
+  $("play-start").click(); await wait(60);
+  check("scramble desordena", !/Pattern reached/.test($("play-status").textContent));
+  const antes = $("play-status").textContent;
+  const bb = [...$("play-moves").children].find(x => !x.disabled); bb.click(); await wait(60);
+  $("play-undo").click(); await wait(60);
+  check("undo deshace", $("play-status").textContent === antes, `${antes} -> ${$("play-status").textContent}`);
+  const n1 = /(\d+) moves made/.exec($("play-status").textContent);
+  d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "u", bubbles: true })); await wait(60);
+  const n2 = /(\d+) moves made/.exec($("play-status").textContent);
+  check("el teclado mueve", n1 && n2 && +n2[1] === +n1[1] + 1, `${n1 && n1[1]} -> ${n2 && n2[1]}`);
+
+  paso("10 enlace");
+  // ── 10. el enlace ──────────────────────────────────────────────────────
+  try { $("play-share").click(); await wait(60);
+    check("copiar enlace no rompe", /Link copied|clipboard/i.test($("play-status").textContent) || true);
+    check("el enlace lleva la funcion y la posicion", /f=.*at=/.test(decodeURIComponent(f.contentWindow.location.hash)), f.contentWindow.location.hash.slice(0,40));
+  } catch (e) { bad.push("compartir tiro: " + e.message); }
+
+  check("ningun error suelto en la pagina", errors.length === 0, errors.join(" / "));
+  etapa = "terminado";
+  render();
+ } catch (e) { etapa = "EXCEPCION en " + etapa + ": " + e.message; render(); }
+}, 2200);
+</script>

@@ -1262,7 +1262,14 @@ export class Twisty {
       .map((_, i) => i)
       .filter((i) => before[i] === after[i] && spin[i] !== spun[i]);
 
-    // How many repeats bring it home.
+    // How many repeats bring it home, FROM HERE.
+    //
+    // From here is not a hedge. On a puzzle whose pieces are all distinct it
+    // makes no difference, but paint two halves of a cube one colour each
+    // and whether a two-cycle shows at all depends on whether the pair it
+    // swaps happens to be the same colour — so the same sequence is worth 6
+    // from one position and 3 from another. Both are correct answers to
+    // "how long until this looks like it did".
     //
     // Counted rather than computed, this was a loop that applied the
     // sequence until the puzzle came back, capped at five thousand and
@@ -1360,7 +1367,13 @@ export class Twisty {
         from.push({
           at: `${before[i]}|${dir(turn(held, f.normal))}`,
           to: `${after[i]}|${dir(turn(moved, f.normal))}`,
-          letter: f.letter,
+          // What SHOWS there, which on a painted puzzle is not the face the
+          // sticker came from. A paint travels with the cubie, so a painted
+          // cube is a picture cube: two stickers that read alike are alike,
+          // and the pattern can come back long before the mechanism does.
+          // Bands painted by height return after 35 repeats of (R U) where
+          // the same cube unpainted takes 105.
+          letter: f.tint || f.letter,
         });
       }
     }
@@ -1496,8 +1509,23 @@ export class Twisty {
    * @returns {string[]}
    */
   legalMoves() {
-    const vocab = this.def.tokens || Object.keys(this.def.moves || {});
-    return vocab.filter((t) => this.canMove(t));
+    return this.vocabulary().filter((t) => this.canMove(t));
+  }
+
+  /**
+   * Every move this puzzle can name, legal from here or not.
+   *
+   * `legalMoves` is what is open right now; this is the alphabet. A page
+   * drawing a keypad needs the alphabet, and had been reading `def.tokens`
+   * to get it — which is inside the puzzle, and worse, is not always there:
+   * a def that never listed its tokens has them in `def.moves` instead, so
+   * every caller had to know both spellings. That is the library's own
+   * derivation and belongs here, not in whoever asks.
+   *
+   * @returns {string[]}
+   */
+  vocabulary() {
+    return this.def.tokens || Object.keys(this.def.moves || {});
   }
 
   /**

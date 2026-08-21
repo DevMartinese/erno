@@ -640,7 +640,7 @@ weldRender = setupDemo("demo-welding", (v, ctx, t) => {
     }
   }
 
-  const vocab = (p.def.tokens || []).filter((tok) => !/['2]$/.test(tok));
+  const vocab = p.vocabulary().filter((tok) => !/['2]$/.test(tok));
   const open = vocab.filter((tok) => p.canMove(tok));
   const grid = ctx.root.querySelector("[data-moves]");
   grid.innerHTML = vocab

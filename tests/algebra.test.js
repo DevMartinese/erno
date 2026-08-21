@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Fisher, Megaminx, Siamese, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Fisher, Megaminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -167,6 +167,35 @@ test("the order is how long until it LOOKS solved", () => {
   // A shape mod has no such permutation to read, so it is counted instead,
   // and must still come out right.
   assertEqual(new Fisher().effectOf("R U").order, 420, "the Fisher too");
+});
+
+test("a painted puzzle is a picture cube, and its order says so", () => {
+  // A paint travels with the cubie, so what shows at a place is not the face
+  // the sticker came from. Reading home faces gives 105 for (R U) on any
+  // 3×3; reading what SHOWS gives 35 once the cube is painted in bands,
+  // because pieces that read alike are alike and the picture comes back long
+  // before the mechanism does. Found by a game built on `paint` reporting a
+  // sequence home when the board plainly was not.
+  const bands = () =>
+    new Cube({ size: 3, paint: ({ slot: [, y] }) => (y > 0 ? "#cc2823" : "#00489f") });
+  assertEqual(bands().effectOf("R U").order, 35, "painted in two bands");
+  assertEqual(new Cube({ size: 3 }).effectOf("R U").order, 105, "and unpainted");
+
+  const one = new Cube({ size: 3, paint: () => "#cc2823" });
+  assertEqual(one.effectOf("R U").order, 1, "one colour is solved always");
+
+  // Checked the only way that settles it: repeat it and look.
+  for (const make of [bands, () => new Tetris(), () => new Cube({ size: 3 })]) {
+    const said = make().effectOf("R U").order;
+    const p = make();
+    const home = p.getPattern();
+    let saw = null;
+    for (let n = 1; n <= 2000; n++) {
+      p.move("R U");
+      if (p.getPattern() === home) { saw = n; break; }
+    }
+    assertEqual(said, saw, `says ${said}, repeating it gives ${saw}`);
+  }
 });
 
 test("looking at a sequence does not move the puzzle", () => {

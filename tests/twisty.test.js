@@ -44,6 +44,7 @@ import {
   DOMINO_PRINT,
   squash,
 } from "../src/erno.js";
+import * as erno from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -68,6 +69,31 @@ function assertEqual(a, b, msg) {
 }
 
 // ── Generated geometry ──────────────────────────────────────────────────────
+
+test("every puzzle can name its own moves", () => {
+  // A page drawing a keypad needs the alphabet, not what is open right now,
+  // and had been reading `def.tokens` for it — which is inside the puzzle
+  // and, on eight of them, is not there at all: those keep their moves in
+  // `def.moves`. Knowing both spellings was the caller's problem until this
+  // existed, and a game that only knew one drew a Cube's keypad on a Skewb.
+  for (const [name, P] of Object.entries(erno)) {
+    if (typeof P !== "function" || !P.prototype) continue;
+    let p;
+    try { p = new P(); } catch { continue; }
+    if (typeof p.vocabulary !== "function") continue;
+    const vocab = p.vocabulary();
+    assert(Array.isArray(vocab) && vocab.length > 0, `${name} names nothing`);
+    assert(
+      p.legalMoves().every((t) => vocab.includes(t)),
+      `${name}: a legal move outside its own alphabet`,
+    );
+    // A token being in the alphabet is not a promise it can be turned: a
+    // 3×3×5 names R and refuses it, because a quarter turn of the long axis
+    // would leave it misshapen. What must hold is that ASKING never throws.
+    for (const token of vocab)
+      assert(typeof p.canMove(token) === "boolean", `${name}: canMove('${token}')`);
+  }
+});
 
 test("both renderers frame a puzzle the same way", () => {
   // The SVG reserves an ABSOLUTE margin around the projected sphere and the
@@ -988,7 +1014,7 @@ test("blocking takes nothing away from a puzzle that is not bandaged", () => {
     ["Megaminx", () => new Megaminx({ blocking: true })],
   ]) {
     const p = make();
-    const vocab = p.def.tokens || Object.keys(p.def.moves || {});
+    const vocab = p.vocabulary();
     assertEqual(p.legalMoves().length, vocab.length, `${label} keeps every move`);
     const seq = p.scramble();
     p.move(Twisty.inverse(seq));

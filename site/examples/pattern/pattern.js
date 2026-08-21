@@ -14,7 +14,7 @@
    ───────────────────────────────────────────────────────────────────── */
 
 import {
-  Cube, Void, Skewb, Pyraminx, Megaminx, Dino,
+  Cube, Cuboid, Void, Siamese, Fused,
   Twisty, expand, parse, isAlgebra,
 } from "../../../src/erno.js";
 import { enhanceRange } from "../../controls.js";
@@ -34,18 +34,38 @@ const PALETTE = [
 
 // ── The puzzles you can point it at ─────────────────────────────────────────
 //
-// The page was written against a cube and then pointed at five more without
-// changing how it plays, which is the claim the Solve half already makes in
-// prose: it asks `legalMoves` and `canMove` rather than assuming. A Skewb
-// turns about corners and a Megaminx has twelve faces, and neither needed a
-// line here beyond a name.
+// Cubes and cuboids, and cubes stuck together. The game is a function of a
+// cubie's PLACE on a lattice, so it wants a lattice: on a Megaminx there is
+// no x, y, z a writer could reason about, and the same code that reads well
+// on a cube would be guesswork there.
+//
+// The welded pair earns its slot for the opposite reason. A Siamese blocks:
+// most of its turns are not available most of the time, and the page has
+// been claiming since it was written that it asks the puzzle rather than
+// assuming. This is where that claim is worth something.
 const PUZZLES = {
-  cube: { label: "Cube", sized: true, make: (o) => new Cube(o) },
+  cube: { label: "Cube", sized: true, make: (o, n) => new Cube({ ...o, size: n }) },
+  cuboid: {
+    label: "Cuboid",
+    sized: true,
+    // The slider drives the odd axis, so the family is 3×3×2 up to 3×3×6 and
+    // a quarter turn of the long one is refused rather than offered.
+    make: (o, n) => new Cuboid({ ...o, size: [3, 3, n] }),
+  },
   void: { label: "Void", sized: false, make: (o) => new Void(o) },
-  skewb: { label: "Skewb", sized: false, make: (o) => new Skewb(o) },
-  pyraminx: { label: "Pyraminx", sized: false, make: (o) => new Pyraminx(o) },
-  megaminx: { label: "Megaminx", sized: false, make: (o) => new Megaminx(o) },
-  dino: { label: "Dino", sized: false, make: (o) => new Dino(o) },
+  siamese: { label: "Siamese", sized: false, make: (o) => new Siamese(o) },
+  fused: {
+    label: "Fused",
+    sized: false,
+    make: (o) =>
+      new Fused({
+        ...o,
+        bodies: [
+          { size: [3, 3, 3], at: [0, 0, 0] },
+          { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+        ],
+      }),
+  },
 };
 
 // ── Challenges ──────────────────────────────────────────────────────────────
@@ -62,7 +82,7 @@ const CHALLENGES = [
   { name: "Cage", kind: "cube", size: 3, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : 3" },
   { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? 1 : 7" },
   { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? 1 : 7" },
-  { name: "Pyramid tips", kind: "pyraminx", size: 3, solution: "return abs(x) + abs(y) + abs(z) > 2.5 ? 3 : 4" },
+  { name: "Long caps", kind: "cuboid", size: 5, solution: "return abs(z) > 1.5 ? 3 : 4" },
 ];
 
 const PRESETS = {
@@ -99,7 +119,7 @@ const reach = new Map();
 function halfWidth(kind, size) {
   const key = `${kind}:${size}`;
   if (reach.has(key)) return reach.get(key);
-  const probe = PUZZLES[kind].make(PUZZLES[kind].sized ? { size } : {});
+  const probe = PUZZLES[kind].make({}, size);
   let n = 0;
   for (const piece of probe.pieces)
     for (const v of piece.slotPoint) n = Math.max(n, Math.abs(v));
@@ -119,8 +139,7 @@ function build(source, kind, size) {
     },
     stickerInset: 0.1,
   };
-  if (PUZZLES[kind].sized) options.size = size;
-  return PUZZLES[kind].make(options);
+  return PUZZLES[kind].make(options, size);
 }
 
 // Can this pattern be a puzzle at all? Some cannot, and the reason is worth
@@ -158,9 +177,15 @@ const still = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function animate(host, puzzle, move, done) {
   if (still.matches) {
-    puzzle.move(move);
-    draw(host, puzzle);
-    done();
+    // `done` in a finally: it is what clears the busy flag, and a turn that
+    // throws used to leave the page holding it, with every button disabled
+    // and no way back.
+    try {
+      puzzle.move(move);
+      draw(host, puzzle);
+    } finally {
+      done();
+    }
     return;
   }
   const ms = 190;
@@ -307,8 +332,12 @@ function renderGame() {
 
 function renderMoves() {
   const host = $("play-moves");
-  const vocabulary = game.puzzle.def.tokens;
-  if (host.childElementCount !== vocabulary.length) {
+  const vocabulary = game.puzzle.vocabulary();
+  // Rebuilt when the alphabet CHANGES, not when its length does. Keying on
+  // the count left a Void wearing a Cube's keypad, since both name eighteen
+  // moves, and every button on it was refused.
+  if (host.dataset.vocabulary !== vocabulary.join(" ")) {
+    host.dataset.vocabulary = vocabulary.join(" ");
     host.innerHTML = "";
     for (const token of vocabulary) {
       const b = document.createElement("button");
@@ -524,7 +553,7 @@ function init() {
     game.challenge = goal.value === "" ? null : +goal.value;
     if (game.challenge !== null) {
       // A challenge names its own puzzle: matching a picture drawn on a
-      // Pyraminx by painting a cube is not the same game.
+      // 3×3×5 by painting a 3×3 is not the same game.
       const c = CHALLENGES[game.challenge];
       kind.value = c.kind;
       game.size = c.size;
@@ -594,7 +623,7 @@ function init() {
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "TEXTAREA" || e.metaKey || e.ctrlKey) return;
     const token = e.key.toUpperCase();
-    if (game.puzzle.def.tokens.includes(token)) {
+    if (game.puzzle.vocabulary().includes(token)) {
       play(e.shiftKey ? `${token}'` : token);
       e.preventDefault();
     }
