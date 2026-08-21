@@ -126,7 +126,7 @@ f.onload = () => setTimeout(async () => {
     $("seq-input").value = src; fire($("seq-input")); await wait(30);
     check(`consola: ${label}`, re.test(seqRead()), seqRead().replace(/\n/g," | ").slice(0,90));
   }
-  const malos = [["[R, ", /empty/], ["(R U", /expected/], ["R $ U", /does not start/], ["ZZ", /no move/]];
+  const malos = [["[R, ", /empty/], ["(R U", /expected/], ["R $ U", /does not start/], ["ZZ", /bad ([a-z0-9]+ )?move/]];
   for (const [src, re] of malos) {
     $("seq-input").value = src; fire($("seq-input")); await wait(30);
     check(`consola rechaza "${src}"`, re.test(seqRead()) && seqRead().includes("erno:"), seqRead().slice(0,70));

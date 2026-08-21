@@ -416,16 +416,18 @@ function readSequence(text) {
     return { error: err.message };
   }
   const tokens = flat.split(/\s+/).filter(Boolean);
-  const unknown = tokens.filter((t) => {
+  // The puzzle's own words, not a summary of them. This used to answer every
+  // refusal with "this puzzle has no move 'R'", which on a 3×3×5 is simply
+  // false: it has R and will not turn it, and the library already says so
+  // far better — that a quarter turn of that axis would leave it misshapen,
+  // and that R2 is the one to reach for.
+  for (const t of tokens) {
     try {
       game.puzzle.parseMove(t);
-      return false;
-    } catch {
-      return true;
+    } catch (err) {
+      return { error: err.message };
     }
-  });
-  if (unknown.length)
-    return { error: `erno: this puzzle has no move '${unknown[0]}'` };
+  }
   return { flat, tokens, effect: game.puzzle.effectOf(source) };
 }
 
