@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.2.5. Every code block below is executed against the library
+Version 0.2.7. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
@@ -61,7 +61,7 @@ you rather than making you guess.
 
 ```js
 new Skewb().legalMoves()      // U R L B
-new Megaminx().legalMoves()   // A B C D E F G H I J K L
+new Megaminx().legalMoves()   // A A' A2 B B' B2 C C' C2 D D' D2 E E' E2 F F' F2 G G' G2 H H' H2 I I' I2 J J' J2 K K' K2 L L' L2 R++ R-- D++ D-- U U'
 new Dino().legalMoves()       // FRU FLU BRU BLU and four more
 ```
 

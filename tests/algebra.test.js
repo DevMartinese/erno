@@ -330,6 +330,61 @@ test("the algebra keeps its laws on the family this library is for", () => {
   }
 });
 
+test("the megaminx speaks WCA scramble notation", () => {
+  // R++ R-- D++ D-- U U': the notation every scramble sheet is written in.
+  // R and D are not face turns — each grips one face and rotates the other
+  // ELEVEN layers two clicks about its axis — so they cannot be spelled in
+  // face letters and had to be their own tokens. The letter moves survive
+  // untouched: 'D' alone is still the letter-D face.
+  const total = new Megaminx().pieces.length;
+  const layer = new Megaminx()
+    .getPieces({ turn: { move: "H", progress: 0.1 } })
+    .filter((x) => x.moving).length;
+  const big = new Megaminx()
+    .getPieces({ turn: { move: "R++", progress: 0.1 } })
+    .filter((x) => x.moving).length;
+  assertEqual(big, total - layer, "R++ moves everything but the grip layer");
+
+  for (const [seq, n] of [["R++", 5], ["D++", 5], ["U", 5]]) {
+    const p = new Megaminx();
+    for (let i = 0; i < n; i++) p.move(seq);
+    assert(p.isSolved(), `${seq} five times over is not the identity`);
+  }
+  const back = new Megaminx();
+  back.move("R++ R-- D++ D-- U U'");
+  assert(back.isSolved(), "each move against its inverse");
+
+  // D++ spins everything about the vertical, so the face it grips - the
+  // top - stays put; R++ grips elsewhere and carries the top along.
+  const still = new Megaminx();
+  const crown = (q) => q.getState().slice(0, 11);
+  const rest = crown(still);
+  still.move("D++");
+  assertEqual(crown(still), rest, "D++ leaves the top face alone");
+
+  // The spelling is its own inverse pair, and the algebra rides on it.
+  assertEqual(Twisty.inverse("R++"), "R--");
+  assertEqual(expand("[R++, D++]"), "R++ D++ R-- D--");
+  const comm = new Megaminx();
+  comm.move("[R++, D++] [D++, R++]");
+  assert(comm.isSolved(), "the commutator law holds on the WCA moves");
+
+  // A WCA scramble sheet: lines of ten alternating R/D closed by U or U',
+  // and its inverse restores. The order of (R++ D++) is 5130 - which is
+  // exactly the kind of number the old counted-with-a-cap order returned
+  // null for, and the algebraic order handles without noticing.
+  const p = new Megaminx();
+  const seq = p.scramble();
+  assert(/^([RD][+-]{2} ){10}U'?( ([RD][+-]{2} ){10}U'?)*$/.test(seq), seq.slice(0, 44));
+  p.move(Twisty.inverse(seq));
+  assert(p.isSolved(), "a WCA scramble inverts exactly");
+  assertEqual(new Megaminx().effectOf("R++ D++").order, 5130);
+
+  // and the kilominx keeps its letters: WCA notation is the megaminx's
+  const kilo = new Kilominx();
+  assert(!kilo.vocabulary().includes("R++"), "kilominx has no WCA tokens");
+});
+
 test("parse hands back a tree, not just a string", () => {
   const tree = parse("[R, U]2");
   assertEqual(tree.type, "seq");

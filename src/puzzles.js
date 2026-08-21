@@ -403,6 +403,39 @@ function buildMinxDef(name, reach, scrambleLen) {
   for (const f of solid)
     moves[f.letter] = { axis: f.normal, angle: (-2 * Math.PI) / 5, min: depth + 1e-3 };
 
+  // ── WCA scramble notation, on the megaminx only ───────────────────────
+  //
+  // The notation every scramble sheet is written in: R++ R-- D++ D-- U U'.
+  // R and D are not face turns. Each one grips a single face and rotates
+  // the OTHER ELEVEN LAYERS two clicks about that face's axis, which is
+  // how a scrambler reaches the whole puzzle with two grips: the engine's
+  // half-space selection says that directly, as everything past the grip
+  // face's own cut, seen from the other side.
+  //
+  // The convention, since the letters had to land somewhere: U is the top
+  // face as the puzzle is drawn (our A), the face D±± holds still while
+  // the rest spins about the vertical; R±± holds the upper-left face (our
+  // H) and rolls the rest to the right, the way a right hand does it. A
+  // click is 72°; ++ is two clicks clockwise as seen from the moving
+  // side, -- the other way. The letter moves stay exactly what they were:
+  // 'D' alone is still the letter-D face, only 'D++'/'D--' are WCA.
+  const wca = name === "megaminx";
+  const up = solid.find((f) => f.letter === "A");
+  const grip = solid.find((f) => f.letter === "H");
+  const wcaMove = (fixed, clicks) => ({
+    axis: fixed.normal.map((v) => -v),
+    angle: ((-2 * Math.PI) / 5) * clicks,
+    min: -(depth + 1e-3),
+  });
+  const WCA_RE = /^(R|D)(\+\+|--)$/;
+  const parseWca = (token) => {
+    if (token === "U" || token === "U'")
+      return { ...moves.A, angle: moves.A.angle * (token === "U" ? 1 : -1) };
+    const m = WCA_RE.exec(token);
+    if (!m) return null;
+    return wcaMove(m[1] === "D" ? up : grip, m[2] === "++" ? 2 : -2);
+  };
+
   const faceSortDirs = {};
   const colors = {};
   solid.forEach((f, i) => {
@@ -416,11 +449,41 @@ function buildMinxDef(name, reach, scrambleLen) {
     solid: solid.map(({ letter, pts }) => ({ letter, pts })),
     cuts,
     moves,
+    tokens: [
+      ...letters.flatMap((l) => ["", "'", "2"].map((x) => l + x)),
+      ...(wca ? ["R++", "R--", "D++", "D--", "U", "U'"] : []),
+    ],
+    ...(wca
+      ? {
+          parseMove(token) {
+            const w = parseWca(token);
+            if (w) return w;
+            const m = /^([A-L])(\d*)('?)$/.exec(token);
+            const spec = m && moves[m[1]];
+            if (!spec) throw new Error(`erno: bad ${name} move '${token}'`);
+            const times = (m[2] ? parseInt(m[2], 10) : 1) * (m[3] ? -1 : 1);
+            return { ...spec, angle: spec.angle * times };
+          },
+        }
+      : {}),
     faceOrder: letters,
     faceSortDirs,
     colors,
-    scramble: (rand, length) =>
-      pickScramble(rand, letters, ["", "'"], length || scrambleLen).join(" "),
+    scramble: wca
+      ? (rand, length) => {
+          // The WCA sheet: lines of ten R/D moves, alternating, each ++ or
+          // -- at random, closed by a U or U'. Seventy-seven moves flat.
+          const lines = Math.max(1, Math.round((length || 77) / 11));
+          const out = [];
+          for (let l = 0; l < lines; l++) {
+            for (let i = 0; i < 10; i++)
+              out.push((i % 2 ? "D" : "R") + (rand() < 0.5 ? "++" : "--"));
+            out.push(rand() < 0.5 ? "U" : "U'");
+          }
+          return out.join(" ");
+        }
+      : (rand, length) =>
+          pickScramble(rand, letters, ["", "'"], length || scrambleLen).join(" "),
   };
 }
 

@@ -29,7 +29,7 @@
    ───────────────────────────────────────────────────────────────────── */
 
 /** A move token: letters, an optional leading count, then primes/doubles. */
-const TOKEN = /^\d*[A-Za-z]+[\d']*/;
+const TOKEN = /^\d*[A-Za-z]+(?:\+\+|--)?[\d']*/;
 
 /**
  * Parse a sequence into a tree.
@@ -146,6 +146,10 @@ function invertTokens(tokens) {
       // [U2, R] followed by [R, U2] came back not solved — a commutator law
       // broken. X2' is the inverse of X2 everywhere; on a cube the two are
       // the same rotation, so nothing there changes but the spelling.
+      // WCA megaminx spelling: ++ and -- are each other's inverses, two
+      // clicks one way against two the other, and neither takes a prime.
+      if (t.endsWith("++")) return t.slice(0, -2) + "--";
+      if (t.endsWith("--")) return t.slice(0, -2) + "++";
       return t.endsWith("'") ? t.slice(0, -1) : `${t}'`;
     });
 }

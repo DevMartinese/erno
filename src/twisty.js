@@ -134,6 +134,10 @@ export function inverseSequence(sequence) {
       // [U2, R] followed by [R, U2] came back not solved — a commutator law
       // broken. X2' is the inverse of X2 everywhere; on a cube the two are
       // the same rotation, so nothing there changes but the spelling.
+      // WCA megaminx spelling: ++ and -- are each other's inverses, two
+      // clicks one way against two the other, and neither takes a prime.
+      if (tok.endsWith("++")) return tok.slice(0, -2) + "--";
+      if (tok.endsWith("--")) return tok.slice(0, -2) + "++";
       return tok.endsWith("'") ? tok.slice(0, -1) : tok + "'";
     })
     .join(" ");

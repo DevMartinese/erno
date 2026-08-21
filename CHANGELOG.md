@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.7 (2026-08-21)
+
+- The Megaminx reads WCA scramble notation: `R++ R-- D++ D-- U U'`. R and
+  D are not face turns — each grips one face and rotates the other eleven
+  layers two clicks about its axis — so they are their own tokens, and the
+  letter moves survive untouched: `D` alone is still the letter-D face.
+  `scramble()` emits the WCA sheet (lines of ten alternating R/D closed by
+  U or U'), inversion knows that `++` and `--` are each other's inverses,
+  and the algebra rides on top: `[R++, D++]` expands, cancels against its
+  reverse, and `effectOf` reports the order of `(R++ D++)` as 5130 —
+  exactly the kind of number the old counted-with-a-cap order returned
+  null for. The Kilominx keeps its letters.
+
 ## 0.2.6 (2026-08-21)
 
 - The renderer and permutation contracts are typed for real. `getPieces()`

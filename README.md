@@ -263,6 +263,7 @@ new Mirror().move("R U2 F' D")   // shape-shifts like the real thing
 new Void().move("M E' S2")
 new Tetris().scramble()          // solid-colored Tetrimino cubies
 new Megaminx().move("A C' F")    // a dodecahedron: faces are lettered A–L
+new Megaminx().move("R++ D-- U'") // and it reads WCA scramble notation
 ```
 
 The bigger siblings come along too: `MasterSkewb`, `MasterPyraminx`,
