@@ -65,6 +65,63 @@ Internally every move is a permutation of facelet indices, derived once from
 exact integer 3D rotations and cached, so applying a move is a single array
 shuffle.
 
+## The algebra
+
+`move()` takes plain notation, and it takes the algebra cubers already write:
+
+```js
+cube.move("[R, U]")        // a commutator:  R U R' U'
+cube.move("[R: U]")        // a conjugate:   R U R'
+cube.move("(R U)105")      // 210 moves, and it comes back solved
+cube.move("[R: [U, D]]")   // they nest
+```
+
+`(A)n` repeats, `'` inverts a move or a whole group, `[A, B]` is a
+commutator and `[A: B]` a conjugate. Nothing else. No puzzle's notation uses
+brackets or parentheses, so the two can never be confused, and every puzzle
+takes it: a Megaminx `[A, C]2`, a Siamese `[AD, AL]2`.
+
+It compresses because understanding compresses. `(R U)105` is eight
+characters and two hundred and ten moves, and it is eight characters only
+if you know that `R U` has order 105.
+
+### Reading a sequence
+
+Running a sequence tells you where the puzzle ended up. `effectOf` tells you
+what the sequence *is*:
+
+```js
+cube.effectOf("[R U' R', D]", { order: true })
+// {
+//   sequence: "R U' R' D R U R' D'",
+//   moves: 8,
+//   cycles: [ [ [-1,-1,1], [-1,1,1], [1,-1,1] ] ],   // one three-cycle
+//   turnedInPlace: [],
+//   moved: 3,
+//   order: 3,
+// }
+```
+
+The cycles are over positions, the way a solver reads a puzzle: whatever is
+in this slot goes to that one. A piece that comes home but turned is not in
+a cycle, so it is listed apart; that is a twisted corner or a flipped edge.
+
+It is the quickest way to see why the two brackets are worth teaching:
+
+| sequence | what it is |
+|---|---|
+| `R` | two four-cycles, one centre turned, order 4 |
+| `[R, U]` | two swaps and a three-cycle, order 6 |
+| `[R U' R', D]` | one three-cycle, three pieces, order 3 |
+| `[R: [U, D]]` | nothing at all, because U and D commute |
+| `U2 D2 F2 B2 L2 R2` | six swaps, six centres turned, order 2 |
+
+That last-but-one is the point. Six moves that do nothing is not something a
+list of moves will ever tell you, and it is obvious the moment you know a
+commutator only keeps what its two halves disagree about.
+
+The puzzle is left exactly as it was found.
+
 ## State
 
 State is a facelet string in URFDLB face order, row-major per face, one letter

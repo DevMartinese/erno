@@ -23,6 +23,7 @@
  * uniform 3×3 grid while the drawn blocks are uneven.
  */
 
+import { expand, isAlgebra } from "./algebra.js";
 import {
   makeProjector,
   buildSvgAttributes,
@@ -1170,6 +1171,88 @@ export class Twisty {
     return this.orientations().includes(target);
   }
 
+  /**
+   * What a sequence DOES, as a permutation.
+   *
+   * Running a sequence tells you where the puzzle ended up. This tells you
+   * what the sequence *is*, which is the thing worth learning: a commutator
+   * is a three-cycle, a T-perm swaps two pairs, and `[R: [U, D]]` does
+   * nothing at all because U and D commute. None of that is visible in a
+   * list of moves and all of it is visible here.
+   *
+   * The cycles are over POSITIONS, which is how a solver reads a puzzle:
+   * whatever is in this slot goes to that one. A piece that comes home but
+   * turned is not in a cycle at all, so it is reported separately; that is a
+   * twisted corner or a flipped edge.
+   *
+   * The puzzle is left exactly as it was found.
+   *
+   * @param {string} sequence - plain notation or the algebra
+   * @param {Object} [options]
+   * @param {boolean} [options.order] - also count the repeats that return it
+   * @returns {Object} { sequence, moves, cycles, turnedInPlace, moved, order }
+   */
+  effectOf(sequence, options = {}) {
+    const flat = isAlgebra(sequence) ? expand(sequence) : String(sequence);
+    const home = this.getPosition();
+    // A copy, not the array: move() pushes into the one it is handed, so
+    // keeping the reference would hand back the record of this very look.
+    const history = this.history.slice();
+    const key = (v) => v.map((n) => Math.round(n * 1e4)).join(",");
+
+    const before = this.pieces.map((_, i) => key(this._slotOf(i)));
+    const spin = this._rot.map((m) => m.flat().map((v) => Math.round(v * 1e6)).join(","));
+    this.move(flat);
+    const after = this.pieces.map((_, i) => key(this._slotOf(i)));
+    const spun = this._rot.map((m) => m.flat().map((v) => Math.round(v * 1e6)).join(","));
+
+    const goesTo = new Map();
+    before.forEach((from, i) => goesTo.set(from, after[i]));
+    const seen = new Set();
+    const cycles = [];
+    for (const start of goesTo.keys()) {
+      if (seen.has(start)) continue;
+      const cycle = [];
+      let at = start;
+      do {
+        seen.add(at);
+        cycle.push(at.split(",").map((n) => Number(n) / 1e4));
+        at = goesTo.get(at);
+      } while (at && at !== start && !seen.has(at));
+      if (cycle.length > 1) cycles.push(cycle);
+    }
+    const turnedInPlace = this.pieces
+      .map((_, i) => i)
+      .filter((i) => before[i] === after[i] && spin[i] !== spun[i]);
+
+    let order;
+    if (options.order) {
+      // How many repeats bring it home. Every sequence has a finite order,
+      // since the group is finite, but the cap keeps a caller who asked
+      // about something enormous from waiting on it.
+      this.setPosition(home);
+      order = null;
+      for (let n = 1; n <= 5000; n++) {
+        this.move(flat);
+        if (this.getPosition() === home) {
+          order = n;
+          break;
+        }
+      }
+    }
+
+    this.setPosition(home);
+    this.history = history;
+    return {
+      sequence: flat,
+      moves: tokenize(flat).length,
+      cycles,
+      turnedInPlace,
+      moved: cycles.reduce((n, c) => n + c.length, 0),
+      ...(options.order ? { order } : {}),
+    };
+  }
+
   // ── Moves ────────────────────────────────────────────────────────────────
 
   /** Parse a single move token into {axis, angle, min, max}. */
@@ -1279,7 +1362,12 @@ export class Twisty {
    * @returns {Twisty} this (chainable)
    */
   move(sequence) {
-    for (const token of tokenize(sequence)) {
+    // The algebra is expansion, nothing more: what reaches the mechanism is
+    // the same tokens either way, so every renderer and every puzzle gets it
+    // without being told. Brackets and parentheses appear in no puzzle's
+    // notation, so the two can never be confused.
+    const flat = isAlgebra(sequence) ? expand(sequence) : sequence;
+    for (const token of tokenize(flat)) {
       const spec = this.parseMove(token);
       if (this._blocking && !this._turnFits(spec))
         throw new Error(

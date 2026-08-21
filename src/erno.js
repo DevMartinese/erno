@@ -617,6 +617,7 @@ export class Erno {
 
 // The generic piece engine and the classic variants share this entry point.
 export { Twisty } from "./twisty.js";
+export { expand, parse, isAlgebra } from "./algebra.js";
 export {
   Skewb,
   Pyraminx,
