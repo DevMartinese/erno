@@ -147,11 +147,16 @@ function halfWidth(kind, size) {
 
 function build(source, kind, size) {
   const n = halfWidth(kind, size);
+  game.usesPalette = false;
   const f = compile(source, n);
   const options = {
     paint: ({ slot: [x, y, z] }) => {
       const v = f(x, y, z, n);
+      // Remembered so the generated code can carry the palette only when the
+      // function actually reaches for it. An import of something unused is
+      // the first sign an example was never run.
       if (typeof v === "string") return v;
+      game.usesPalette = true;
       const i = Math.floor(Number(v)) || 0;
       return PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length];
     },
@@ -229,6 +234,8 @@ const game = {
   source: PRESETS.Bands,
   kind: "cube",
   challenge: null, // index into CHALLENGES, or null for free play
+  usesPalette: false, // did the reader's function return a number?
+  scramble: "", // the walk that dealt this board, kept so the code can say it
   size: 3,
   target: null, // the pattern to reach
   targetPos: null, // and the position that wears it
@@ -253,6 +260,7 @@ function refreshWrite() {
   game.source = code.value;
   draw($("write-canvas"), puzzle);
   renderChallenge(puzzle);
+  renderCode();
 
   const depth = scrambleDepth(puzzle);
   const stickers = puzzle.getPattern().length;
@@ -330,16 +338,25 @@ function renderChallenge(puzzle) {
 
 function startGame(scramble) {
   game.puzzle = build(game.source, game.kind, game.size);
+  game.scramble = "";
   if (scramble) {
     // Walk the scramble one move at a time out of what is legal from here.
     // On a plain cube every move always is; the moment this example is
     // pointed at a bandaged or welded puzzle it stops being true, and asking
     // is the only thing that keeps working.
+    const walk = [];
     for (let k = 0; k < 18; k++) {
       const open = game.puzzle.legalMoves();
       if (!open.length) break;
-      game.puzzle.move(open[Math.floor(Math.random() * open.length)]);
+      const token = open[Math.floor(Math.random() * open.length)];
+      game.puzzle.move(token);
+      walk.push(token);
     }
+    // Kept, because the generated code claims to hand you the board you are
+    // looking at and could not: the scramble is deliberately absent from
+    // history, being the board rather than anything the player did, so
+    // without this the snippet reproduced a solved cube and called it yours.
+    game.scramble = walk.join(" ");
     // A scramble that happens to land on the pattern is not a scramble
     if (game.puzzle.matches(game.target)) return startGame(true);
     // The scramble is the board, not the player's doing, so the move count
@@ -364,6 +381,7 @@ function renderGame() {
   // What a sequence does depends on where the puzzle is standing, which on
   // a puzzle that blocks is not a formality, so the readout follows it.
   if ($("seq-input")) renderSequence();
+  renderCode();
 }
 
 function renderMoves() {
@@ -426,6 +444,139 @@ function undo() {
   renderGame();
 }
 
+// ── The code for what you are looking at ────────────────────────────────────
+//
+// Not an example written once and left to rot beside the thing it claims to
+// describe. It is generated from the same state the page is drawing from, so
+// it cannot drift: change the puzzle and the constructor changes, weld two
+// bodies and the bodies appear, turn a face and the move shows up.
+//
+// It is meant to run. Paste it into a file next to erno.js and you get the
+// puzzle on screen, in the position on screen. That is the claim, and there
+// is a test that pastes it into node and checks.
+
+/** Print a value the way you would write it. */
+const lit = (v) =>
+  Array.isArray(v) ? `[${v.join(", ")}]` : typeof v === "string" ? JSON.stringify(v) : String(v);
+
+/** How this puzzle is built, in the words you would use to build it. */
+function constructorFor() {
+  const kind = game.kind;
+  const body = game.source.trim().replace(/\n/g, "\n    ");
+  const paint = game.usesPalette
+    ? `  paint: ({ slot: [x, y, z] }) => colour((() => {\n    ${body}\n  })()),`
+    : `  paint: ({ slot: [x, y, z] }) => {\n    ${body}\n  },`;
+  // Everything the page passes, including the one it would rather not think
+  // about: the snippet left stickerInset out and drew a puzzle that was the
+  // right puzzle and not the right picture. An example is not honest at
+  // "close enough" when it claims to be what you are looking at.
+  const inset = "  stickerInset: 0.1,";
+  if (kind === "cube")
+    return { name: "Cube", args: [`  size: ${game.size},`, paint, inset] };
+  if (kind === "cuboid")
+    return { name: "Cuboid", args: [`  size: ${lit([3, 3, game.size])},`, paint, inset] };
+  if (kind === "void") return { name: "Void", args: [paint, inset] };
+  if (kind === "siamese")
+    return {
+      name: "Siamese",
+      args: [paint, inset],
+      // Two 3×3s sharing a slab. The default offset is the interesting one:
+      // where the second cube sits decides how much of either can still turn.
+      note: "two cubes sharing a slab; most turns are refused, and which ones changes as it moves",
+    };
+  return {
+    name: "Fused",
+    args: [
+      "  bodies: [",
+      "    { size: [3, 3, 3], at: [0, 0, 0] },",
+      "    { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },",
+      "  ],",
+      paint,
+      inset,
+    ],
+    note: "any number of bodies on one lattice, welded where they meet",
+  };
+}
+
+function renderCode() {
+  const host = $("code-out");
+  if (!host) return;
+  const ctor = constructorFor();
+
+  // Only what is actually used, and everything that IS. The snippet said
+  // `y > 0 ? U : D` while importing neither U nor D, so it read well and
+  // would not have run: those letters are handed to the box by this page,
+  // and a reader pasting it elsewhere has no such thing. They come from the
+  // library, so the snippet says where.
+  const names = [ctor.name, "SCHEMES"];
+  const lines = [];
+  lines.push(`import { ${names.join(", ")} } from "erno.js";`, "");
+  lines.push("// a cube names its six colours after its faces");
+  lines.push("const { U, R, F, D, L, B } = SCHEMES.classic;");
+  // The box hands your function Math unpacked, so `hypot` works there and
+  // did not in what this printed: six of seven snippets died on exactly
+  // that, and only the one that happened not to use any of it survived.
+  // Named one by one rather than dumped, so the line says what is used.
+  const MATHS = "abs floor ceil round min max hypot sign sqrt sin cos atan2 PI".split(" ");
+  const used = MATHS.filter((m) => new RegExp(`\\b${m}\\b`).test(game.source));
+  if (used.length) lines.push(`const { ${used.join(", ")} } = Math;`);
+  lines.push(`const n = ${halfWidth(game.kind, game.size)};   // how far the lattice reaches`);
+  if (game.usesPalette) {
+    lines.push("");
+    lines.push("// and numbers reach a wider palette than six faces can make");
+    lines.push(`const PALETTE = ${JSON.stringify(PALETTE)};`);
+    lines.push("const colour = (v) =>");
+    lines.push('  typeof v === "string" ? v : PALETTE[((Math.floor(v) % 8) + 8) % 8];');
+  }
+  lines.push("");
+  lines.push(`const puzzle = new ${ctor.name}({`);
+  for (const a of ctor.args) lines.push(a);
+  lines.push("});");
+
+  if (ctor.note) lines.push(`// ${ctor.note}`);
+
+  // The turns. history is what the player has done since the board was set,
+  // in the puzzle's own notation, which is the same string move() takes.
+  const done = game.puzzle ? game.puzzle.history : [];
+  lines.push("");
+  if (game.scramble) {
+    lines.push("// the walk this board was dealt");
+    lines.push(`puzzle.move(${lit(game.scramble)});`);
+  }
+  if (done.length) {
+    lines.push(game.scramble ? "// and what you have turned since" : "");
+    lines.push(`puzzle.move(${lit(done.join(" "))});`);
+  } else if (!game.scramble) {
+    lines.push(`// nothing turned yet. Every move it will take, from here:`);
+    const open = game.puzzle ? game.puzzle.legalMoves() : [];
+    const all = game.puzzle ? game.puzzle.vocabulary() : [];
+    lines.push(`// ${open.join(" ")}`);
+    if (open.length < all.length)
+      lines.push(`// and ${all.length - open.length} more it names but will not turn from here`);
+  }
+
+  // The sequence, if one is written, and what it is.
+  const typed = $("seq-input") ? $("seq-input").value.trim() : "";
+  if (typed) {
+    const read = readSequence(typed);
+    if (!read.error && !read.empty) {
+      const e = read.effect;
+      // Written, not run. Emitting it as a move made the snippet a liar:
+      // paste it and you would get a board a turn ahead of the one on
+      // screen. Commented, so it still shows what the notation is for, and
+      // pressing Run moves it up into the moves above where it belongs.
+      lines.push("");
+      lines.push("// written but not run yet:");
+      lines.push(`// puzzle.move(${lit(typed)});   // ${read.flat}`);
+      lines.push(`// ${e.cycles.length ? e.cycles.map((c) => `${c.length}-cycle`).join(" + ") : "nothing moves"}, order ${e.order}`);
+    }
+  }
+
+  lines.push("");
+  lines.push(`puzzle.toSVG({ fitSphere: true });`);
+  host.textContent = lines.join("\n");
+}
+
 // ── The sequence console ────────────────────────────────────────────────────
 //
 // The buttons turn one face. This turns a SENTENCE, in the notation cubers
@@ -470,6 +621,7 @@ function readSequence(text) {
 function renderSequence() {
   const read = readSequence($("seq-input").value);
   const out = $("seq-read");
+  renderCode();
   const run = $("seq-run");
   $("seq-input").toggleAttribute("data-bad", !!read.error);
   run.disabled = game.busy || !!read.error || !!read.empty;

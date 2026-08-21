@@ -300,3 +300,21 @@ body.example {
   outline: 2px solid var(--ok, #009b48);
   outline-offset: 3px;
 }
+
+
+/* ── The generated code ────────────────────────────────────────────────────
+   A plate whose demo half is text rather than a puzzle, so it does not get
+   the centring the canvases get: code reads from the top left corner. */
+.example-demo--code {
+  display: block;
+  padding: var(--space-5) var(--space-4);
+  overflow: auto;
+}
+.example-demo--code pre {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  white-space: pre;
+}

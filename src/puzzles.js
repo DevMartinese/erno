@@ -1164,7 +1164,11 @@ export class Fused extends Twisty {
     const key = bodies.map((b) => `${b.size}@${b.at}`).join("+");
     let def = _fusedDefs.get(key);
     if (!def) {
-      def = buildFusedDef(`fused-${key}`, bodies);
+      // Named "fused", not named after its key. The two were the same string
+      // and the key is a shape signature, so a reader who asked for a turn
+      // this puzzle will not make was told `bad fused-3,3,3a0,0,0+2,2,2a...
+      // move 'R'`. The Map already holds the key; the name is for people.
+      def = buildFusedDef("fused", bodies);
       _fusedDefs.set(key, def);
     }
     super(def, options);
