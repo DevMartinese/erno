@@ -1262,16 +1262,42 @@ export class Twisty {
       .map((_, i) => i)
       .filter((i) => before[i] === after[i] && spin[i] !== spun[i]);
 
-    let order;
-    if (options.order) {
-      // How many repeats bring it home. Every sequence has a finite order,
-      // since the group is finite, but the cap keeps a caller who asked
-      // about something enormous from waiting on it.
+    // How many repeats bring it home.
+    //
+    // Counted rather than computed, this was a loop that applied the
+    // sequence until the puzzle came back, capped at five thousand and
+    // returning null past it. That cap is not conservative, it is wrong for
+    // the interesting cases: orders grow as the lowest common multiple of
+    // the cycle lengths, so a Megaminx sequence with cycles of 7, 11 and 13
+    // has order a thousand and one before orientation is even counted, and
+    // it does not take much to pass five thousand.
+    //
+    // It does not have to be counted. A piece comes home when it is back in
+    // its slot AND back in its orientation. Its slot returns after L
+    // repeats, L being the length of its cycle. Its orientation returns
+    // after m more, m being the order of the rotation it has picked up going
+    // once round — which is why (R U) is 105 and not 105 times something:
+    // its pieces come round untwisted. Each cycle is therefore worth L·m,
+    // and the sequence's order is the lowest common multiple of those.
+    //
+    // Exact, no cap, and it costs one application of the sequence rather
+    // than as many as the answer.
+    let order = this._orderFrom(before, after, spin, spun);
+    if (order === null) {
+      // A shape mod can send a sticker somewhere that did not exist before,
+      // and then there is no permutation to read the answer off. Those get
+      // counted, the way everything used to be: they are cube mechanisms in
+      // odd shells, so the answer is small even when the shell is strange.
+      // Compared by STATE and not by position, which is both the right
+      // question — the order is how long until it looks solved — and the
+      // only one a shape mod answers: its geometry drifts by a hair every
+      // rotation, so an exact position never comes back and this used to
+      // run out its cap and report null on puzzles whose answer is 420.
       this.setPosition(home);
-      order = null;
+      const look = this.getState();
       for (let n = 1; n <= 5000; n++) {
         this.move(flat);
-        if (this.getPosition() === home) {
+        if (this.getState() === look) {
           order = n;
           break;
         }
@@ -1286,8 +1312,89 @@ export class Twisty {
       cycles,
       turnedInPlace,
       moved: cycles.reduce((n, c) => n + c.length, 0),
-      ...(options.order ? { order } : {}),
+      order,
     };
+  }
+
+  /**
+   * The order of one application, read off the permutation and the twists.
+   *
+   * `before`/`after` are slot keys per piece, `spin`/`spun` their rotation
+   * matrices, all as effectOf already has them. The rotation a piece picks
+   * up depends on the SLOT it sits in, not on which piece it is, so one
+   * application is enough to know what every repeat will do.
+   */
+  _orderFrom(before, after, spin, spun) {
+    const un = (t) => {
+      const n = t.split(",").map(Number);
+      return [n.slice(0, 3), n.slice(3, 6), n.slice(6, 9)].map((r) =>
+        r.map((v) => v / 1e6),
+      );
+    };
+    const turn = (M, v) => M.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+    const dir = (v) => v.map((x) => Math.round(x * 1e4)).join(",");
+
+    // Over STICKERS, not over pieces.
+    //
+    // A piece coming home is not the same as the puzzle looking solved, and
+    // the difference is not a detail: it is the difference between saying
+    // (R U) has order 420 and saying it has order 105, which is the number
+    // every cuber knows and the one this library's own notes quote.
+    //
+    // Two things go missing when you count pieces. A 3×3's centre turns a
+    // quarter and shows the same sticker, so that quarter is invisible. And
+    // a 4×4's four U centres are the same sticker four times, so cycling
+    // them is invisible too. Neither is a special case to patch; both are
+    // the same fact, that the state is a string of stickers and returns when
+    // the STRING does. So the permutation is taken over sticker places, and
+    // a cycle is finished not when it closes but when the letters around it
+    // repeat, which for the four U centres is after one step.
+    const from = [];
+    for (let i = 0; i < before.length; i++) {
+      const piece = this.pieces[i];
+      if (!piece || !piece.faces) continue;
+      const held = un(spin[i]);
+      const moved = un(spun[i]);
+      for (const f of piece.faces) {
+        if (!f.letter || !f.normal) continue;
+        from.push({
+          at: `${before[i]}|${dir(turn(held, f.normal))}`,
+          to: `${after[i]}|${dir(turn(moved, f.normal))}`,
+          letter: f.letter,
+        });
+      }
+    }
+    const index = new Map();
+    from.forEach((e, k) => index.set(e.at, k));
+    const next = from.map((e) => index.get(e.to));
+    // A shape mod can send a sticker off the grid, and then this is not a
+    // permutation of the same places. Nothing sensible to return: say so.
+    if (next.some((k) => k === undefined)) return null;
+
+    const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+    const seen = new Set();
+    let order = 1;
+    for (let start = 0; start < next.length; start++) {
+      if (seen.has(start)) continue;
+      const letters = [];
+      let at = start;
+      do {
+        seen.add(at);
+        letters.push(from[at].letter);
+        at = next[at];
+      } while (at !== start);
+      // the smallest number of steps after which the letters read the same
+      let period = letters.length;
+      for (let p = 1; p < letters.length; p++) {
+        if (letters.length % p) continue;
+        if (letters.every((l, k) => l === letters[(k + p) % letters.length])) {
+          period = p;
+          break;
+        }
+      }
+      order = (order * period) / gcd(order, period);
+    }
+    return order;
   }
 
   // ── Moves ────────────────────────────────────────────────────────────────

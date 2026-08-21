@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Megaminx, Siamese, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Fisher, Megaminx, Siamese, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -137,6 +137,36 @@ test("effectOf reads a sequence as a permutation", () => {
   const checker = p.effectOf("U2 D2 F2 B2 L2 R2", { order: true });
   assertEqual(shape(checker), "2+2+2+2+2+2", "the checkerboard swaps six pairs");
   assertEqual(checker.order, 2);
+});
+
+test("the order is how long until it LOOKS solved", () => {
+  // 105 is the number this file's own notes quote and every cuber knows,
+  // and it is only 105 if you do not count what cannot be seen. Counting
+  // pieces gives 420: the centres come back turned a quarter, which shows
+  // on a picture cube and on nothing else.
+  assertEqual(new Cube({ size: 3 }).effectOf("R U").order, 105, "(R U) is 105");
+
+  // And on a 4×4 it is still 105, for the second reason: the four U centres
+  // are the same sticker four times, so cycling them is invisible too.
+  assertEqual(new Cube({ size: 4 }).effectOf("R U").order, 105, "and on a 4×4");
+  assertEqual(new Cube({ size: 5 }).effectOf("R U").order, 105, "and on a 5×5");
+
+  // Checked against the only authority there is: repeat it and look.
+  for (const seq of ["R", "R U", "R U R' U R U2 R'", "[R, U]", "R U2 D' B D'"]) {
+    const said = new Cube({ size: 3 }).effectOf(seq).order;
+    const p = new Cube({ size: 3 });
+    const home = p.getState();
+    let saw = null;
+    for (let n = 1; n <= 2000; n++) {
+      p.move(seq);
+      if (p.getState() === home) { saw = n; break; }
+    }
+    assertEqual(said, saw, `"${seq}" says ${said}, repeating it gives ${saw}`);
+  }
+
+  // A shape mod has no such permutation to read, so it is counted instead,
+  // and must still come out right.
+  assertEqual(new Fisher().effectOf("R U").order, 420, "the Fisher too");
 });
 
 test("looking at a sequence does not move the puzzle", () => {

@@ -91,7 +91,7 @@ Running a sequence tells you where the puzzle ended up. `effectOf` tells you
 what the sequence *is*:
 
 ```js
-cube.effectOf("[R U' R', D]", { order: true })
+cube.effectOf("[R U' R', D]")
 // {
 //   sequence: "R U' R' D R U R' D'",
 //   moves: 8,
