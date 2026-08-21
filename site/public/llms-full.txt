@@ -186,6 +186,14 @@ Sibling of heerich.js by meodai (voxels → SVG),
 sharing its philosophy: a small dependency-free core, declarative API, and
 crisp vector output with per-sticker data attributes.
 
+The twenty-nine are not all equal citizens. **Cubes, cuboids, and cubes
+fused into one** (Siamese, Fused) are the priority: they are what the
+algebra, the permutation tools and the pattern game are aimed at, what a
+new feature is proven on first, and what a design decision favours when it
+has to choose. The minxes, the pyramids, the corner turners and the shape
+mods are real, tested, and kept working. They are just not who this
+library is for first.
+
 Named after [Ernő Rubik](https://en.wikipedia.org/wiki/Ern%C5%91_Rubik).
 
 ## Install
