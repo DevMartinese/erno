@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.3 (2026-08-21)
+
+- Welded bodies turn their middle slices (issue #2). `Fused` and `Siamese`
+  only registered face turns, so the middle layers of each body could never
+  move: 12 legal moves at rest, and no amount of play grew them. Each body
+  now names its slices where a middle exists (`AE`, `AM'`, `BS2`; even-sized
+  axes get no token rather than one that always refuses), and the blocking
+  law rules on them like on everything else: E and M clear the default weld
+  and turn, S holds the neighbour's own slab and refuses. On the default
+  Siamese that is 12 legal moves grown to 24, and on a staircase of three
+  the law found `BS2`, a half-turn symmetry one plane deeper than the ones
+  it already knew. Slices ride scrambles, inverses, the algebra and
+  `effectOf` like any move.
+
 ## 0.2.2 (2026-08-21)
 
 - Says who this library is for first, on the page where a reader decides:

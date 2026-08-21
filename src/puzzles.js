@@ -21,6 +21,7 @@ import {
   CUBE_COLORS,
   FACES,
   FACE_AXIS,
+  SLICE_AXIS,
   parseCubeMove,
   parseBoxMove,
   rotationMatrix,
@@ -1060,7 +1061,7 @@ export const DOMINO_PRINT = {
 // Bodies must share one unit lattice; otherwise a body's wall would slice its
 // neighbour's cubies in half, and the result would be a shape, not a puzzle.
 const BODY_LETTERS = "ABCDEFGH";
-const FUSED_RE = /^([A-H])([URFDLB])(\d*)('?)$/;
+const FUSED_RE = /^([A-H])([URFDLBEMS])(\d*)('?)$/;
 
 function buildFusedDef(name, bodies) {
   bodies.forEach((b, i) => {
@@ -1107,6 +1108,17 @@ function buildFusedDef(name, bodies) {
   const tokens = [];
   for (const L of letters)
     for (const f of FACES) for (const s of ["", "'", "2"]) tokens.push(L + f + s);
+  // The middle slices, per body, where a middle exists. A welded body cannot
+  // rotate whole, so its slices are not composable from face turns the way a
+  // cube's are: E is D's layerless remainder only if U and D both turn, and
+  // on a welded body they mostly do not. The slice is the primitive here.
+  // Even-sized axes have no middle layer, so they get no token rather than a
+  // token that always refuses.
+  letters.split("").forEach((L, bi) => {
+    for (const [sl, [ax]] of Object.entries(SLICE_AXIS))
+      if (bodies[bi].size[ax] >= 3 && bodies[bi].size[ax] % 2 === 1)
+        for (const s of ["", "'", "2"]) tokens.push(L + sl + s);
+  });
 
   return {
     name,
@@ -1123,11 +1135,34 @@ function buildFusedDef(name, bodies) {
         throw new Error(
           `erno: bad ${name} move '${token}': bodies are ${letters.split("").join("/")}, as in ${letters[0]}U or ${letters[0]}R2`,
         );
-      const [ax, dir] = FACE_AXIS[m[2]];
       const count = (m[3] ? parseInt(m[3], 10) : 1) * (m[4] ? -1 : 1);
+      const body = bodies[bi];
+      if (SLICE_AXIS[m[2]]) {
+        // A middle slice: the band half a cubie either side of the body's
+        // own mid-plane, following the cube's slice conventions (M with L,
+        // E with D, S with F). The band is cut across the whole assembly,
+        // like every turn here, and whether what it catches can actually
+        // turn is the blocking law's ruling, not this function's: an AE
+        // clears the weld and turns, an AS drags the neighbour's middle
+        // slab along and is refused.
+        const [ax, dir] = SLICE_AXIS[m[2]];
+        if (body.size[ax] < 3 || body.size[ax] % 2 === 0)
+          throw new Error(
+            `erno: body ${m[1]} is ${body.size[ax]} layers deep on that axis, so it has no middle layer for ${m[2]}`,
+          );
+        const u = [0, 0, 0];
+        u[ax] = dir;
+        return {
+          axis: u,
+          angle: -(Math.PI / 2) * count,
+          min: dir * body.at[ax] - 0.5,
+          max: dir * body.at[ax] + 0.5,
+          center: body.at,
+        };
+      }
+      const [ax, dir] = FACE_AXIS[m[2]];
       const u = [0, 0, 0];
       u[ax] = dir;
-      const body = bodies[bi];
       // A turn cleaves the whole assembly at the plane one layer in from
       // that face and spins everything beyond it about the body's own axis.
       return {
@@ -1155,7 +1190,8 @@ const _fusedDefs = new Map();
  *   each body's layer counts and the position of its centre, in cubies. The
  *   bodies must share a unit lattice.
  *
- * Notation prefixes the face with the body's letter: `AU`, `BR'`, `AF2`.
+ * Notation prefixes the face with the body's letter: `AU`, `BR'`, `AF2`,
+ * and each body's middle slices where a middle exists: `AE`, `AM'`, `BS2`.
  * Turns that would tear the weld throw; `legalMoves()` lists what is left.
  */
 export class Fused extends Twisty {

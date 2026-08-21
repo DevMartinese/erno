@@ -70,6 +70,61 @@ function assertEqual(a, b, msg) {
 
 // ── Generated geometry ──────────────────────────────────────────────────────
 
+test("a welded body's middle slices turn, where the weld allows", () => {
+  // Issue #2. The welded defs only registered face turns, so the middle
+  // layers of each body could never move: 12 legal moves at rest, and a
+  // union over long random walks never grew past those 12. On the real
+  // object the weld occupies only the shared column, and a middle slice
+  // that clears it is mechanically free. E and M clear it on the default
+  // geometry; S drags the neighbour's own middle slab along, so the
+  // blocking law refuses it, which is the same ruling the weld makes.
+  for (const make of [() => new Siamese(), () => new Fused()]) {
+    const p = make();
+    for (const tok of ["AE", "AM", "BE", "BM"])
+      assert(p.legalMoves().includes(tok), `${tok} should be free`);
+    assert(!p.canMove("AS"), "AS drags the neighbour and must refuse");
+    assert(!p.canMove("BS"), "BS likewise");
+
+    // the slice grabs exactly its own band: 4 edges and 4 centres, since
+    // these are hollow bodies with no core piece
+    const moving = make()
+      .getPieces({ turn: { move: "AE", progress: 0.1 } })
+      .filter((x) => x.moving);
+    assertEqual(moving.length, 8, "AE moves its 8 pieces");
+
+    // and the whole language sits on top of them
+    const q = make();
+    q.move("[AE, AM] [AM, AE]");
+    assert(q.isSolved(), "slice commutators cancel");
+    assertEqual(make().effectOf("AE").order, 4, "AE has order 4");
+  }
+
+  // a body with no middle layer says so instead of guessing
+  const flat = new Fused({
+    bodies: [
+      { size: [3, 3, 3], at: [0, 0, 0] },
+      { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+    ],
+  });
+  assert(flat.vocabulary().includes("AE"), "the odd body offers its slices");
+  assert(!flat.vocabulary().includes("BE"), "the even body offers none");
+  let said = "";
+  try {
+    flat.parseMove("BE");
+  } catch (e) {
+    said = e.message;
+  }
+  assert(/no middle layer/.test(said), `BE should explain itself: ${said}`);
+
+  // scramble now walks the richer set and still inverts exactly
+  for (let i = 0; i < 10; i++) {
+    const s = new Siamese();
+    const seq = s.scramble(25);
+    s.move(Twisty.inverse(seq));
+    assert(s.isSolved(), `scramble+inverse broke on: ${seq}`);
+  }
+});
+
 test("every puzzle can name its own moves", () => {
   // A page drawing a keypad needs the alphabet, not what is open right now,
   // and had been reading `def.tokens` for it — which is inside the puzzle
@@ -906,14 +961,16 @@ test("fusion welds two cubes into one body, seam and all", () => {
 test("the Siamese refuses exactly the turns its mechanism cannot make", () => {
   // The shared bar runs along z at the +x +y corner of cube A. Every turn
   // that would drag it away from cube B is impossible, which leaves each
-  // cube the two faces furthest from the weld — and nothing in the engine
-  // says so anywhere: it falls out of the layer having to come back to
-  // itself.
+  // cube the two faces furthest from the weld, and — since issue #2 gave
+  // welded bodies their middle slices — the E and M layers, which clear
+  // the bar for the same reason those faces do. S is absent: its band
+  // holds the bar itself. Nothing in the engine says any of this anywhere:
+  // it falls out of the layer having to come back to itself.
   const s = new Siamese();
   assertEqual(
     s.legalMoves().filter((t) => !/['2]/.test(t)).join(" "),
-    "AD AL BU BR",
-    "free faces",
+    "AD AL BU BR AM AE BM BE",
+    "free turns",
   );
   let threw = false;
   try {
@@ -982,10 +1039,26 @@ test("a chain of three keeps only the turns its symmetry allows", () => {
       ],
     });
   const p = make();
-  assertEqual(p.legalMoves().filter((t) => t[0] === "B").join(" "), "BF2 BB2", "B");
+  // BS2 joined BF2 and BB2 when the welded bodies gained their slices: the
+  // middle body's z-band spans the whole staircase exactly as its front
+  // and back slabs do, and the same half-turn symmetry carries it home.
+  // The law finding a symmetry one plane deeper than the one this test was
+  // written to celebrate is the test working, not failing.
+  assertEqual(
+    p.legalMoves().filter((t) => t[0] === "B" && !/[EM]/.test(t[1])).join(" "),
+    "BF2 BB2 BS2",
+    "B",
+  );
   assert(
-    !p.legalMoves().some((t) => t[0] === "B" && !t.endsWith("2")),
-    "B has no quarter turn left",
+    !p.legalMoves().some((t) => t[0] === "B" && /[URFDLB]/.test(t[1]) && !t.endsWith("2")),
+    "B has no quarter FACE turn left",
+  );
+  // Its middle slices are another matter: gripped at both corners, the
+  // middle cube still turns its own E and M freely, because those bands
+  // pass between the two welds without touching either.
+  assert(
+    ["BE", "BM"].every((t) => p.legalMoves().includes(t)),
+    "but its own middle slices are free",
   );
   const q = make();
   q.move("BF2");
