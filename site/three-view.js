@@ -200,13 +200,58 @@ function buildDecalGeometry(piece, atlas, lift) {
  * A view bound to one container. Call `show(puzzle, turn)` as often as you
  * like; it rebuilds only when it is handed a different puzzle.
  */
+/* ─────────────────────────────────────────────────────────────────────────
+   One context for the whole page.
+
+   A browser will not give you unlimited WebGL contexts. Chrome's ceiling is
+   sixteen, and when the seventeenth is asked for it does not refuse: it
+   force-loses the oldest, which is why a page of twenty-one demos showed the
+   broken-canvas face on the first few and drew the rest correctly. Measured
+   here rather than guessed: asking for twenty-one gave five losses.
+
+   So there is ONE renderer, shared, drawing off-screen, and each view owns a
+   plain 2D canvas that it copies the result into. A copy is not free, but it
+   is a blit of an image the GPU already has, and it buys a page that cannot
+   run out of the thing it was running out of, at any number of demos.
+
+   The renderer's canvas is grown to the largest view that has asked for it
+   and every view draws into its bottom-left corner, so switching between
+   demos of different sizes never reallocates the drawing buffer.
+   ───────────────────────────────────────────────────────────────────── */
+
+let shared = null;
+const views = new Set();
+
+function sharedRenderer() {
+  if (shared) return shared;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(1); // sizes are handed over in device pixels already
+  const canvas = renderer.domElement;
+
+  // A shared context can still be lost: a GPU reset, a driver update, a tab
+  // in the background for long enough. Losing it silently is what the broken
+  // face was; preventDefault asks for it back, and when it comes back every
+  // live view redraws what it was last showing. The geometry has to be built
+  // again because it lived in the context that went away.
+  canvas.addEventListener("webglcontextlost", (e) => e.preventDefault());
+  canvas.addEventListener("webglcontextrestored", () => {
+    for (const v of views) v.revive();
+  });
+
+  shared = { renderer, canvas, w: 0, h: 0 };
+  return shared;
+}
+
 export async function createThreeView(container, { background = "#f4efe7" } = {}) {
   await load();
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-  renderer.setClearColor(hex(background), 1);
-  renderer.domElement.style.cssText = "width:100%;height:100%;display:block";
+  const gl = sharedRenderer();
+  const clear = hex(background);
+
+  // What the page actually sees: an ordinary 2D canvas, holding a copy.
+  const surface = document.createElement("canvas");
+  surface.style.cssText = "width:100%;height:100%;display:block";
+  const paint2d = surface.getContext("2d");
 
   const scene = new THREE.Scene();
   const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 400);
@@ -221,7 +266,7 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
   const group = new THREE.Group();
   scene.add(group);
   container.innerHTML = "";
-  container.appendChild(renderer.domElement);
+  container.appendChild(surface);
 
   let meshes = [];
   let decalMeshes = [];
@@ -328,10 +373,22 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     }
   }
 
+  // The view's own size, in device pixels, which is what both the renderer's
+  // viewport and the 2D canvas are measured in.
+  let pw = 0;
+  let ph = 0;
+
   function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = container.clientWidth || 1;
     const h = container.clientHeight || w;
-    renderer.setSize(w, h, false);
+    pw = Math.max(1, Math.round(w * dpr));
+    ph = Math.max(1, Math.round(h * dpr));
+    // Assigning width or height clears a 2D canvas, so only on a real change.
+    if (surface.width !== pw || surface.height !== ph) {
+      surface.width = pw;
+      surface.height = ph;
+    }
     // fit the puzzle's own sphere, the same reservation fitSphere makes, so
     // the puzzle does not appear to breathe as it shape-shifts
     const half = radius * 1.08;
@@ -347,15 +404,47 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     camera.updateProjectionMatrix();
   }
 
+  /**
+   * Draw into the shared context, then copy the result here.
+   *
+   * The renderer's canvas is only ever grown, never shrunk, so a page of
+   * mixed sizes allocates one drawing buffer rather than reallocating on
+   * every switch. Everyone draws into its bottom-left corner, which is
+   * where WebGL's origin is; the copy reads that corner back out.
+   *
+   * The copy is synchronous with the render, in the same task, so the
+   * drawing buffer is still there to be read: it is cleared at composite
+   * time, and nothing has composited yet.
+   */
+  function paint() {
+    if (gl.w < pw || gl.h < ph) {
+      gl.w = Math.max(gl.w, pw);
+      gl.h = Math.max(gl.h, ph);
+      gl.renderer.setSize(gl.w, gl.h, false);
+    }
+    gl.renderer.setViewport(0, 0, pw, ph);
+    gl.renderer.setScissor(0, 0, pw, ph);
+    gl.renderer.setScissorTest(true);
+    gl.renderer.setClearColor(clear, 1);
+    gl.renderer.render(scene, camera);
+    paint2d.clearRect(0, 0, pw, ph);
+    paint2d.drawImage(gl.canvas, 0, gl.h - ph, pw, ph, 0, 0, pw, ph);
+  }
+
   const observer = new ResizeObserver(() => {
     resize();
-    renderer.render(scene, camera);
+    if (builtFor) paint();
   });
   observer.observe(container);
 
-  return {
+  // What this view is showing, so it can be drawn again without being asked:
+  // after a resize, and after the shared context comes back from a loss.
+  let showing = null;
+
+  const view = {
     /** Draw `puzzle`, optionally mid-turn. Rebuilds only on a new puzzle. */
     async show(puzzle, turn) {
+      showing = { puzzle, turn };
       if (puzzle !== builtFor) await rebuild(puzzle);
       else {
         aim(puzzle); // the camera panel moves without touching the geometry
@@ -382,7 +471,7 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
           if (decalMeshes[i]) decalMeshes[i].matrix.fromArray(pieces[i].matrix);
         }
       }
-      renderer.render(scene, camera);
+      paint();
     },
     /** Paint changed but the mechanism did not: colours live in the geometry. */
     invalidate() {
@@ -390,12 +479,24 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     },
     dispose() {
       observer.disconnect();
+      views.delete(view);
       for (const m of [...meshes, ...decalMeshes]) if (m) m.geometry.dispose();
       if (atlas) atlas.texture.dispose();
       if (decalMaterial) decalMaterial.dispose();
       material.dispose();
-      renderer.dispose();
+      // The renderer is not this view's to dispose: it belongs to the page.
       container.innerHTML = "";
     },
   };
+
+  // Called when the shared context comes back. Everything built in the old
+  // one is gone, so the geometry is rebuilt from the puzzle rather than
+  // reused, which is what invalidate() already means.
+  view.revive = () => {
+    if (!showing) return;
+    builtFor = null;
+    view.show(showing.puzzle, showing.turn);
+  };
+  views.add(view);
+  return view;
 }
