@@ -198,6 +198,28 @@ test("a painted puzzle is a picture cube, and its order says so", () => {
   }
 });
 
+test("a refused look leaves the puzzle exactly as it stood", () => {
+  // A look that throws must still be a look. On a puzzle that blocks, a
+  // sequence can open legally and hit a refused turn halfway; effectOf let
+  // that throw escape with the puzzle part-turned and the history carrying
+  // moves the caller never made. The error is right — the sequence cannot
+  // be played from here — but the puzzle must come back untouched.
+  const p = new Siamese();
+  const open = p.legalMoves()[0];
+  const shut = p.vocabulary().find((t) => !p.canMove(t));
+  const home = p.getPosition();
+  const trail = p.history.length;
+  let threw = false;
+  try {
+    p.effectOf(`${open} ${shut}`);
+  } catch {
+    threw = true;
+  }
+  assert(threw, "the refusal still surfaces");
+  assertEqual(p.getPosition(), home, "position untouched");
+  assertEqual(p.history.length, trail, "history untouched");
+});
+
 test("looking at a sequence does not move the puzzle", () => {
   const p = new Cube({ size: 3 });
   p.move("R U F");

@@ -257,6 +257,7 @@ const game = {
   challenge: null, // index into CHALLENGES, or null for free play
   usesPalette: false, // did the reader's function return a number?
   scramble: "", // the walk that dealt this board, kept so the code can say it
+  dealt: "", // a position that arrived whole, from a link, with no walk to tell
   bodies: [{ size: [3, 3, 3], at: [0, 0, 0] }], // for the composed puzzle
   size: 3,
   target: null, // the pattern to reach
@@ -376,6 +377,7 @@ function renderChallenge(puzzle) {
 function startGame(scramble) {
   game.puzzle = build(game.source, game.kind, game.size);
   game.scramble = "";
+  game.dealt = "";
   if (scramble) {
     // Walk the scramble one move at a time out of what is legal from here.
     // On a plain cube every move always is; the moment this example is
@@ -669,14 +671,21 @@ function renderCode() {
   // in the puzzle's own notation, which is the same string move() takes.
   const done = game.puzzle ? game.puzzle.history : [];
   lines.push("");
-  if (game.scramble) {
+  if (game.dealt) {
+    // A board that came from a link has no walk to tell: its position
+    // arrived whole. Without this line the snippet said "nothing turned
+    // yet" over a half-solved board - printing the pattern and calling it
+    // the position. setPosition is how it got here, so that is what it says.
+    lines.push("// the position this link carried");
+    lines.push(`puzzle.setPosition(${lit(game.dealt)});`);
+  } else if (game.scramble) {
     lines.push("// the walk this board was dealt");
     lines.push(`puzzle.move(${lit(game.scramble)});`);
   }
   if (done.length) {
-    lines.push(game.scramble ? "// and what you have turned since" : "");
+    lines.push(game.scramble || game.dealt ? "// and what you have turned since" : "");
     lines.push(`puzzle.move(${lit(done.join(" "))});`);
-  } else if (!game.scramble) {
+  } else if (!game.scramble && !game.dealt) {
     lines.push(`// nothing turned yet. Every move it will take, from here:`);
     const open = game.puzzle ? game.puzzle.legalMoves() : [];
     const all = game.puzzle ? game.puzzle.vocabulary() : [];
@@ -745,7 +754,14 @@ function readSequence(text) {
       return { error: err.message };
     }
   }
-  return { flat, tokens, effect: game.puzzle.effectOf(source) };
+  // effectOf can refuse too: every token may parse and the sequence still
+  // be unplayable from HERE, on a puzzle that blocks. The library restores
+  // itself before throwing, so all this has to do is show its words.
+  try {
+    return { flat, tokens, effect: game.puzzle.effectOf(source) };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 function renderSequence() {
@@ -924,11 +940,18 @@ function init() {
   // back exactly, down to which cubie is where.
   $("play-share").addEventListener("click", () => {
     const url = new URL(location.href);
-    url.hash = new URLSearchParams({
+    // The whole board, not most of it. This carried size, function and
+    // position but not WHICH PUZZLE, so a link made on a Siamese opened as
+    // whatever the dropdown's first option was, the position failed to fit,
+    // and the reader got a fresh scramble under a claim of exactness.
+    const state = {
+      kind: game.kind,
       size: String(game.size),
       f: game.source,
       at: game.puzzle.getPosition(),
-    }).toString();
+    };
+    if (game.kind === "compose") state.bodies = JSON.stringify(game.bodies);
+    url.hash = new URLSearchParams(state).toString();
     history.replaceState(null, "", url);
     navigator.clipboard?.writeText(url.href);
     $("play-status").textContent = "Link copied. It carries the function and the exact position.";
@@ -937,6 +960,19 @@ function init() {
   // and read one back
   const saved = new URLSearchParams(location.hash.slice(1));
   if (saved.get("f")) {
+    // The puzzle first: everything after it is read against the board it
+    // names. A link from before this carried no kind and still opens, as a
+    // cube, which is what those links were always of.
+    kind.value = PUZZLES[saved.get("kind")] ? saved.get("kind") : "cube";
+    if (saved.get("bodies")) {
+      try {
+        const bodies = JSON.parse(saved.get("bodies"));
+        if (Array.isArray(bodies) && bodies.length) game.bodies = bodies.map(clampBody);
+      } catch {
+        /* a hand-edited hash; the default bodies stand */
+      }
+    }
+    syncKind();
     game.size = +saved.get("size") || 3;
     size.value = String(game.size);
     size.dispatchEvent(new Event("input"));
@@ -947,7 +983,9 @@ function init() {
   if (saved.get("at")) {
     try {
       game.puzzle.setPosition(saved.get("at"));
+      game.dealt = saved.get("at");
       renderGame();
+      renderCode();
     } catch {
       /* a link from another size, or an older one; the fresh game stands */
     }

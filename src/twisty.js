@@ -1239,9 +1239,19 @@ export class Twisty {
 
     const before = this.pieces.map((_, i) => key(this._slotOf(i)));
     const spin = this._rot.map((m) => m.flat().map((v) => Math.round(v * 1e6)).join(","));
-    this.move(flat);
-    const after = this.pieces.map((_, i) => key(this._slotOf(i)));
-    const spun = this._rot.map((m) => m.flat().map((v) => Math.round(v * 1e6)).join(","));
+    // Everything from the first move() on sits inside try/finally, because a
+    // look must not be able to corrupt. On a puzzle that blocks, move() can
+    // refuse a token halfway through the sequence, and before this the
+    // throw escaped with the puzzle left part-turned and the history
+    // carrying moves the caller never made. The error still propagates —
+    // a sequence this puzzle will not play is worth hearing about — but the
+    // puzzle it was asked of is exactly as it stood.
+    let after;
+    let spun;
+    try {
+      this.move(flat);
+      after = this.pieces.map((_, i) => key(this._slotOf(i)));
+      spun = this._rot.map((m) => m.flat().map((v) => Math.round(v * 1e6)).join(","));
 
     const goesTo = new Map();
     before.forEach((from, i) => goesTo.set(from, after[i]));
@@ -1303,7 +1313,16 @@ export class Twisty {
       this.setPosition(home);
       const look = this.getState();
       for (let n = 1; n <= 5000; n++) {
-        this.move(flat);
+        // On a blocking puzzle what is legal depends on where you stand, so
+        // a sequence that played once may be refused on some later repeat.
+        // Then "how many repeats bring it home" has no answer — you cannot
+        // repeat it — and null says so; throwing would be wrong here
+        // because the FIRST application already went through.
+        try {
+          this.move(flat);
+        } catch {
+          break;
+        }
         if (this.getState() === look) {
           order = n;
           break;
@@ -1311,8 +1330,6 @@ export class Twisty {
       }
     }
 
-    this.setPosition(home);
-    this.history = history;
     return {
       sequence: flat,
       moves: tokenize(flat).length,
@@ -1321,6 +1338,10 @@ export class Twisty {
       moved: cycles.reduce((n, c) => n + c.length, 0),
       order,
     };
+    } finally {
+      this.setPosition(home);
+      this.history = history;
+    }
   }
 
   /**
