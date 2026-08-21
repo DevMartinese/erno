@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Fisher, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Cuboid, Fisher, Fused, Twisty, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -248,6 +248,86 @@ test("looking at a sequence does not move the puzzle", () => {
   p.effectOf("[R U' R', D]", { order: true });
   assertEqual(p.getPosition(), position, "position");
   assertEqual(p.history.join(" "), history, "history");
+});
+
+test("the algebra keeps its laws on the family this library is for", () => {
+  // Cubes, cuboids and welded cubes are the stated priority, so the
+  // language is held to its laws THERE, by construction rather than by
+  // hand-picked numbers: a sequence and its inverse cancel, a commutator
+  // and its reverse cancel, the order effectOf declares really brings the
+  // pattern back, and inverting a conjugate is conjugating the inverse.
+  const family = [
+    () => new Cube({ size: 3 }),
+    () => new Cuboid({ size: [3, 3, 5] }),
+    () => new Siamese(),
+    () => new Fused({
+      bodies: [
+        { size: [3, 3, 3], at: [0, 0, 0] },
+        { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+      ],
+    }),
+  ];
+  const tryMove = (p, seq) => {
+    try {
+      p.move(seq);
+      return true;
+    } catch {
+      return false; // a blocked stage: nothing to assert, the law needs all stages
+    }
+  };
+  for (const make of family) {
+    const open = make().legalMoves();
+    const [A, B] = [open[0], open[Math.min(3, open.length - 1)]];
+    const name = make().name;
+
+    const p1 = make();
+    const seq = `${A} [${B}: ${A}] ${B}`;
+    if (tryMove(p1, seq) && tryMove(p1, `(${seq})'`))
+      assert(p1.isSolved(), `${name}: seq then (seq)' is not the identity`);
+
+    const p2 = make();
+    if (tryMove(p2, `[${A}, ${B}] [${B}, ${A}]`))
+      assert(p2.isSolved(), `${name}: [A,B][B,A] is not the identity`);
+
+    const e = make().effectOf(`${A} ${B}`);
+    if (e.order && e.order <= 500) {
+      const p3 = make();
+      if (tryMove(p3, `(${A} ${B})${e.order}`))
+        assert(
+          p3.getPattern() === make().getPattern(),
+          `${name}: (A B)^${e.order} does not bring the pattern back`,
+        );
+    }
+
+    const p4 = make();
+    const p5 = make();
+    if (tryMove(p4, `([${A}: ${B}])'`) && tryMove(p5, `[${A}: (${B})']`))
+      assert(
+        p4.getPosition() === p5.getPosition(),
+        `${name}: inverting a conjugate is not conjugating the inverse`,
+      );
+  }
+
+  // and every token the family can actually make has an inverse that
+  // parses and undoes it, which is what the X2 -> X2' spelling has to keep
+  for (const make of family) {
+    const probe = make();
+    for (const tok of probe.vocabulary()) {
+      try {
+        probe.parseMove(tok);
+      } catch {
+        continue; // the token itself is refused by policy: consistent pair
+      }
+      const inv = Twisty.inverse(tok);
+      probe.parseMove(inv); // throws if the spelling is unparseable
+      const p = make();
+      if (!p.canMove(tok)) continue;
+      const home = p.getPosition();
+      p.move(tok);
+      p.move(inv);
+      assertEqual(p.getPosition(), home, `${make().name}: ${tok} ${inv} does not come home`);
+    }
+  }
 });
 
 test("parse hands back a tree, not just a string", () => {
