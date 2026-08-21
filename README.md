@@ -211,9 +211,21 @@ cube.getRadius()       // the sphere every reachable state fits inside
 accident: it returns the exact frame `toSVG` uses, so a WebGL view and the
 SVG are the same picture. A puzzle bent by a `deform` *function* says
 `warped: true` and hands its geometry back already placed and bent, since a
-twist is not a rigid motion and has no matrix. `site/three-view.js` is a
-complete three.js adapter built on nothing but these calls: 20 of 20 site
-demos, decals, one shared WebGL context.
+twist is not a rigid motion and has no matrix.
+
+And the adapter itself ships in the package, built on nothing but these
+calls. `three` is an optional peer, imported lazily on first use, so a
+consumer who never asks for WebGL never loads it:
+
+```js
+import { createThreeView } from 'erno.js/three'
+
+// in the browser, with `three` installed:
+//   const view = await createThreeView(container)
+//   await view.show(cube, { move: "R", progress: 0.5 })
+// one shared WebGL context serves every view on the page.
+console.assert(typeof createThreeView === "function")
+```
 
 ### Stateless rendering
 

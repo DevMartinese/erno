@@ -82,6 +82,10 @@ blocks.forEach((code, i) => {
 // ── both module systems ─────────────────────────────────────────────────────
 writeFileSync(join(work, "esm.mjs"), `
 import { Cube, twist, expand } from "erno.js";
+// The subpath must resolve WITHOUT three installed: the adapter imports it
+// lazily, so reaching the module is free and only createThreeView pays.
+import { createThreeView } from "erno.js/three";
+if (typeof createThreeView !== "function") throw new Error("erno.js/three broke");
 const p = new Cube({ size: 3, deform: twist(90) });
 if (p.effectOf("R U").order !== 105) throw new Error("order broke");
 if (expand("[R, U]") !== "R U R' U'") throw new Error("expand broke");
@@ -99,6 +103,7 @@ run("node cjs.cjs", work);
 const tsc = join(root, "node_modules", "typescript", "bin", "tsc");
 writeFileSync(join(work, "check.ts"), `
 import { Cube, Cuboid, Fused, expand, twist, SCHEMES } from "erno.js";
+import { createThreeView } from "erno.js/three";
 const cube = new Cube({ size: 3, deform: twist(90) });
 const order: number | null = cube.effectOf("R U").order;
 const frame: { halfWidth: number; halfHeight: number } = cube.getFrame();
@@ -106,7 +111,7 @@ const vocab: string[] = cube.vocabulary();
 const warped: boolean = cube.getPieces()[0].warped;
 const box = new Cuboid({ size: [3, 3, 5], paint: () => "#fff" });
 const fused = new Fused({ bodies: [{ size: [3, 3, 3], at: [0, 0, 0] }, { size: [2, 2, 2], at: [1.5, 1.5, 0.5] }] });
-console.log(expand("[R, U]"), SCHEMES.classic.U, order, frame, vocab.length, warped, box.pieces.length, fused.pieces.length);
+console.log(expand("[R, U]"), SCHEMES.classic.U, order, frame, vocab.length, warped, box.pieces.length, fused.pieces.length, typeof createThreeView);
 `);
 run(`node ${JSON.stringify(tsc)} --noEmit --strict --module esnext --target es2022 --moduleResolution bundler check.ts`, work);
 

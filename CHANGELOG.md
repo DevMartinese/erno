@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.5 (2026-08-21)
+
+- The three.js adapter ships in the package: `erno.js/three`. It was the
+  README's best argument and lived only in the site's source, so an
+  installer was sent to copy a file off GitHub. `three` is an optional
+  peer, imported lazily on first use; reaching the module without three
+  installed is free, and the subpath resolves in ESM, CJS and TypeScript.
+  One shared WebGL context per page, decals, warped puzzles, context-loss
+  recovery: the same adapter the site runs, because the site now imports
+  the shipped file rather than keeping a copy that would drift.
+
 ## 0.2.4 (2026-08-21)
 
 - Big cubes and cuboids can say what they could always do. Every box

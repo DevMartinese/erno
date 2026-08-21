@@ -65,6 +65,9 @@ test("every method the examples call exists", () => {
     "getAttribute", "toUpperCase", "toLowerCase", "startsWith", "endsWith",
   ]);
   const api = new Set();
+  // the shipped three adapter's surface, which cannot be instantiated here
+  // (it needs a browser), so its three methods are declared rather than read
+  for (const m of ["show", "invalidate", "dispose", "assert"]) api.add(m);
   for (const obj of [new E.Cube(), new E.Erno(), E.Twisty, E.Erno]) {
     let o = obj;
     while (o && o !== Object.prototype) {
@@ -95,9 +98,16 @@ test("the install line names the package that is published", () => {
     README.includes(`npm install ${pkg.name}`),
     `README does not say "npm install ${pkg.name}"`,
   );
+  // The package's own subpaths are the package: erno.js/three is as
+  // published as erno.js is, and both must resolve for an installer. What
+  // this still catches is the old bug of examples importing "erno" while
+  // npm carried "erno.js".
+  const subpaths = new Set([".", ...Object.keys(pkg.exports).map((k) => k.slice(2))]);
+  const named = (s) =>
+    s === pkg.name || (s.startsWith(pkg.name + "/") && subpaths.has(s.slice(pkg.name.length + 1)));
   const wrongImport = [...README.matchAll(/from ['"]([^'"]+)['"]/g)]
     .map((m) => m[1])
-    .filter((s) => /^erno/.test(s) && s !== pkg.name);
+    .filter((s) => /^erno/.test(s) && !named(s));
   assert(!wrongImport.length, `imports from ${[...new Set(wrongImport)].join(", ")}, not ${pkg.name}`);
 });
 
