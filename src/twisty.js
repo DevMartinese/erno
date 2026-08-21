@@ -122,12 +122,18 @@ export function tokenize(sequence) {
   return String(sequence).trim().split(/[\s,]+/).filter(Boolean);
 }
 
-/** Invert a move sequence: inverseSequence("R U2 f'") → "f U2 R'". */
+/** Invert a move sequence: inverseSequence("R U2 f'") → "f U2' R'". */
 export function inverseSequence(sequence) {
   return tokenize(sequence)
     .reverse()
     .map((tok) => {
-      if (/2'?$/.test(tok)) return tok.replace(/2'?$/, "2");
+      // Toggle the prime, whatever the count. This used to treat a trailing
+      // 2 as its own inverse, which is a fact about CUBES quietly baked into
+      // a layer that serves every puzzle: a face of order four undoes X2
+      // with X2, a face of order three or five does not, and on a Pyraminx
+      // [U2, R] followed by [R, U2] came back not solved — a commutator law
+      // broken. X2' is the inverse of X2 everywhere; on a cube the two are
+      // the same rotation, so nothing there changes but the spelling.
       return tok.endsWith("'") ? tok.slice(0, -1) : tok + "'";
     })
     .join(" ");

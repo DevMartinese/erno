@@ -133,13 +133,19 @@ export function parse(source) {
   return root;
 }
 
-/** Invert a flat token string: "R U2 f'" becomes "f U2 R'". */
+/** Invert a flat token string: "R U2 f'" becomes "f U2' R'". */
 function invertTokens(tokens) {
   return tokens
     .slice()
     .reverse()
     .map((t) => {
-      if (/2'?$/.test(t)) return t.replace(/2'?$/, "2");
+      // Toggle the prime, whatever the count. This used to treat a trailing
+      // 2 as its own inverse, which is a fact about CUBES quietly baked into
+      // a layer that serves every puzzle: a face of order four undoes X2
+      // with X2, a face of order three or five does not, and on a Pyraminx
+      // [U2, R] followed by [R, U2] came back not solved — a commutator law
+      // broken. X2' is the inverse of X2 everywhere; on a cube the two are
+      // the same rotation, so nothing there changes but the spelling.
       return t.endsWith("'") ? t.slice(0, -1) : `${t}'`;
     });
 }

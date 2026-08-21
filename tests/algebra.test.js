@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Fisher, Megaminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Fisher, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -35,8 +35,28 @@ test("the brackets expand to what cubers write them for", () => {
     ["(R U)2'", "U' R' U' R'"], // suffixes stack, in either order
     ["R U2 F", "R U2 F"], // plain notation passes through
     ["3Rw U", "3Rw U"], // and so do the odd tokens
+    // The inverse of X2 is X2', never X2. On a cube the two are the same
+    // rotation, which is exactly how the cube-only shortcut survived here:
+    // on a face of order three or five they are not, and treating a double
+    // as its own inverse broke [U2, R] on a Pyraminx.
+    ["(R U2)'", "U2' R'"],
   ])
     assertEqual(expand(src), want, src);
+});
+
+test("a commutator and its reverse cancel on every face order", () => {
+  // [A, B] [B, A] is the identity by construction — IF inversion is right.
+  // Order four hid the bug: X2 undoes X2 there. Orders three and five do
+  // not, and this is the law the shortcut broke.
+  for (const [make, a, b] of [
+    [() => new Cube({ size: 3 }), "R2", "U"], // faces of order 4
+    [() => new Pyraminx(), "U2", "R"], // order 3
+    [() => new Kilominx(), "C2", "E"], // order 5
+  ]) {
+    const p = make();
+    p.move(`[${a}, ${b}] [${b}, ${a}]`);
+    assert(p.isSolved(), `${p.name}: [${a},${b}][${b},${a}] is not the identity`);
+  }
 });
 
 test("insight compresses, which is the point of having it", () => {

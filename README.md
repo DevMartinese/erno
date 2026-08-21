@@ -58,7 +58,7 @@ cube.scramble(30)         // explicit length
 cube.reset()              // back to solved
 cube.isSolved()           // boolean
 cube.history              // tokens applied since the last reset
-Erno.inverse("R U2 f'")   // → "f U2 R'"
+Erno.inverse("R U2 f'")   // → "f U2' R'"
 ```
 
 Internally every move is a permutation of facelet indices, derived once from

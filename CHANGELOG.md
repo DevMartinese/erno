@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 (2026-08-21)
+
+- Inversion no longer assumes a cube. Both inverters treated a trailing
+  `2` as its own inverse, which is true of a face of order four and quietly
+  false everywhere else: on a Pyraminx, `[U2, R]` followed by `[R, U2]` did
+  not come back solved, a commutator law broken. The inverse of `X2` is
+  `X2'` on every puzzle; on a cube the two are the same rotation, so
+  nothing there changes but the spelling. Pinned by a test that runs the
+  cancellation law on faces of order three, four and five.
+
 ## 0.2.0 (2026-08-21)
 
 The release where the engine learned to say what it does, in the language

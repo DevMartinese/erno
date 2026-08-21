@@ -363,7 +363,7 @@ export class Erno {
     return seq;
   }
 
-  /** Invert a move sequence: Erno.inverse("R U2 f'") → "f U2 R'". */
+  /** Invert a move sequence: Erno.inverse("R U2 f'") → "f U2' R'". */
   static inverse(sequence) {
     return inverseSequence(sequence);
   }
