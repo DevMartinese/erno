@@ -362,9 +362,25 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
         resize();
       }
       const pieces = puzzle.getPieces({ turn });
-      for (let i = 0; i < meshes.length; i++) {
-        meshes[i].matrix.fromArray(pieces[i].matrix);
-        if (decalMeshes[i]) decalMeshes[i].matrix.fromArray(pieces[i].matrix);
+      // A warped puzzle hands its geometry back already placed and bent, so
+      // there is no matrix to assign and the geometry itself has to be
+      // rebuilt as it turns. Only these puzzles pay for it, and they pay
+      // because the bend follows the piece rather than travelling with it:
+      // a twist is not a rigid motion and cannot be made into one.
+      if (pieces[0] && pieces[0].warped) {
+        for (let i = 0; i < meshes.length; i++) {
+          meshes[i].geometry.dispose();
+          meshes[i].geometry = buildGeometry(pieces[i], radius * 0.008);
+          if (decalMeshes[i]) {
+            decalMeshes[i].geometry.dispose();
+            decalMeshes[i].geometry = buildDecalGeometry(pieces[i], atlas, radius * 0.016);
+          }
+        }
+      } else {
+        for (let i = 0; i < meshes.length; i++) {
+          meshes[i].matrix.fromArray(pieces[i].matrix);
+          if (decalMeshes[i]) decalMeshes[i].matrix.fromArray(pieces[i].matrix);
+        }
       }
       renderer.render(scene, camera);
     },

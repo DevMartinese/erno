@@ -373,8 +373,13 @@ test("shape mods: piece counts and turn orders", () => {
 
 test("shape mods: shape-shifted stickers report ? until they realign", () => {
   assert(new Fisher().move("R").getState().includes("?"), "fisher R");
-  assert(new Twist().move("R").getState().includes("?"), "twist R");
+  assert(new Ghost().move("R").getState().includes("?"), "ghost R");
   assert(!new Fisher().move("U").getState().includes("?"), "fisher U keeps alignment");
+  // The Twist is not one of these any more and must not be. Its shape is a
+  // way of looking, so its mechanism is an ordinary cube and its state is
+  // always a clean facelet string a solver could take.
+  assert(!new Twist().move("R").getState().includes("?"), "the twist never loses a sticker");
+  assert(new Twist().move("R").getState().length === 54, "and keeps all 54");
 });
 
 test("shape mods: scramble + inverse restores", () => {

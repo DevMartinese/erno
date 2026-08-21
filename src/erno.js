@@ -648,6 +648,7 @@ export {
   Fused,
   Siamese,
   squash,
+  twist,
   tetrisPaint,
   TETRIS_PALETTE,
   dicePips,

@@ -891,6 +891,33 @@ export function squash(k, axis = [1, 1, 1]) {
   return m;
 }
 
+/**
+ * A twist: rotate about the vertical by an amount that grows with height.
+ *
+ * `squash` is a matrix, because a squash is linear. This cannot be: the
+ * angle depends on where the point is, and no 3×3 matrix says that. So it
+ * is a function, which `deform` also takes.
+ *
+ * It is a way of LOOKING, which is the whole point. The mechanism under it
+ * is an ordinary cube: straight cuts, a clean 3×3 on every face, one colour
+ * per face, six turns, and a scramble that inverts exactly. Only the picture
+ * is wrung. That is what a twist cube is, and the reason this file spent a
+ * while trying to mould one out of twisted material instead is that the
+ * shape looked like the puzzle. It is not; the shape is a shell.
+ *
+ * @param {number} degrees - total turn from bottom to top
+ * @param {number} [reach] - the height over which it is spread
+ */
+export function twist(degrees, reach = 1.5) {
+  const total = (degrees * Math.PI) / 180;
+  return ([x, y, z]) => {
+    const a = ((y + reach) / (2 * reach) - 0.5) * total;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    return [x * c + z * s, y, -x * s + z * c];
+  };
+}
+
 // ── Printed faces: dice, dominoes, sudoku ───────────────────────────────────
 
 // Three more puzzles that are not puzzles. A dice cube, a Sudokube and the
@@ -1649,101 +1676,29 @@ export class Penrose extends Twisty {
 // slabs meet seamlessly when solved and the silhouette is a smoothly
 // twisted column. U/D/E turns keep it coherent; any side turn sends twisted
 // slabs across orientations and the shape goes wild. Full cube notation.
-function buildTwistDef() {
-  const h = 1.5;
-  // A quarter turn was too much once the cuts were straightened. With the
-  // grid running true, a vertical column at the front of the bottom is the
-  // RIGHT of the top after ninety degrees, so a single cell covers material
-  // from two faces and comes out two colours. That is geometry, not a bug:
-  // you can have a straight grid or a quarter turn, not both. Forty-five is
-  // the most twist the straight grid carries with every cell one colour.
-  const TOTAL = (90 * Math.PI) / 180;
-  // Centred, so the top and bottom lean the same amount in opposite
-  // directions and the puzzle stands up straight.
-  const yawAt = (y) => ((y + h) / (2 * h) - 0.5) * TOTAL;
-
-  // The body is waisted: wringing it pinches the middle.
-  const WAIST = 0.12;
-  const scaleAt = (y) => 1 - WAIST * (1 - (y / h) ** 2);
-
-  const at = (x, y, z) => {
-    const c = Math.cos(yawAt(y));
-    const s = Math.sin(yawAt(y));
-    const k = scaleAt(y);
-    return [(x * c + z * s) * k, y, (-x * s + z * c) * k];
-  };
-
-  // ONE solid, cut by the flat planes of an ordinary 3×3.
-  //
-  // It used to be built the other way: each cubie moulded directly, so the
-  // seams were material lines and spiralled with the body. That kept every
-  // face one clean colour and it looked wrong, because the thing you read on
-  // a twisty puzzle is the grid, and a grid that leans tells you the pieces
-  // themselves are bent. They are not. The cuts of a twist cube run true;
-  // it is the shell between them that is wrung.
-  //
-  // So the shell is a stack of thin rings, fine enough that the sides read
-  // as a curve rather than as steps, and the cuts are the six planes every
-  // other cube uses.
-  const RINGS = 12;
-  const corners = [
-    [-h, -h],
-    [h, -h],
-    [h, h],
-    [-h, h],
-  ];
-  const ring = (y) => corners.map(([x, z]) => at(x, y, z));
-  const SIDE = ["B", "R", "F", "L"];
-
-  const solid = [
-    { letter: "U", pts: [...ring(h)].reverse() },
-    { letter: "D", pts: ring(-h) },
-  ];
-  for (let i = 0; i < RINGS; i++) {
-    const lo = ring(-h + (2 * h * i) / RINGS);
-    const hi = ring(-h + (2 * h * (i + 1)) / RINGS);
-    for (let e = 0; e < 4; e++) {
-      const e2 = (e + 1) % 4;
-      // Triangles, not quads: a band of a twisted surface is not planar, and
-      // a quad that is not planar has no normal to speak of.
-      solid.push(
-        { letter: SIDE[e], pts: [lo[e], lo[e2], hi[e2]] },
-        { letter: SIDE[e], pts: [lo[e], hi[e2], hi[e]] },
-      );
-    }
-  }
-
-  const cuts = [];
-  for (const axis of [0, 1, 2]) {
-    const n = [0, 0, 0];
-    n[axis] = 1;
-    cuts.push({ n, d: -0.5 }, { n, d: 0.5 });
-  }
-
-  return {
-    name: "twist",
-    solid,
-    cuts,
-    parseMove: cubeParse3,
-    faceOrder: ["U", "R", "F", "D", "L", "B"],
-    faceSortDirs: CUBE_SORT_DIRS,
-    // each side sticker is a stack of hull triangles, grouped into one
-    // clean tile per piece
-    stickerGroup: true,
-    colors: { ...CUBE_COLORS },
-    tokens: CUBE3_TOKENS,
-    orientations: CUBE_ORIENTATIONS,
-    scramble: (rand, length) =>
-      pickScramble(rand, ["U", "R", "F", "D", "L", "B"], ["", "'", "2"], length || 25).join(" "),
-  };
-}
+// The Twist cube: an ordinary 3×3 whose picture is wrung.
+//
+// It was built the other way twice, and both were wrong in the same way.
+// First the cubies were moulded out of twisted material, so the seams
+// spiralled and the grid leaned, which reads as pieces that are themselves
+// bent. Then the twisted body was cut by straight planes, which put the
+// grid right and split every face into two colours, because a column of
+// material that turns a quarter circle faces two different ways.
+//
+// Both were trying to make the SHAPE the puzzle. It is not. A twist cube is
+// a 3×3 in a wrung shell: the cuts are the cuts of any cube, the grid is a
+// clean 3×3, each face is one colour, and what is twisted is the outside.
+const TWIST_ANGLE = 90;
 
 let _twistDef;
 
 export class Twist extends Twisty {
   constructor(options = {}) {
     fixedSize("Twist", options);
-    super(_twistDef || (_twistDef = buildTwistDef()), options);
+    super(_twistDef || (_twistDef = buildCuboidDef([3, 3, 3])), {
+      deform: twist(TWIST_ANGLE),
+      ...options,
+    });
   }
 }
 

@@ -156,6 +156,24 @@ const IDENT = [
 
 const ORIGIN = [0, 0, 0];
 
+/** Newell's normal: the best-fit normal of a polygon, flat or not. */
+function newell(pts) {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    x += (a[1] - b[1]) * (a[2] + b[2]);
+    y += (a[2] - b[2]) * (a[0] + b[0]);
+    z += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  const len = Math.hypot(x, y, z) || 1;
+  return [x / len, y / len, z / len];
+}
+// prettier-ignore
+const IDENTITY_16 = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
 const matVec = (m, v) => [dot(m[0], v), dot(m[1], v), dot(m[2], v)];
 
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -509,7 +527,17 @@ export class Twisty {
     // is still a Megaminx — so it is a way of looking, in the same sense
     // that paint is not a mechanism. The state is untouched, which is why
     // scramble and inverse still come back bit for bit.
+    // A DEFORMATION may be a linear map, or a function of a point. The
+    // matrix covers squashes and shears; a function covers what a matrix
+    // cannot say, and the twist cube is the case that needs it, since
+    // rotating by an amount that depends on height is not linear in the
+    // height. Either way it bends the picture and not the mechanism: the
+    // pieces are whatever they were, the cuts stay where they were, and the
+    // state is untouched, which is why scramble and inverse still come back
+    // bit for bit through the wildest of them.
     this._deform = options.deform || null;
+    this._warp = typeof options.deform === "function" ? options.deform : null;
+    if (this._warp) this._deform = null;
     this._stickerGroup =
       options.stickerGroup === undefined
         ? !!def.stickerGroup
@@ -652,6 +680,15 @@ export class Twisty {
       for (const axis of [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         most = Math.max(most, vlen(matVec(this._deform, axis)));
       radius *= Math.max(1, most);
+    }
+    if (this._warp) {
+      // A function cannot be asked for its largest stretch, so it is
+      // measured: every vertex the puzzle owns, put through it, and the
+      // frame grown to hold the furthest. Turning only permutes those
+      // points, so what fits at rest fits ever after.
+      let most = 0;
+      for (const p of verts) most = Math.max(most, vlen(sub(this._warp(p), this._viewCenter)));
+      radius = Math.max(radius, most);
     }
     this._radius = radius;
 
@@ -1515,7 +1552,12 @@ export class Twisty {
    *   other column-major consumer
    */
   getViewMatrix() {
-    const V = this._deform
+    // A warp is already baked into the points getPieces hands out, and the
+    // view it was measured against is applied there too, so this must not
+    // apply either a second time.
+    const V = this._warp
+      ? IDENT
+      : this._deform
       ? matMul(this._deform, this.def.view || IDENT)
       : this.def.view || IDENT;
     // The centre is taken off AFTER the orientation, which is what toSVG
@@ -1750,11 +1792,43 @@ export class Twisty {
         });
       }
 
+      // A warp is not a matrix, and cannot be made into one: it turns a
+      // point by an amount that depends on where the point is. So a warped
+      // puzzle hands back its geometry ALREADY placed and bent, with the
+      // matrix left as identity, and says so. The bargain of building once
+      // and moving by a matrix is off for these, and only for these: their
+      // geometry has to be rebuilt as they turn, because the bend follows
+      // the piece rather than riding along with it.
+      if (this._warp) {
+        const V = this.def.view || IDENT;
+        // A decal reads along two directions on the sticker. Those are
+        // directions, not points, so they are carried across by bending a
+        // short step from the sticker and taking where it went: the same
+        // thing a derivative is, done numerically because a warp is a
+        // function and need not hand out its own.
+        const p0 = (f) => (f.sticker || f.points)[0];
+        const bend = (q) => this._warp(matVec(V, add(matVec(M, q), T)));
+        for (const f of faces) {
+          f.points = f.points.map(bend);
+          if (f.sticker) f.sticker = f.sticker.map(bend);
+          // A bent facet's normal is no longer the piece's, and a bent facet
+          // is not necessarily flat, so there is no exact one. Newell's is
+          // the best fit: it is the area-weighted average of the corner
+          // cross-products, so it degrades gracefully instead of picking one
+          // corner and being wrong by however much the facet bows.
+          f.normal = newell(f.points);
+          if (f.decalU) f.decalU = unit(sub(bend(add(p0(f), f.decalU)), bend(p0(f))));
+          if (f.decalV) f.decalV = unit(sub(bend(add(p0(f), f.decalV)), bend(p0(f))));
+        }
+        return { index: i, slot, moving, faces, warped: true, matrix: IDENTITY_16 };
+      }
+
       return {
         index: i,
         slot,
         moving,
         faces,
+        warped: false,
         // column-major, ready for THREE.Matrix4().fromArray(...)
         matrix: [
           M[0][0], M[1][0], M[2][0], 0,
@@ -1789,7 +1863,14 @@ export class Twisty {
     const toRender = (p) => [p[0] - C[0] + R, R - (p[1] - C[1]), R - (p[2] - C[2])];
     // physical placement, then orient for display — p' = V · (M·p + T),
     // where T carries every turn taken about a centre other than the origin
-    const place = (M, T, p) => toRender(matVec(view, add(matVec(M, p), T)));
+    // physical placement, orient for display, then bend. The bend comes
+    // last because it is a way of LOOKING: it acts on where a point ended
+    // up on screen, not on where the mechanism put it.
+    const warp = this._warp;
+    const place = (M, T, p) => {
+      const at = matVec(view, add(matVec(M, p), T));
+      return toRender(warp ? warp(at) : at);
+    };
 
     // Pass 0 — place every piece's facets, and find the plastic walls lying
     // flush against a neighbouring piece's. Such a pair hides itself however
