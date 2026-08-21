@@ -108,10 +108,16 @@ const cube = new Cube({ size: 3, deform: twist(90) });
 const order: number | null = cube.effectOf("R U").order;
 const frame: { halfWidth: number; halfHeight: number } = cube.getFrame();
 const vocab: string[] = cube.vocabulary();
+// These lines only mean something because the shapes are typed: before
+// PieceView and SequenceEffect existed they compiled against \`any\` and
+// verified nothing.
 const warped: boolean = cube.getPieces()[0].warped;
+const matrix: number[] = cube.getPieces()[0].matrix;
+const points: number[][] = cube.getPieces()[0].faces[0].points;
+const cycles: number[][][] = cube.effectOf("[R, U]").cycles;
 const box = new Cuboid({ size: [3, 3, 5], paint: () => "#fff" });
 const fused = new Fused({ bodies: [{ size: [3, 3, 3], at: [0, 0, 0] }, { size: [2, 2, 2], at: [1.5, 1.5, 0.5] }] });
-console.log(expand("[R, U]"), SCHEMES.classic.U, order, frame, vocab.length, warped, box.pieces.length, fused.pieces.length, typeof createThreeView);
+console.log(expand("[R, U]"), SCHEMES.classic.U, order, frame, vocab.length, warped, matrix.length, points.length, cycles.length, box.pieces.length, fused.pieces.length, typeof createThreeView);
 `);
 run(`node ${JSON.stringify(tsc)} --noEmit --strict --module esnext --target es2022 --moduleResolution bundler check.ts`, work);
 

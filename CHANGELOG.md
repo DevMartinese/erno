@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.6 (2026-08-21)
+
+- The renderer and permutation contracts are typed for real. `getPieces()`
+  returns `PieceView[]` and `effectOf()` a `SequenceEffect`, both exported
+  types; before this they compiled against `any`, so a strict TypeScript
+  consumer could misuse every field and hear nothing. Verified both ways:
+  correct usage compiles, and three deliberate misuses are each rejected.
+- `effectOf` no longer takes an options bag. The `{ order: true }` flag
+  was left over from when the order was counted on demand; it has been
+  computed always, and exactly, since 0.2.0.
+
 ## 0.2.5 (2026-08-21)
 
 - The three.js adapter ships in the package: `erno.js/three`. It was the

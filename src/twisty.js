@@ -488,6 +488,55 @@ function normalizeRemove(remove) {
 // ── The engine ──────────────────────────────────────────────────────────────
 
 /**
+ * One facet of a piece, as getPieces hands it to a renderer: the body
+ * polygon, the sticker inset into it, and where each is in the PIECE'S OWN
+ * space unless the piece is warped, in which case everything arrives
+ * already placed and bent.
+ *
+ * @typedef {Object} FacetView
+ * @property {number[][]} points - the body polygon, one [x,y,z] per corner
+ * @property {number[]|null} normal - the facet's outward normal
+ * @property {string|null} letter - home face letter, null on bare plastic
+ * @property {string} [color] - the sticker's colour, when it wears one
+ * @property {string} plastic - the body colour under and around it
+ * @property {string} [face] - the face this sticker shows on at rest
+ * @property {number} [index] - the sticker's index on that face
+ * @property {number[][]} [sticker] - the sticker polygon, inset from points
+ * @property {string} [decal] - SVG markup printed on the sticker, if any
+ * @property {number[]} [decalU] - the decal's reading direction
+ * @property {number[]} [decalV] - and its downward one
+ */
+
+/**
+ * One piece, ready for a renderer that is not the SVG: geometry in the
+ * piece's own space plus a column-major matrix saying where that space is,
+ * so the geometry is built once and moved by matrix every frame.
+ *
+ * @typedef {Object} PieceView
+ * @property {number} index - stable piece identity, never its paint order
+ * @property {number[]} slot - where the piece is standing, in slot space
+ * @property {boolean} moving - is it in the layer of the turn in flight
+ * @property {boolean} warped - geometry arrives placed and bent, matrix is
+ *   identity, and it must be rebuilt as the puzzle turns
+ * @property {FacetView[]} faces
+ * @property {number[]} matrix - column-major 4×4, ready for
+ *   `THREE.Matrix4().fromArray(...)`
+ */
+
+/**
+ * What a sequence IS, read off the permutation it makes from here.
+ *
+ * @typedef {Object} SequenceEffect
+ * @property {string} sequence - the flat tokens the algebra expanded to
+ * @property {number} moves - how many of them
+ * @property {number[][][]} cycles - each cycle as the slots it walks
+ * @property {number[]} turnedInPlace - pieces home again but turned
+ * @property {number} moved - pieces touched at all
+ * @property {number|null} order - repeats until it LOOKS like it did; null
+ *   only when a blocking puzzle refuses some later repeat
+ */
+
+/**
  * The options every puzzle takes, whatever its shape. Spelled out once
  * because the classes used to say "Twisty options plus:" in prose while
  * their generated type quietly closed over the two options they added —
@@ -1254,11 +1303,9 @@ export class Twisty {
    * The puzzle is left exactly as it was found.
    *
    * @param {string} sequence - plain notation or the algebra
-   * @param {Object} [options]
-   * @param {boolean} [options.order] - also count the repeats that return it
-   * @returns {Object} { sequence, moves, cycles, turnedInPlace, moved, order }
+   * @returns {SequenceEffect} what the sequence does, order included
    */
-  effectOf(sequence, options = {}) {
+  effectOf(sequence) {
     const flat = isAlgebra(sequence) ? expand(sequence) : String(sequence);
     const home = this.getPosition();
     // A copy, not the array: move() pushes into the one it is handed, so
@@ -1805,6 +1852,19 @@ export class Twisty {
     return { halfWidth: vb[2] / 2 / scale, halfHeight: vb[3] / 2 / scale };
   }
 
+  /**
+   * The geometry and the pose, for a renderer that is not this one.
+   *
+   * Each piece arrives in its own space plus a column-major matrix saying
+   * where that space is, so a renderer builds the geometry once and moves
+   * it by matrix every frame, mid-turn included. A warped puzzle is the
+   * exception and says so: its geometry arrives already placed and bent.
+   *
+   * @param {Object} [options]
+   * @param {{move: string, progress: number}} [options.turn] - a turn in flight
+   * @param {boolean} [options.triangles] - fan every polygon into triangles
+   * @returns {PieceView[]}
+   */
   getPieces(options = {}) {
     const { turn, triangles = false } = options;
     const spin = this._spinFor(turn);

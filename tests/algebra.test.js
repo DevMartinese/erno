@@ -136,25 +136,25 @@ test("effectOf reads a sequence as a permutation", () => {
       .join("+");
 
   // A single turn: four corners round, four edges round, the centre spins.
-  const r = p.effectOf("R", { order: true });
+  const r = p.effectOf("R");
   assertEqual(shape(r), "4+4", "R is two four-cycles");
   assertEqual(r.turnedInPlace.length, 1, "and one centre turned in place");
   assertEqual(r.order, 4, "R has order 4");
 
   // The whole reason commutators are taught: three pieces, nothing else.
-  const three = p.effectOf("[R U' R', D]", { order: true });
+  const three = p.effectOf("[R U' R', D]");
   assertEqual(shape(three), "3", "a commutator is a three-cycle");
   assertEqual(three.moved, 3, "and moves exactly three pieces");
   assertEqual(three.order, 3);
 
   // U and D commute, so their commutator is nothing, and so is any
   // conjugate of it. A list of six moves does not show you that.
-  const nothing = p.effectOf("[R: [U, D]]", { order: true });
+  const nothing = p.effectOf("[R: [U, D]]");
   assertEqual(nothing.moved, 0, "[U, D] is the identity");
   assertEqual(nothing.turnedInPlace.length, 0);
   assertEqual(nothing.order, 1);
 
-  const checker = p.effectOf("U2 D2 F2 B2 L2 R2", { order: true });
+  const checker = p.effectOf("U2 D2 F2 B2 L2 R2");
   assertEqual(shape(checker), "2+2+2+2+2+2", "the checkerboard swaps six pairs");
   assertEqual(checker.order, 2);
 });
@@ -245,7 +245,7 @@ test("looking at a sequence does not move the puzzle", () => {
   p.move("R U F");
   const position = p.getPosition();
   const history = p.history.join(" ");
-  p.effectOf("[R U' R', D]", { order: true });
+  p.effectOf("[R U' R', D]");
   assertEqual(p.getPosition(), position, "position");
   assertEqual(p.history.join(" "), history, "history");
 });
