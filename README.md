@@ -272,11 +272,14 @@ restores the solved state bit for bit, with zero float drift.
   the cut depth decides the puzzle (shallow Compy caps-and-wings, Dino's
   edges-only diagonals, Master Skewb's 50 pieces).
 - **Twist**: a 3×3 molded with a continuous 90° twist: top and bottom
-  squares sit axis-aligned with all the twisting in the body, side stickers
-  are kite-shaped tiles. Full cube notation; `U D E` turns keep the
-  silhouette coherent, side turns shape-shift it, as they do on the real
-  puzzle: a twist cube is a 3×3 mechanism in a moulded shell, and the shell
-  is what changes.
+  squares sit axis-aligned with all the twisting in the body. The cuts run
+  true: the shell is wrung, the grid on it is not, which is how a twist cube
+  reads in the hand. A quarter turn of shell under a straight grid means a
+  column of material faces one way at the bottom and another at the top, so
+  each face is two colours split on the diagonal. That is the twist itself,
+  not a flaw in the drawing. Full cube notation; side turns shape-shift it,
+  as they do on the real puzzle, which is a 3×3 mechanism in a moulded
+  shell.
 - **Penrose**: the classic three-color shape mod: pairs of adjacent faces
   share a color and their shared edge (UB, FL, DR, mutually skew and 3-fold
   symmetric) is rounded off with a big fillet. Every face keeps its sticker

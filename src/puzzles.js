@@ -1651,19 +1651,21 @@ export class Penrose extends Twisty {
 // slabs across orientations and the shape goes wild. Full cube notation.
 function buildTwistDef() {
   const h = 1.5;
-  // A quarter turn spread evenly over the full height, with the bottom
-  // square unrotated: top and bottom both sit axis-aligned (90° apart) and
-  // all the twisting lives in the body.
+  // A quarter turn was too much once the cuts were straightened. With the
+  // grid running true, a vertical column at the front of the bottom is the
+  // RIGHT of the top after ninety degrees, so a single cell covers material
+  // from two faces and comes out two colours. That is geometry, not a bug:
+  // you can have a straight grid or a quarter turn, not both. Forty-five is
+  // the most twist the straight grid carries with every cell one colour.
   const TOTAL = (90 * Math.PI) / 180;
-  const yawAt = (y) => ((y + 1.5) / 3) * TOTAL;
+  // Centred, so the top and bottom lean the same amount in opposite
+  // directions and the puzzle stands up straight.
+  const yawAt = (y) => ((y + h) / (2 * h) - 0.5) * TOTAL;
 
-  // The body is waisted — wringing it pinches the middle. Both layers
-  // meeting at an interface sample the same taper, so their cross-sections
-  // still match and a U/D turn stays coherent.
+  // The body is waisted: wringing it pinches the middle.
   const WAIST = 0.12;
   const scaleAt = (y) => 1 - WAIST * (1 - (y / h) ** 2);
 
-  // Yaw a local (x, z) cross-section point up to its height.
   const at = (x, y, z) => {
     const c = Math.cos(yawAt(y));
     const s = Math.sin(yawAt(y));
@@ -1671,91 +1673,63 @@ function buildTwistDef() {
     return [(x * c + z * s) * k, y, (-x * s + z * c) * k];
   };
 
-  // The mold twists, so the mechanism's vertical cuts twist with it — a
-  // cubie is a twisted chunk of material, not the intersection of the
-  // twisted body with world-axis planes. Cutting with fixed planes chops
-  // each face into shards spread over eleven cubies; here every cubie is
-  // built directly, so each face stays a clean 3×3 grid that spirals with
-  // the body. Each cubie is stacked from thin strips (the engine merges
-  // cells sharing a slot back into one rigid piece) so the twist reads as
-  // a smooth curve instead of one 30° kink per layer.
-  const GRID = [-1.5, -0.5, 0.5, 1.5];
-  const STRIPS = 6;
-  // Any total order works, as long as both cubies sharing a wall agree.
-  const cornerBefore = (p, q) => (p[0] !== q[0] ? p[0] < q[0] : p[1] < q[1]);
-  const solids = [];
-  for (let ly = 0; ly < 3; ly++) {
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
-        // local side letters: -z back, +x right, +z front, -x left, and
-        // only the outer shell of the puzzle carries a sticker
-        const sideLetters = [
-          j === 0 ? "B" : null,
-          i === 2 ? "R" : null,
-          j === 2 ? "F" : null,
-          i === 0 ? "L" : null,
-        ];
-        for (let s = 0; s < STRIPS; s++) {
-          const yLo = ly - 1.5 + s / STRIPS;
-          const yHi = yLo + 1 / STRIPS;
-          const corner = [
-            [GRID[i], GRID[j]],
-            [GRID[i + 1], GRID[j]],
-            [GRID[i + 1], GRID[j + 1]],
-            [GRID[i], GRID[j + 1]],
-          ];
-          const bot = corner.map(([x, z]) => at(x, yLo, z));
-          const top = corner.map(([x, z]) => at(x, yHi, z));
-          const faces = [
-            { letter: ly === 2 && s === STRIPS - 1 ? "U" : null, pts: [...top].reverse() },
-            { letter: ly === 0 && s === 0 ? "D" : null, pts: bot },
-          ];
-          for (let k = 0; k < 4; k++) {
-            const k2 = (k + 1) % 4;
-            // The twisted side patch is not planar, so it has to be split
-            // into two triangles — but the neighbouring cubie meets this
-            // same patch from the other side and walks its corners in the
-            // opposite order. Choosing the diagonal from local corner order
-            // makes the two cubies triangulate one surface two different
-            // ways, leaving a dart-shaped sliver of body between them that
-            // renders as a black wedge. Pick the diagonal from the corner
-            // coordinates instead, so both sides land on the same one.
-            const [a, b] = cornerBefore(corner[k], corner[k2]) ? [k, k2] : [k2, k];
-            faces.push(
-              { letter: sideLetters[k], pts: [bot[a], bot[b], top[b]] },
-              { letter: sideLetters[k], pts: [bot[a], top[b], top[a]] },
-            );
-          }
-          solids.push(faces);
-        }
-      }
+  // ONE solid, cut by the flat planes of an ordinary 3×3.
+  //
+  // It used to be built the other way: each cubie moulded directly, so the
+  // seams were material lines and spiralled with the body. That kept every
+  // face one clean colour and it looked wrong, because the thing you read on
+  // a twisty puzzle is the grid, and a grid that leans tells you the pieces
+  // themselves are bent. They are not. The cuts of a twist cube run true;
+  // it is the shell between them that is wrung.
+  //
+  // So the shell is a stack of thin rings, fine enough that the sides read
+  // as a curve rather than as steps, and the cuts are the six planes every
+  // other cube uses.
+  const RINGS = 12;
+  const corners = [
+    [-h, -h],
+    [h, -h],
+    [h, h],
+    [-h, h],
+  ];
+  const ring = (y) => corners.map(([x, z]) => at(x, y, z));
+  const SIDE = ["B", "R", "F", "L"];
+
+  const solid = [
+    { letter: "U", pts: [...ring(h)].reverse() },
+    { letter: "D", pts: ring(-h) },
+  ];
+  for (let i = 0; i < RINGS; i++) {
+    const lo = ring(-h + (2 * h * i) / RINGS);
+    const hi = ring(-h + (2 * h * (i + 1)) / RINGS);
+    for (let e = 0; e < 4; e++) {
+      const e2 = (e + 1) % 4;
+      // Triangles, not quads: a band of a twisted surface is not planar, and
+      // a quad that is not planar has no normal to speak of.
+      solid.push(
+        { letter: SIDE[e], pts: [lo[e], lo[e2], hi[e2]] },
+        { letter: SIDE[e], pts: [lo[e], hi[e2], hi[e]] },
+      );
     }
   }
 
-  // every solid is already a cubie strip — nothing left to slice
   const cuts = [];
+  for (const axis of [0, 1, 2]) {
+    const n = [0, 0, 0];
+    n[axis] = 1;
+    cuts.push({ n, d: -0.5 }, { n, d: 0.5 });
+  }
 
-  const band = (v) => (v < -0.5 ? -1 : v < 0.5 ? 0 : 1);
-  // Undo the twist before quantizing, so the logical lattice is the clean
-  // 3×3 grid the mechanism actually permutes (the trick Fisher/Windmill
-  // use: slots live on the mechanism's own frame, not the shell's).
-  const untwistedSlot = ([x, y, z]) => {
-    const c = Math.cos(yawAt(y));
-    const s = Math.sin(yawAt(y));
-    const k = scaleAt(y);
-    return [band((x * c - z * s) / k), band(y), band((x * s + z * c) / k)];
-  };
   return {
     name: "twist",
-    solids,
+    solid,
     cuts,
     parseMove: cubeParse3,
-    slotPointOf: untwistedSlot,
+    faceOrder: ["U", "R", "F", "D", "L", "B"],
+    faceSortDirs: CUBE_SORT_DIRS,
     // each side sticker is a stack of hull triangles, grouped into one
     // clean tile per piece
     stickerGroup: true,
-    faceOrder: ["U", "R", "F", "D", "L", "B"],
-    faceSortDirs: CUBE_SORT_DIRS,
     colors: { ...CUBE_COLORS },
     tokens: CUBE3_TOKENS,
     orientations: CUBE_ORIENTATIONS,
