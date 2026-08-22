@@ -1371,6 +1371,8 @@ function reconTick(line, text, cls) {
   el.textContent = text;
   if (cls) el.className = cls;
   line.append(el);
+  // A one-line ticker follows its own newest word.
+  line.scrollLeft = line.scrollWidth;
   return el;
 }
 
@@ -1412,10 +1414,13 @@ function runScriptButton() {
     } catch {
       /* laws unwritten on this family */
     }
+    // The short verdict only: the board's own status line already names
+    // the broken law in full, and saying it twice made this one four
+    // lines tall.
     const lawWord = law
       ? law.lawful
         ? "a lawful cube"
-        : `unlawful: ${law.breaks[0]}`
+        : "not a lawful cube"
       : "its laws unwritten";
     out.textContent = hit
       ? law && law.lawful
