@@ -1592,17 +1592,20 @@ async function ovRun(gen) {
   $("watch-code").textContent = "";
   $("watch-goal").hidden = true;
   $("watch-again").hidden = true;
-  $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
+  $("watch-sig").textContent = "Cube(size)";
 
-  // 0. The cube itself, piece by piece, before a line is written.
+  // 0. The constructor runs and the cube it makes arrives piece by piece:
+  // the code causes the build, like everything else on this reel.
   ov.board = ovBuild("return face");
-  ovSay("First the cube itself: six centres bolted to the core, then every edge and corner, each named as it lands.");
+  ovSay("One constructor, twenty six cubies: the six centres bolted to the core first, then every edge and corner, each named below as it lands.");
+  await ovType(gen, "new Cube({ size: 3 })");
   await ovAssemble(gen);
   await ovSleep(gen, 700);
 
   // I. A pattern is written. Returning a face letter returns its colour.
+  $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
   ovSay("Your function runs once per sticker. Returning the face letter returns its colour, so this is the solved cube.");
-  await ovType(gen, "return face");
+  await ovType(gen, "return face", { reset: true });
   draw(canvas, ov.board);
   ticker.textContent = "";
   for (const L of ["U", "R", "F", "D", "L", "B"]) {
@@ -1670,6 +1673,7 @@ async function ovRun(gen) {
   ovSay("A first script: try every face, keep a turn only if the picture gets closer. The struck moves were tried and taken back.");
   await ovType(gen, WATCH_GREEDY, { reset: true });
   ticker.textContent = "";
+  let kept = 0;
   for (const m of ["R", "U", "F", "D", "L", "B"]) {
     const before = ov.board.distanceTo(ov.pattern);
     const el = ovTick(m, "is-live");
@@ -1679,12 +1683,19 @@ async function ovRun(gen) {
       await ovTurn(gen, m + "'", 110);
     } else {
       el.className = "";
+      kept++;
     }
   }
 
-  // VI. The rest is yours.
-  ovSay("The rest is yours: the same nouns wait in the Script plate below.");
-  ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
+  // VI. The ending must read itself out loud: what the strikes were, what
+  // the count is, and where the reader goes next.
+  const left = ov.board.distanceTo(ov.pattern);
+  ovSay(
+    `Six faces tried, ${kept} kept; the struck turns were taken back. ` +
+      `${left} of 54 stickers still off the picture, and the rest is yours: ` +
+      `the same nouns wait in the Script plate below.`,
+  );
+  ovTick(`→ ${left} / 54`);
   $("watch-code").classList.remove("is-typing");
   $("watch-again").hidden = false;
 }
@@ -1719,9 +1730,14 @@ function wireWatch() {
     pre.textContent = WATCH_GREEDY;
     if (highlight) pre.innerHTML = highlight(WATCH_GREEDY);
     $("watch-sig").textContent = "solve()";
-    ovSay("The finished run, all at once: the pattern written, the board dealt, and the turns the greedy kept.");
+    const left = ov.board.distanceTo(ov.pattern);
+    ovSay(
+      `The finished run, all at once: the pattern written, the board dealt, ` +
+        `the ${kept.length} turns the greedy kept, and ${left} of 54 stickers ` +
+        `still off the picture.`,
+    );
     for (const m of kept) ovTick(m);
-    ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
+    ovTick(`→ ${left} / 54`);
     return;
   }
 
