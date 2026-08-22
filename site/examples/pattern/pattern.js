@@ -1131,8 +1131,11 @@ function runScript(source) {
     deal: () => {
       spend();
       const fresh = build(game.source, game.kind, game.size);
-      if (fresh.constructor !== Cube)
-        throw new Error("only a plain cube comes apart; weld or carve it and the pieces stop being free");
+      // A box of free pieces comes apart: cubes and cuboids both have a
+      // spider and a bin. A weld holds its pieces and a carve removed
+      // some, so those refuse in the mechanism's own terms.
+      if (fresh.constructor !== Cube && fresh.constructor !== Cuboid)
+        throw new Error("only a box of free pieces comes apart; weld or carve it and the pieces stop being free");
       road = "build";
       game.built = false;
       game.puzzle = fresh;
@@ -1247,8 +1250,8 @@ function runScript(source) {
     off: () => {
       spend();
       whole();
-      if (p.constructor !== Cube)
-        throw new Error("off() reads the plain cube only, for now");
+      if (p.constructor !== Cube && p.constructor !== Cuboid)
+        throw new Error("off() reads the box family only, for now");
       const here = p.getPattern();
       const locKey = probeLocKeys();
       nameSlot([0, 0, 0]); // fill the location-name cache

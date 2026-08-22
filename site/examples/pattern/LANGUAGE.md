@@ -65,10 +65,11 @@ never be confused.
 
 ### Build
 
-- **`deal()`**. Takes the board apart the way Assemble does: a fresh cube
-  at rest, six centres bolted to the core, everything else in a shuffled
-  bin. Returns the bin as piece names. Only a plain cube comes apart;
-  welded or carved boards are refused by name.
+- **`deal()`**. Takes the board apart the way Assemble does: a fresh
+  board at rest, centres bolted to the core, everything else in a
+  shuffled bin. Returns the bin as piece names. The box family comes
+  apart, cube and cuboid alike, since both have a spider and free
+  pieces; welded or carved boards are refused by name.
 - **`bin()`**. The names still waiting to be placed.
 - **`place(piece, slot?, spin?)`**. Sets a piece from the bin into any
   free slot of its kind, spun on the spot: the whole of Assemble's power
@@ -90,7 +91,7 @@ never be confused.
 - **`off()`**. The slots still wrong against the target, counted exactly
   the way the judge counts: the pattern string against the target string,
   facelet by facelet, in the frame the board is held in. A reading noun
-  must never be cleverer than the judge. Plain cube only, whole only.
+  must never be cleverer than the judge. Box family only, whole only.
 - **`distance()`**. Stickers away from the picture. Whole only.
 - **`solved()`**. Whether the board wears the picture, any orientation.
   Whole only.
@@ -200,11 +201,11 @@ for (const p of bin()) place(p)
 //  two pieces alone can never swap."
 ```
 
-### A cuboid, handed (Puzzle: Cuboid, 3×3×2)
+### A cuboid, on both roads (Puzzle: Cuboid, 3×3×2)
 
 Pick Cuboid in the Write plate's Puzzle control; the slider drives the
-long axis. A cuboid is a given board, never a dealt one, and it enforces
-its own shape law:
+long axis. A cuboid inherits the cube's spider, so it walks both roads.
+Handed, it enforces its own shape law:
 
 ```js
 alg("R")   // refused at declaration: 'R' would leave this cuboid
@@ -212,6 +213,14 @@ alg("R")   // refused at declaration: 'R' would leave this cuboid
 
 turn("F R2 U2")   // quarter turns only where the cross-section is square
 while (!solved() && moves() < 40) turn(alg("[F, R2]"))
+```
+
+And it comes apart like its parent, two centres riding the spider and
+sixteen free pieces to the bin:
+
+```js
+deal()                            // bin(): 8 corners and 8 edges
+for (const p of bin()) place(p)   // "Built the pattern: 39 characters, both crowns."
 ```
 
 ### A Siamese, handed (Puzzle: Siamese)
@@ -225,17 +234,17 @@ turn("[AD, BU]2")
 while (!solved() && moves() < 40) turn(alg("[AD, BU]"))
 ```
 
-### Why only the plain cube comes apart
+### Why the weld never comes apart
 
 ```js
-deal()   // on a cuboid or a Siamese:
-         // "only a plain cube comes apart; weld or carve it and the
-         //  pieces stop being free"
+deal()   // on a Siamese or any welded or carved board:
+         // "only a box of free pieces comes apart; weld or carve it
+         //  and the pieces stop being free"
 ```
 
-A welded or carved board has pieces held by the weld, not by a core; a
-bin of them would be a lie about the mechanism, so the language refuses
-in the mechanism's own terms.
+A welded board has pieces held by the weld, not by a core, and a carved
+one is missing some; a bin of either would be a lie about the mechanism,
+so the language refuses in the mechanism's own terms.
 
 ## The two voices
 
