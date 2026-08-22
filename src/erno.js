@@ -669,6 +669,8 @@ export {
   Puzzle,
   boardOf,
   parseBoardSpec,
+  algOf,
+  applySymmetry,
   SCHEMES,
 } from "./puzzles.js";
 export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

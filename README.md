@@ -675,6 +675,28 @@ a.scramble(15, 42)      // same seed,
 b.scramble(15, 42)      // same walk, same board after it
 ```
 
+## The alg value
+
+Declare a sequence against a board without turning it. `algOf` parses
+now, refuses now if it is not real notation, reads the sequence off the
+board's own `effectOf`, and hands back a frozen value with the
+notation's constructors: every method returns a new frozen alg, nothing
+is ever simplified, and emission preserves compression. The transforms
+consult the board's published symmetries, and the board is always left
+exactly as found:
+
+```js
+import { Cube, algOf } from 'erno.js'
+
+const cube = new Cube({ size: 3 })
+const sexy = algOf(cube, "[R, U]")
+sexy.order                        // 6
+sexy.cycleNames                   // cycles in cubers' spelling
+sexy.times(6).alg                 // "([R, U])6": compression kept
+sexy.reflect("RL").alg            // the other hand, from the mirror table
+algOf(cube, "R R'").sameEffect("")   // true; .equals("") is false
+```
+
 ## Symmetries, published
 
 Each mechanism can publish the symmetries of its own solid, derived from

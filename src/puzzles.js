@@ -26,7 +26,9 @@ import {
   parseBoxMove,
   rotationMatrix,
   slicePieces,
+  inverseSequence,
 } from "./twisty.js";
+import { expand, isAlgebra } from "./algebra.js";
 
 // ── Small vector helpers (local) ────────────────────────────────────────────
 
@@ -2357,6 +2359,155 @@ function symPublish(board, name, g, bodyMap) {
       return image;
     },
   };
+}
+
+
+
+// ── The alg value, engine-native ─────────────────────────────────────────────
+//
+// A frozen value beside the notation: parsed at declaration, refused at
+// declaration if it is not real notation, its readings taken from the
+// board's own effectOf and its transforms from the board's published
+// symmetries. Every constructor returns a new frozen value, nothing is
+// ever simplified, and emission preserves compression: times(6) prints
+// (A)6, never the expansion. The board is read and always left exactly
+// as found.
+
+/**
+ * Apply a published symmetry to a whole sequence string, structure kept:
+ * brackets, parentheses and repeat counts pass through untouched, and
+ * only move tokens are mapped.
+ * @param {{map: (t: string) => string}} sym - an entry from symmetries()
+ * @param {string} text - plain notation or the algebra
+ * @param {"box"|"weld"} dialect
+ * @returns {string}
+ */
+export function applySymmetry(sym, text, dialect) {
+  const re =
+    dialect === "weld"
+      ? /[A-Z](?:[URFDLB]|[MES])(?:2'|2|')?/g
+      : /(?:\d*)(?:[A-Za-z])(?:w?)(?:2'|2|')?/g;
+  return String(text).replace(re, (tok) => {
+    try {
+      return sym.map(tok);
+    } catch {
+      return tok;
+    }
+  });
+}
+
+/**
+ * Declare a sequence against a board without turning it.
+ * @param {import('./twisty.js').Twisty} board
+ * @param {string|{alg: string}} seq - notation, the algebra, or another alg
+ * @returns {Readonly<Object>} the frozen alg value
+ */
+export function algOf(board, seq) {
+  const src = String(seq && seq.alg !== undefined ? seq.alg : seq).trim();
+  const tokens = (isAlgebra(src) ? expand(src) : src).split(/\s+/).filter(Boolean);
+  for (const t of tokens) board.parseMove(t); // refused now, not at turn time
+  const dialect = board instanceof Fused ? "weld" : "box";
+  let order = 1;
+  let moved = 0;
+  let cycles = [];
+  let cycleNames = [];
+  if (tokens.length) {
+    const e = board.effectOf(src);
+    order = e.order;
+    moved = e.moved;
+    cycles = e.cycles;
+    // Cycles in the words a cuber reads: body-first on a weld, where the
+    // bare Singmaster spelling repeats across bodies.
+    const names = new Map();
+    const bodies = board.bodies || null;
+    const inBody = (slot, b) =>
+      slot.every((v, i) => Math.abs(v - b.at[i]) <= (b.size[i] - 1) / 2 + 0.01);
+    for (let i = 0; i < board.pieces.length; i++) {
+      const home = board.pieces[i].slotPoint;
+      let label = board.nameOf(i);
+      if (bodies) {
+        const owners = bodies
+          .map((b, j) => (inBody(home, b) ? j : -1))
+          .filter((j) => j >= 0);
+        if (owners.length === 1) label = String.fromCharCode(65 + owners[0]) + label;
+      }
+      names.set(home.map((v) => Math.round(v * 1e4)).join(","), label);
+    }
+    cycleNames = cycles.map((c) =>
+      c.map((slot) => names.get(slot.map((v) => Math.round(v * 1e4)).join(",")) || "?"),
+    );
+  }
+  const kin = (b) => {
+    const o = b && b.alg !== undefined && b.dialect ? b : algOf(board, b);
+    if (o.dialect !== dialect)
+      throw new Error("erno: two dialects never share a sentence");
+    return o;
+  };
+  const oneGroup = /^\([\s\S]*\)\d*'?$/.test(src) || /^\[[\s\S]*\]\d*'?$/.test(src);
+  const wrap = (s) => algOf(board, s);
+  const named = (name) => {
+    const sym = board.symmetries ? board.symmetries().find((s) => s.name === name) : null;
+    if (!sym)
+      throw new Error(
+        `erno: this board publishes no ${name}` +
+          (board.symmetries && board.symmetries().length
+            ? ` (it publishes ${board.symmetries().map((s) => s.name).join(", ")})`
+            : ""),
+      );
+    return wrap(applySymmetry(sym, src, dialect));
+  };
+  return Object.freeze({
+    alg: src,
+    moves: tokens.length,
+    order,
+    moved,
+    cycles,
+    cycleNames,
+    dialect,
+    toString: () => src,
+    then: (b) => {
+      const o = kin(b);
+      return wrap(src && o.alg ? `${src} ${o.alg}` : src || o.alg);
+    },
+    times: (n) => {
+      const k = Math.round(Number(n));
+      if (!(k >= 0)) throw new Error("erno: times() takes zero or more");
+      if (k === 0 || !src) return wrap("");
+      if (k === 1) return wrap(src);
+      return wrap(`(${src})${k}`);
+    },
+    inverse: () => {
+      if (!src) return wrap("");
+      if (!isAlgebra(src)) return wrap(inverseSequence(src));
+      return wrap(oneGroup ? `${src}'` : `(${src})'`);
+    },
+    commutator: (b) => wrap(`[${src}, ${kin(b).alg}]`),
+    conjugate: (b) => wrap(`[${src}: ${kin(b).alg}]`),
+    reflect: (plane) => named(String(plane)),
+    exchange: () => named("exchange"),
+    swap: () => named("swap"),
+    equals: (b) => {
+      const o = b && b.alg !== undefined && b.dialect ? b : algOf(board, b);
+      return o.alg === src && o.dialect === dialect;
+    },
+    sameEffect: (b) => {
+      const o = b && b.alg !== undefined && b.dialect ? b : algOf(board, b);
+      if (o.dialect !== dialect) return false;
+      const home = board.getPosition();
+      let pa;
+      let pb;
+      try {
+        if (src) board.move(src);
+        pa = board.getPosition();
+        board.setPosition(home);
+        if (o.alg) board.move(o.alg);
+        pb = board.getPosition();
+      } finally {
+        board.setPosition(home);
+      }
+      return pa === pb;
+    },
+  });
 }
 
 // ── The board spec ───────────────────────────────────────────────────────────

@@ -1871,6 +1871,34 @@ test("an unequal weld never exchanges, and keeps only its true mirrors", () => {
   for (const t of vocab) assert(vocab.includes(diag.map(t)), `diag closes over ${t}`);
 });
 
+test("the alg value lives in the engine, and reads without moving", () => {
+  const c = new Cube({ size: 3 });
+  const before = c.getPattern();
+  const a = erno.algOf(c, "[R, U]");
+  assert(a.moves === 4 && a.order === 6 && a.cycles.length === 3, "the readings hold");
+  assert(a.cycleNames.every((cy) => cy.every((n) => typeof n === "string" && n.length >= 1)), "cycles come named");
+  assert(erno.algOf(c, "R U").times(6).alg === "(R U)6", "emission compresses");
+  assert(erno.algOf(c, "R U2 f'").inverse().alg === Erno.inverse("R U2 f'"), "the open inverse matches the library's");
+  assert(erno.algOf(c, "(R U)6").inverse().alg === "(R U)6'", "a wrapped group keeps its wrapper");
+  assert(erno.algOf(c, "R R'").sameEffect("") && !erno.algOf(c, "R R'").equals(""), "sameEffect and equals ask different questions");
+  assert(erno.algOf(c, "Rw M").reflect("RL").alg === "Lw' M", "transforms consult the published mirrors");
+  assert(c.getPattern() === before && c.history.length === 0, "the board is left exactly as found");
+});
+
+test("the engine alg speaks the weld dialect, body-first", () => {
+  const s = new Siamese();
+  const a = erno.algOf(s, "[AD, AL]");
+  assert(a.exchange().alg === "[BU, BR]", "exchange keeps the brackets");
+  assert(a.cycleNames.flat().every((n) => n[0] === "A" || n[0] === "B"), "cycles answer body-first");
+  let said = "";
+  try {
+    erno.algOf(new Cube({ size: 3 }), "R").exchange();
+  } catch (err) {
+    said = err.message;
+  }
+  assert(said.includes("publishes no exchange"), "a box refusal names the lack");
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

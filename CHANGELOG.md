@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.12 (2026-08-22)
+
+- The alg value, engine-native: `algOf(board, seq)` declares a sequence
+  without turning it and returns a frozen value - readings from the
+  board's own `effectOf` (`order`, `moved`, `cycles`, and `cycleNames`
+  in cubers' spelling, body-first on a weld), constructors that never
+  simplify and always compress (`times(6)` prints `(A)6`, the open
+  inverse writes exactly what `Erno.inverse` writes, a wrapped group
+  keeps its wrapper), transforms that consult the board's published
+  symmetries, and two different questions kept apart: `equals` is the
+  writing, `sameEffect` is the permutation. The board is always left
+  exactly as found. `applySymmetry` is exported beside it, so a page
+  and the engine share one way of carrying a symmetry across a whole
+  sequence.
+
 ## 0.2.11 (2026-08-22)
 
 - The board spec: one string names any board the engine can build. A

@@ -68,7 +68,8 @@ test("every method the examples call exists", () => {
   // the shipped three adapter's surface, which cannot be instantiated here
   // (it needs a browser), so its three methods are declared rather than read
   for (const m of ["show", "invalidate", "dispose", "assert"]) api.add(m);
-  for (const obj of [new E.Cube(), new E.Erno(), E.Twisty, E.Erno]) {
+  // the alg value's own surface, read off a real one
+  for (const obj of [new E.Cube(), new E.Erno(), E.Twisty, E.Erno, E.algOf(new E.Cube(), "R")]) {
     let o = obj;
     while (o && o !== Object.prototype) {
       for (const k of Object.getOwnPropertyNames(o)) api.add(k);
