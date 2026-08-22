@@ -342,6 +342,9 @@ function refreshWrite() {
   // Scrambled from the start: a solved board is a finished game, and that is
   // not what anyone should be shown first.
   startGame(depth > 0);
+  // The instrument follows the picture: a new pattern rebuilds Cycle's
+  // board at rest, wearing it, without stopping the bar.
+  if (cyc.board) cycBuild();
 }
 
 // ── Challenges ──────────────────────────────────────────────────────────────
@@ -1238,6 +1241,22 @@ function runScript(source) {
       if (!r) throw new Error(`no face '${L}' on this puzzle`);
       return p.getState().slice(r[0], r[1]);
     },
+    // Where the board is wrong, slot by slot. It compares exactly the
+    // way the judge compares: the pattern string against the target,
+    // facelet by facelet, in the frame the board is held in.
+    off: () => {
+      spend();
+      whole();
+      if (p.constructor !== Cube)
+        throw new Error("off() reads the plain cube only, for now");
+      const here = p.getPattern();
+      const locKey = probeLocKeys();
+      nameSlot([0, 0, 0]); // fill the location-name cache
+      const bad = new Set();
+      for (let i = 0; i < here.length; i++)
+        if (here[i] !== game.target[i]) bad.add(locNames.get(locKey[i]) || "?");
+      return [...bad];
+    },
     solved: () => (spend(), whole(), p.matches(game.target)),
     distance: () => (spend(), whole(), p.distanceTo(game.target)),
     moves: () => Math.max(0, p.history.length - before),
@@ -1273,6 +1292,27 @@ function runScript(source) {
 
 let reconGen = 0;
 let reconActive = 0;
+
+// A probe board painted with its own coordinates: its tints, read once,
+// are the map from facelet index to the location resting there. Facelets
+// never move; stickers do, which is why the map can be cached per shape.
+const probeCache = new Map();
+function probeLocKeys() {
+  const key = `${game.kind}|${game.size}`;
+  if (!probeCache.has(key)) {
+    const keep = game.usesPalette;
+    const probe = PUZZLES[game.kind].make(
+      {
+        paint: ({ slot }) => slot.map((v) => Math.round(v * 1e4)).join(","),
+        stickerInset: 0.1,
+      },
+      game.size,
+    );
+    game.usesPalette = keep;
+    probeCache.set(key, probe.getTints());
+  }
+  return probeCache.get(key);
+}
 
 function shadowBoard() {
   const keep = game.usesPalette;
@@ -2179,6 +2219,146 @@ function wireWatch() {
   io.observe($("watch-panel"));
 }
 
+// ── Cycle: the instrument ───────────────────────────────────────────────────
+//
+// Every sequence has a finite order, so every alg is a seamless loop: it
+// comes home by itself, the way a bar of music comes back to one. The
+// board turns the written bar around and around; editing the bar swaps it
+// in mid-flight on the same board, and Rest rebuilds the cube wearing
+// whatever Write currently says.
+
+const cyc = { board: null, tokens: [], order: 1, i: 0, gen: 0, paused: true, els: [] };
+
+function cycDraw(turn) {
+  const host = $("cycle-canvas");
+  if (host && cyc.board)
+    host.innerHTML = cyc.board.toSVG({ fitSphere: true, padding: 8, turn });
+}
+
+function cycBuild() {
+  cyc.board = shadowBoard();
+  cyc.i = 0;
+  cycDraw();
+}
+
+function cycSet(text) {
+  const input = $("cycle-input");
+  let tokens;
+  let order;
+  try {
+    const flat = desugar(text);
+    tokens = (isAlgebra(flat) ? expand(flat) : flat).split(/\s+/).filter(Boolean);
+    if (!tokens.length) throw new Error("an empty bar has nothing to turn");
+    const twin = shadowBoard();
+    for (const t of tokens) twin.parseMove(t);
+    order = twin.effectOf(flat).order;
+  } catch (err) {
+    input.setAttribute("data-bad", "");
+    $("cycle-read").textContent = err.message;
+    return;
+  }
+  input.removeAttribute("data-bad");
+  cyc.tokens = tokens;
+  cyc.order = order;
+  cyc.i = 0;
+  const ticker = $("cycle-ticker");
+  ticker.textContent = "";
+  cyc.els = tokens.map((t) => {
+    const el = document.createElement("span");
+    el.textContent = t;
+    ticker.append(el);
+    return el;
+  });
+  $("cycle-read").textContent =
+    `${tokens.length} ${tokens.length === 1 ? "turn" : "turns"} · order ${order} · home every ${tokens.length * order}`;
+}
+
+function cycTurn(gen, move, ms = 210) {
+  return new Promise((resolve) => {
+    let t = 0;
+    let last = performance.now();
+    const step = (now) => {
+      if (gen !== cyc.gen) return resolve();
+      if (!cyc.paused) t += (now - last) / ms;
+      last = now;
+      const k = Math.min(1, t);
+      cycDraw({ move, progress: 1 - (1 - k) * (1 - k) });
+      if (k < 1) requestAnimationFrame(step);
+      else {
+        cyc.board.move(move);
+        cycDraw();
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+async function cycRun(gen) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  while (gen === cyc.gen) {
+    if (cyc.paused || !cyc.tokens.length) {
+      await sleep(150);
+      continue;
+    }
+    const idx = cyc.i % cyc.tokens.length;
+    const el = cyc.els[idx];
+    if (el) {
+      el.className = "is-live";
+      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    await cycTurn(gen, cyc.tokens[idx]);
+    if (el) el.className = "";
+    cyc.i++;
+    await sleep(40);
+  }
+}
+
+function wireCycle() {
+  if (!$("cycle-panel")) return;
+  cycBuild();
+  cycSet($("cycle-input").value);
+
+  let typing;
+  $("cycle-input").addEventListener("input", () => {
+    clearTimeout(typing);
+    typing = setTimeout(() => cycSet($("cycle-input").value), 300);
+  });
+  for (const b of document.querySelectorAll("[data-cycle]"))
+    b.addEventListener("click", () => {
+      $("cycle-input").value = b.dataset.cycle;
+      cycSet(b.dataset.cycle);
+    });
+  $("cycle-rest").addEventListener("click", () => {
+    cycBuild();
+  });
+
+  if (still.matches) {
+    // No autoplay for a reader who asked for stillness: one button, one
+    // turn at a time, the bar advancing under the thumb.
+    const step = $("cycle-step");
+    step.hidden = false;
+    step.addEventListener("click", () => {
+      if (!cyc.tokens.length) return;
+      const idx = cyc.i % cyc.tokens.length;
+      cyc.board.move(cyc.tokens[idx]);
+      cycDraw();
+      cyc.i++;
+    });
+    return;
+  }
+
+  cyc.gen++;
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) cyc.paused = !e.isIntersecting;
+    },
+    { threshold: 0.3 },
+  );
+  io.observe($("cycle-panel"));
+  cycRun(cyc.gen);
+}
+
 // ── The mode nav ────────────────────────────────────────────────────────────
 //
 // Scroll-spy plus hash-preserving clicks. The one decision that matters is
@@ -2322,6 +2502,7 @@ function init() {
   wireAssembly();
   wireModeNav();
   wireWatch();
+  wireCycle();
   for (const b of document.querySelectorAll("[data-script]"))
     b.addEventListener("click", () => {
       $("script-code").value = b.dataset.script;

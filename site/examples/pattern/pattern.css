@@ -137,7 +137,8 @@ body.example {
   margin-bottom: var(--space-1);
 }
 #write-code,
-#script-code {
+#script-code,
+#cycle-input {
   width: 100%;
   box-sizing: border-box;
   font-family: var(--mono);
@@ -151,9 +152,21 @@ body.example {
   resize: vertical;
 }
 #write-code:focus,
-#script-code:focus {
+#script-code:focus,
+#cycle-input:focus {
   outline: 3px solid var(--red);
   outline-offset: 4px;
+}
+#cycle-input[data-bad] {
+  border-color: var(--red);
+  background: color-mix(in oklab, var(--red) 8%, var(--paper));
+}
+/* The bar as a one-line ticker, the live turn lit as it plays. */
+#cycle-ticker {
+  min-height: var(--lh);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 /* A function that does not parse yet is the normal state of a text box
    someone is typing in, so it is marked rather than replaced by an error. */

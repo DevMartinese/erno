@@ -41,6 +41,7 @@
       <a href="#asm-panel">Assemble</a>
       <a href="#play-panel">Solve</a>
       <a href="#script-panel">Script</a>
+      <a href="#cycle-panel">Cycle</a>
     </nav>
 
     <section class="example-plate example-plate--flip" id="watch-panel">
@@ -365,7 +366,9 @@
           who stands in it, and <code>cycles("[R, U]")</code> reads a
           sequence as the permutation it drives, cycle by named cycle.
           <code>solved()</code> and <code>distance()</code> judge against the
-          target, and <code>moves()</code> counts what you have spent. Every
+          target, <code>off()</code> names the slots still wrong, counted
+          exactly the way the judge counts, and <code>moves()</code> counts
+          what you have spent. Every
           call burns fuel, so a runaway loop that keeps asking dies with a
           message; one that never asks cannot be stopped from here, so save
           before you gamble.
@@ -448,6 +451,46 @@ for (const m of ["R", "U", "F", "D", "L", "B"]) {
           This is Solve's board, not a copy: what the script turns here, the
           keypad feels there. Undo takes back its moves like anything else.
         </p>
+      </div>
+    </section>
+
+    <section class="example-plate" id="cycle-panel">
+      <div class="example-text">
+        <h2>Cycle</h2>
+        <p>
+          The instrument at the end of the game. Every sequence has a
+          finite order, so every alg is a loop that comes home by itself:
+          what live coders do to a bar of music, an alg does by theorem.
+          Type one and the cube turns it, around and around; edit it while
+          it plays and the new bar takes over on the same board,
+          mid-flight, without stopping.
+        </p>
+        <p>
+          The line under the box reads the bar: how many turns it is, its
+          order, and how long until the picture you wrote comes back
+          around. Rest rebuilds the cube at rest, wearing whatever Write
+          says it should wear.
+        </p>
+        <div class="example-editor">
+          <label class="example-label" for="cycle-input">
+            the bar
+            <span class="seq-hint">
+              <button type="button" data-cycle="[R, U]">[R, U]</button>
+              <button type="button" data-cycle="R U">R U</button>
+              <button type="button" data-cycle="(M E)2">(M E)2</button>
+            </span>
+          </label>
+          <input id="cycle-input" spellcheck="false" autocomplete="off" value="[R, U]" />
+        </div>
+        <p class="demo-readout demo-readout--mono" id="cycle-read"></p>
+        <p class="watch-ticker" id="cycle-ticker"></p>
+        <div class="demo-controls">
+          <button id="cycle-rest">Rest</button>
+          <button id="cycle-step" hidden>Turn once</button>
+        </div>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="cycle-canvas"></div>
       </div>
     </section>
 
