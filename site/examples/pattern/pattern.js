@@ -1040,6 +1040,25 @@ function runScript(source) {
       renderCode();
     },
     at: (name) => (spend(), occupant(name)),
+    // The cube as something to iterate: every slot by its cubers' name,
+    // and who is standing in it right now.
+    pieces: () => {
+      spend();
+      return twin
+        .getPieces()
+        .map((pc) => {
+          const slot = twin.nameOf(pc.index);
+          return { at: slot, is: occupant(slot) };
+        })
+        .filter((e) => e.at.length > 1); // centres never travel
+    },
+    // A sequence read as the permutation it drives, in cycle notation over
+    // slot names: [["UB","UR","RF"]] is the whole story of a commutator.
+    cycles: (seq) => {
+      spend();
+      const e = p.effectOf(desugar(seq));
+      return e.cycles.map((c) => c.map(nameSlot));
+    },
     face: (L) => {
       spend();
       const r = ranges[L];
@@ -1566,6 +1585,22 @@ function ovTurn(gen, move, ms = 190) {
   });
 }
 
+// A slot's cubers' name on the overture's own board, cached from a twin at
+// rest. Watch cannot borrow the game's nameSlot: that cache belongs to
+// whatever puzzle the player composed below.
+const ovLocNames = new Map();
+function ovNameSlot(slot) {
+  if (!ovLocNames.size) {
+    const twin = ovBuild(WATCH_PAINT);
+    for (const pc of twin.getPieces())
+      ovLocNames.set(
+        pc.slot.map((v) => Math.round(v * 1e4)).join(","),
+        twin.nameOf(pc.index),
+      );
+  }
+  return ovLocNames.get(slot.map((v) => Math.round(v * 1e4)).join(",")) || "?";
+}
+
 // Who stands where a piece rests, in home letters: the same reading the
 // script console's at() gives, against the overture's own board.
 function ovOccupant(name) {
@@ -1592,13 +1627,14 @@ async function ovRun(gen) {
   $("watch-code").textContent = "";
   $("watch-goal").hidden = true;
   $("watch-again").hidden = true;
-  $("watch-sig").textContent = "Cube(size)";
+  $("watch-sig").textContent = "bin(), place(piece)";
 
-  // 0. The constructor runs and the cube it makes arrives piece by piece:
-  // the code causes the build, like everything else on this reel.
+  // 0. The cube is built in the language itself: bin() deals the cubies,
+  // place() sets each one, and the loop below is executed as written, one
+  // landing per iteration.
   ov.board = ovBuild("return face");
-  ovSay("One constructor, twenty six cubies: the six centres bolted to the core first, then every edge and corner, each named below as it lands.");
-  await ovType(gen, "new Cube({ size: 3 })");
+  ovSay("The cube is code too: bin() deals the twenty six cubies, place() sets each one in its slot. Centres first, bolted to the core, then every edge and corner, named below as it lands.");
+  await ovType(gen, "for (const p of bin()) place(p)");
   await ovAssemble(gen);
   await ovSleep(gen, 700);
 
@@ -1657,6 +1693,15 @@ async function ovRun(gen) {
     el.className = "";
   }
   await ovSleep(gen, 600);
+
+  ovSay("cycles() reads a sequence as the permutation it drives: the commutator moves exactly one cycle of three pieces, and six repeats bring them home.");
+  await ovType(gen, '\ncycles("[R, U]")');
+  {
+    const eff = ov.board.effectOf("[R, U]");
+    for (const c of eff.cycles.slice(0, 3))
+      ovTick(c.map(ovNameSlot).join(" → "));
+  }
+  await ovSleep(gen, 1300);
 
   ovSay("at() answers who is standing in a corner, in the letters of its home.");
   await ovType(gen, '\nat("UFR")');

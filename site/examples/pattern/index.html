@@ -362,6 +362,9 @@
           algebra, macros included. <code>at("UFR")</code> answers which piece
           stands where the UFR corner rests, in its home letters.
           <code>face("U")</code> reads the nine letters showing on a face.
+          <code>pieces()</code> walks the whole cube, naming every slot and
+          who stands in it, and <code>cycles("[R, U]")</code> reads a
+          sequence as the permutation it drives, cycle by named cycle.
           <code>solved()</code> and <code>distance()</code> judge against the
           target, and <code>moves()</code> counts what you have spent. Every
           call burns fuel, so a runaway loop that keeps asking dies with a
