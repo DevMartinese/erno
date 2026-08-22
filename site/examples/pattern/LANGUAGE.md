@@ -146,6 +146,97 @@ written picture: order here means until it LOOKS home, so a symmetric
 picture shortens the loop. Rest rebuilds the cube at rest, wearing
 whatever Write says.
 
+## Worked examples
+
+Every snippet below has been run against the page as printed; the quoted
+verdicts are what it actually said.
+
+### A cube you are handed (the default road)
+
+The board arrives dealt and scrambled. A solver only turns:
+
+```js
+const sexy = alg("[R, U]")
+while (!solved() && moves() < 60) turn(sexy)
+```
+
+Or reads before it acts, the shape of every smarter script:
+
+```js
+for (const m of ["R", "U", "F", "D", "L", "B"]) {
+  const d = distance()
+  turn(m)
+  if (distance() >= d) turn(m + "'")
+}
+```
+
+### A cube built piece by piece
+
+The other road. Take it apart, put every cubie in its home:
+
+```js
+deal()                            // centres stay on the spider, 20 to the bin
+for (const p of bin()) place(p)   // "Built the pattern: 39 characters, both crowns."
+```
+
+`place` takes a slot and a spin, so the same road builds the impossible.
+One corner twisted:
+
+```js
+deal()
+for (const p of bin()) place(p, p, p == "URF" ? 1 : 0)
+// "Built the picture: 62 characters, but not a lawful cube."
+// The board: "Unlawful: the corner twists add up to 1 mod 3 ..."
+```
+
+Two edges trading homes:
+
+```js
+deal()
+place("UF", "UB")
+place("UB", "UF")
+for (const p of bin()) place(p)
+// "Unlawful: the corner and edge permutations disagree in parity:
+//  two pieces alone can never swap."
+```
+
+### A cuboid, handed (Puzzle: Cuboid, 3×3×2)
+
+Pick Cuboid in the Write plate's Puzzle control; the slider drives the
+long axis. A cuboid is a given board, never a dealt one, and it enforces
+its own shape law:
+
+```js
+alg("R")   // refused at declaration: 'R' would leave this cuboid
+           // misshapen. Only half turns about that axis (use R2) ...
+
+turn("F R2 U2")   // quarter turns only where the cross-section is square
+while (!solved() && moves() < 40) turn(alg("[F, R2]"))
+```
+
+### A Siamese, handed (Puzzle: Siamese)
+
+Two cubes sharing a welded block. The vocabulary is per body, A-moves and
+B-moves, and only the layers that come back to themselves exist at all;
+the algebra takes the weld tokens like any others:
+
+```js
+turn("[AD, BU]2")
+while (!solved() && moves() < 40) turn(alg("[AD, BU]"))
+```
+
+### Why only the plain cube comes apart
+
+```js
+deal()   // on a cuboid or a Siamese:
+         // "only a plain cube comes apart; weld or carve it and the
+         //  pieces stop being free"
+```
+
+A welded or carved board has pieces held by the weld, not by a core; a
+bin of them would be a lie about the mechanism, so the language refuses
+in the mechanism's own terms.
+
 ## The two voices
 
 Wherever the page narrates, two voices keep strict jobs: a line of words
