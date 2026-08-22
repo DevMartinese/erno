@@ -1501,6 +1501,46 @@ function ovTick(text, cls) {
   return el;
 }
 
+// The meaning of the line that just ran, in words. The ticker below never
+// carries prose and this line never carries notation; two voices, one job
+// each.
+function ovSay(text) {
+  $("watch-say").textContent = text;
+}
+
+// The cube arrives the way Assemble deals it: centres first, bolted to the
+// core, then every edge and corner from the bottom up, each one named in
+// the ticker as it lands.
+async function ovAssemble(gen) {
+  const host = $("watch-canvas");
+  const pieces = ov.board.getPieces();
+  const kindOf = (i) =>
+    ov.board.pieces[i].faces.filter((f) => f.letter).length;
+  const order = pieces
+    .map((p) => p.index)
+    .sort((a, b) => {
+      const ka = kindOf(a) === 1 ? 0 : 1;
+      const kb = kindOf(b) === 1 ? 0 : 1;
+      if (ka !== kb) return ka - kb;
+      const sa = pieces.find((p) => p.index === a).slot;
+      const sb = pieces.find((p) => p.index === b).slot;
+      return sa[1] - sb[1] || sa[2] - sb[2] || sa[0] - sb[0];
+    });
+  const shown = new Set();
+  const name = ovTick("", "is-live");
+  for (const i of order) {
+    shown.add(i);
+    name.textContent = ov.board.nameOf(i);
+    host.innerHTML = ov.board.toSVG({
+      fitSphere: true,
+      padding: 8,
+      pieces: (k) => shown.has(k),
+    });
+    await ovSleep(gen, 85);
+  }
+  name.className = "";
+}
+
 // One turn on the overture board, eased like every other turn on the page,
 // but answering to the reel's own clock: a restart aborts it and a paused
 // plate freezes it mid-air.
@@ -1548,21 +1588,30 @@ async function ovRun(gen) {
   ov.code = "";
   ticker.textContent = "";
   canvas.innerHTML = "";
+  $("watch-say").textContent = "";
   $("watch-code").textContent = "";
   $("watch-goal").hidden = true;
   $("watch-again").hidden = true;
   $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
 
-  // I. A pattern is written. Returning a face letter returns its colour.
+  // 0. The cube itself, piece by piece, before a line is written.
   ov.board = ovBuild("return face");
+  ovSay("First the cube itself: six centres bolted to the core, then every edge and corner, each named as it lands.");
+  await ovAssemble(gen);
+  await ovSleep(gen, 700);
+
+  // I. A pattern is written. Returning a face letter returns its colour.
+  ovSay("Your function runs once per sticker. Returning the face letter returns its colour, so this is the solved cube.");
   await ovType(gen, "return face");
   draw(canvas, ov.board);
+  ticker.textContent = "";
   for (const L of ["U", "R", "F", "D", "L", "B"]) {
     ovTick(L);
     await ovSleep(gen, 110);
   }
-  await ovSleep(gen, 800);
+  await ovSleep(gen, 900);
 
+  ovSay("Change the function and the same cube wears the new picture: above the middle U, below it D.");
   await ovType(gen, WATCH_PAINT, { reset: true });
   ov.board = ovBuild(WATCH_PAINT);
   draw(canvas, ov.board);
@@ -1570,17 +1619,19 @@ async function ovRun(gen) {
   ovTick("U");
   ovTick("/");
   ovTick("D");
-  await ovSleep(gen, 900);
+  await ovSleep(gen, 1100);
 
   // II. The picture becomes the target.
+  ovSay("The picture you wrote is now the goal to chase.");
   ov.pattern = ov.board.getPattern();
   $("watch-target").innerHTML = ov.board.toSVG({ fitSphere: true, padding: 8 });
   $("watch-goal").hidden = false;
-  await ovSleep(gen, 900);
+  await ovSleep(gen, 1000);
 
   // III. The deal: scrambled for real, one turn at a time. The walk is
   // taken silently first and then replayed in the open, so every token in
   // the ticker is a turn the reader watched happen.
+  ovSay("The deal: ten real turns walk the picture away.");
   ticker.textContent = "";
   const seq = ov.board.scramble(10);
   ov.board.move("(" + seq + ")'");
@@ -1590,10 +1641,11 @@ async function ovRun(gen) {
     await ovTurn(gen, tok);
     el.className = "";
   }
-  await ovSleep(gen, 700);
+  await ovSleep(gen, 800);
 
   // IV. The nouns, one by one, in the console's own language.
   $("watch-sig").textContent = "solve()";
+  ovSay("turn() speaks the whole algebra: one commutator, and the line below is its four turns.");
   await ovType(gen, 'turn("[R, U]")', { reset: true });
   ticker.textContent = "";
   for (const tok of expand("[R, U]").split(" ")) {
@@ -1601,18 +1653,21 @@ async function ovRun(gen) {
     await ovTurn(gen, tok);
     el.className = "";
   }
-  await ovSleep(gen, 500);
+  await ovSleep(gen, 600);
 
+  ovSay("at() answers who is standing in a corner, in the letters of its home.");
   await ovType(gen, '\nat("UFR")');
   ovTick(`UFR → ${ovOccupant("UFR")}`);
-  await ovSleep(gen, 950);
+  await ovSleep(gen, 1100);
 
+  ovSay("distance() counts the stickers still away from the picture.");
   await ovType(gen, "\ndistance()");
   ovTick(`${ov.board.distanceTo(ov.pattern)} / 54`);
-  await ovSleep(gen, 1100);
+  await ovSleep(gen, 1200);
 
   // V. The greedy plays: every try appears, and a move that widened the
   // distance is struck out the moment it is taken back.
+  ovSay("A first script: try every face, keep a turn only if the picture gets closer. The struck moves were tried and taken back.");
   await ovType(gen, WATCH_GREEDY, { reset: true });
   ticker.textContent = "";
   for (const m of ["R", "U", "F", "D", "L", "B"]) {
@@ -1628,6 +1683,7 @@ async function ovRun(gen) {
   }
 
   // VI. The rest is yours.
+  ovSay("The rest is yours: the same nouns wait in the Script plate below.");
   ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
   $("watch-code").classList.remove("is-typing");
   $("watch-again").hidden = false;
@@ -1663,6 +1719,7 @@ function wireWatch() {
     pre.textContent = WATCH_GREEDY;
     if (highlight) pre.innerHTML = highlight(WATCH_GREEDY);
     $("watch-sig").textContent = "solve()";
+    ovSay("The finished run, all at once: the pattern written, the board dealt, and the turns the greedy kept.");
     for (const m of kept) ovTick(m);
     ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
     return;

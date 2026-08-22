@@ -425,12 +425,22 @@ body.example {
   background: var(--red);
   animation: erno-caret 1s steps(2, jump-none) infinite;
 }
+/* What the line that just ran MEANS, in words, one quiet voice above the
+   notation. The ticker below it never carries prose; this line never
+   carries notation. */
+.watch-say {
+  min-height: var(--lh);
+  margin: var(--space-2) 0 0;
+  font-size: var(--size-sm);
+  color: var(--text-quiet);
+  max-width: var(--medida);
+}
 /* The subtitle: notation only, never prose. A token wears yellow while its
    turn is in the air, ink once it landed, and a strike if the greedy tried
    it and took it back. */
 .watch-ticker {
   min-height: calc(var(--lh) * 2);
-  margin: var(--space-2) 0 0;
+  margin: var(--space-1) 0 0;
   font-family: var(--mono);
   font-size: var(--size-sm);
   letter-spacing: 0.04em;
