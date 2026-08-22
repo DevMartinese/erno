@@ -280,6 +280,20 @@ f.onload = () => setTimeout(async () => {
   { let v = 0; while (!$("asm-place").disabled && v++ < 25) { $("asm-place").click(); await wait(40); } }
   check("armar a ciegas: hay veredicto doble", /picture.*(lawful|unlawful)/.test($("asm-status").textContent), $("asm-status").textContent.slice(0, 90));
 
+  paso("15 navegacion");
+  {
+    const links = [...d.querySelectorAll(".mode-nav a")];
+    check("la barra tiene los seis modos", links.length === 6, links.map(a=>a.textContent).join(","));
+    const hashAntes = w.location.hash;
+    links[3].click(); await wait(300);
+    check("click navega sin tocar el hash", w.location.hash === hashAntes, w.location.hash.slice(0,30));
+    check("y marca la seccion", links[3].getAttribute("aria-current") === "true");
+    const barra = d.querySelector(".mode-nav").getBoundingClientRect();
+    check("la barra queda pegada arriba", barra.top >= 0 && barra.top < 6, String(Math.round(barra.top)));
+    w.scrollTo(0, 0); w.dispatchEvent(new w.Event("scroll")); await wait(150);
+    check("arriba vuelve a Write", links[0].getAttribute("aria-current") === "true");
+  }
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

@@ -484,3 +484,53 @@ body.example {
   outline: 2px dashed var(--rule);
   outline-offset: 4px;
 }
+
+
+/* ── The mode nav ──────────────────────────────────────────────────────────
+   A sticky strip, not tabs: the sections FEED each other - what Write
+   invents is what Solve chases, the console reads Solve's board, and The
+   code mirrors all of it - so hiding any of them would cut a wire. The
+   strip orients without amputating.
+
+   Its links carry ordinary anchors for semantics, but clicks scroll
+   without touching location.hash, because on this page the hash belongs
+   to the share links: it is a query string of game state, and a nav that
+   wrote "#stamp-panel" over it would eat somebody's board. */
+.mode-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  background: var(--paper);
+  border-bottom: var(--rule) solid var(--ink);
+}
+.mode-nav a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--text-quiet);
+  padding: 0.55rem 0.9rem;
+  white-space: nowrap;
+  border-right: 1px solid var(--line, #d8d2c7);
+}
+.mode-nav a:hover {
+  color: var(--ink);
+}
+.mode-nav a[aria-current="true"] {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+/* Landing under a sticky bar, whoever causes the scroll. */
+.example-plate {
+  scroll-margin-top: 2.6rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

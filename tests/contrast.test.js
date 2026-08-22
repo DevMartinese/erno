@@ -183,7 +183,10 @@ test("the site has no em dashes, and neither do the words it can show", () => {
       }
       if (!/\.(html|js|css)$/.test(entry.name)) continue;
       readFileSync(path, "utf8").split("\n").forEach((line, i) => {
-        if (line.includes("\u2014")) guilty.push(`${path}:${i + 1}`);
+        // the entity is the same dash wearing a disguise, and it walked
+        // straight past the first version of this test
+        if (line.includes("\u2014") || line.includes("&mdash;"))
+          guilty.push(`${path}:${i + 1}`);
       });
     }
   };

@@ -1417,6 +1417,48 @@ function runSequence() {
 
 // ── Wiring ──────────────────────────────────────────────────────────────────
 
+// ── The mode nav ────────────────────────────────────────────────────────────
+//
+// Scroll-spy plus hash-preserving clicks. The one decision that matters is
+// what a click does NOT do: it does not assign location.hash, because the
+// hash here is a query string of game state - a shared board, a stamp seed
+// - and a nav that wrote its anchor over it would eat somebody's link.
+function wireModeNav() {
+  const nav = document.querySelector(".mode-nav");
+  if (!nav) return;
+  const links = [...nav.querySelectorAll("a[href^='#']")];
+  const sections = links
+    .map((a) => document.getElementById(a.getAttribute("href").slice(1)))
+    .filter(Boolean);
+
+  const mark = (id) => {
+    for (const a of links)
+      if (a.getAttribute("href") === `#${id}`) a.setAttribute("aria-current", "true");
+      else a.removeAttribute("aria-current");
+  };
+
+  for (const a of links)
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const id = a.getAttribute("href").slice(1);
+      document.getElementById(id).scrollIntoView({ block: "start" });
+      // marked here as well as by the scroll listener, because a click's
+      // intent is already known and a smooth scroll reports late
+      mark(id);
+    });
+
+  // the CURRENT section is the last one whose top has passed under the bar
+  const spy = () => {
+    const bar = nav.getBoundingClientRect().bottom + 8;
+    let current = sections[0];
+    for (const sec of sections)
+      if (sec.getBoundingClientRect().top <= bar) current = sec;
+    mark(current.id);
+  };
+  window.addEventListener("scroll", spy, { passive: true });
+  spy();
+}
+
 function init() {
   const code = $("write-code");
   code.value = game.source;
@@ -1513,6 +1555,7 @@ function init() {
   $("script-run").addEventListener("click", runScriptButton);
   wireStamp();
   wireAssembly();
+  wireModeNav();
   for (const b of document.querySelectorAll("[data-script]"))
     b.addEventListener("click", () => {
       $("script-code").value = b.dataset.script;
