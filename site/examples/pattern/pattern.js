@@ -176,7 +176,7 @@ function halfWidth(kind, size) {
   return n;
 }
 
-function build(source, kind, size) {
+function build(source, kind, size, carve) {
   const n = halfWidth(kind, size);
   game.usesPalette = false;
   const f = compile(source, n);
@@ -197,6 +197,11 @@ function build(source, kind, size) {
     },
     stickerInset: 0.1,
   };
+  // Holes are the mechanism's own remove: what is left turns, scrambles
+  // and is judged exactly, and every twin built for this board shares them.
+  if (carve && carve.keys.size)
+    options.remove = ({ slot }) =>
+      carve.keys.has(slot.map((v) => Math.round(v * 1e4)).join(","));
   return PUZZLES[kind].make(options, size);
 }
 
@@ -293,11 +298,16 @@ const game = {
 // ── Write ───────────────────────────────────────────────────────────────────
 
 function refreshWrite() {
+  // A carve is written in slot keys and slot keys belong to a shape:
+  // change the puzzle or its size and the holes name nothing. And a
+  // challenge hands you its board whole.
+  if (game.carve && (game.carve.shape !== `${game.kind}|${game.size}` || game.challenge !== null))
+    game.carve = null;
   const code = $("write-code");
   renderBodies();
   let puzzle;
   try {
-    puzzle = build(code.value, game.kind, game.size);
+    puzzle = build(code.value, game.kind, game.size, game.carve);
     code.removeAttribute("data-bad");
   } catch (err) {
     // Two different failures wearing one message before this: a function
@@ -401,7 +411,7 @@ function renderChallenge(puzzle) {
 // ── Solve ───────────────────────────────────────────────────────────────────
 
 function startGame(scramble) {
-  game.puzzle = build(game.source, game.kind, game.size);
+  game.puzzle = build(game.source, game.kind, game.size, game.carve);
   game.build = null; // a fresh board is whole; Reset heals a bin left open
   game.built = false;
   game.scramble = "";
@@ -1030,6 +1040,16 @@ function renderBodies() {
 // is insight about the WRITING, the fewest moves is insight about the
 // CUBE, and a long script can turn very little.
 
+// Deterministic chance for seeded scrambles: same seed, same walk,
+// on every machine.
+const mulberry32 = (a) => () => {
+  a |= 0;
+  a = (a + 0x6d2b79f5) | 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
 function runScript(source) {
   // let, not const: deal() replaces the board, and every noun must follow
   // it to the new one.
@@ -1047,6 +1067,8 @@ function runScript(source) {
   // take it apart and build your own. Which road a script walked decides
   // how it is judged, and building the picture is never called reaching it.
   let road = "solve";
+  // The bench rule needs to know whether this run already moved anything.
+  let acted = false;
   // Every run leaves a recon: the reconstruction a cuber would write of
   // what actually happened, recorded from the engine's own truth as it
   // runs, never re-derived. The board watches it back afterwards.
@@ -1062,19 +1084,22 @@ function runScript(source) {
       );
   };
 
-  // per-face ranges of the state string, measured off a solved twin
-  const twin = build(game.source, game.kind, game.size);
-  const rested = twin.getState();
-  const ranges = {};
-  {
+  // per-face ranges of the state string, measured off a solved twin. Both
+  // are let, because carve() reshapes the board and the twin must follow.
+  let twin = build(game.source, game.kind, game.size, game.carve);
+  const rangesOf = (t) => {
+    const rested = t.getState();
+    const r = {};
     let i = 0;
-    for (const L of twin.def.faceOrder || []) {
+    for (const L of t.def.faceOrder || []) {
       let j = i;
       while (j < rested.length && rested[j] === L) j++;
-      if (j > i) ranges[L] = [i, j];
+      if (j > i) r[L] = [i, j];
       i = j;
     }
-  }
+    return r;
+  };
+  let ranges = rangesOf(twin);
 
   const occupant = (name) => {
     const home = twin.pieceNamed(name);
@@ -1095,6 +1120,7 @@ function runScript(source) {
     turn: (seq) => {
       spend();
       whole();
+      acted = true;
       if (road === "build") road = "mixed";
       const h0 = p.history.length;
       p.move(desugar(seqOf(seq)));
@@ -1116,10 +1142,36 @@ function runScript(source) {
       const twin2 = shadowBoard();
       for (const t of tokens) twin2.parseMove(t);
       const e = twin2.effectOf(flat);
+      // Two numbers, names kept apart. order is the cubers' theorem, read
+      // on an unpainted twin where every sticker wears its own face
+      // letter: (R U) is 105 there whatever picture the board wears.
+      // looksHome is the same reading against the written picture,
+      // shortened by its symmetries. (Walking positions instead would
+      // measure the supercube, centre spins included: a different
+      // theorem.) On a weld whose blocking refuses the orbit, order is
+      // honestly null rather than a guess.
+      let order = null;
+      try {
+        const keepPal = game.usesPalette;
+        const plain = PUZZLES[game.kind].make(
+          {
+            stickerInset: 0.1,
+            remove: game.carve && game.carve.keys.size
+              ? ({ slot }) => game.carve.keys.has(slot.map((v) => Math.round(v * 1e4)).join(","))
+              : undefined,
+          },
+          game.size,
+        );
+        game.usesPalette = keepPal;
+        order = plain.effectOf(flat).order;
+      } catch {
+        /* the mechanism refused the orbit; null already says so */
+      }
       return Object.freeze({
         alg: src,
         moves: tokens.length,
-        order: e.order,
+        order,
+        looksHome: e.order,
         cycles: e.cycles.map((c) => c.map(nameSlot)),
         inverse: `(${src})'`,
         toString: () => src,
@@ -1137,6 +1189,8 @@ function runScript(source) {
       // ride the weld and the rest go to the bin, addressed body-first.
       // A carved board is missing pieces a bin would promise, so it
       // refuses.
+      if (game.carve)
+        throw new Error("a carved board is missing the pieces a bin would promise; Reset heals it, then deal()");
       const welded = fresh instanceof Fused;
       if (fresh.constructor !== Cube && fresh.constructor !== Cuboid && !welded)
         throw new Error("this board does not come apart: a carve is missing the pieces a bin would promise");
@@ -1235,6 +1289,108 @@ function runScript(source) {
         before = 0;
       }
       renderGame();
+    },
+    // ── Act: the seeded shake ───────────────────────────────────────────
+    // The board's own legal walk, never a fixed string, deterministic
+    // under a seed: same seed, same board, same scramble for everyone.
+    scramble: (seed) => {
+      spend();
+      whole();
+      if (game.challenge !== null)
+        throw new Error("a challenge owns its scramble; Reset brings it back");
+      acted = true;
+      if (road === "build") road = "mixed";
+      const rnd = seed === undefined ? Math.random : mulberry32(Math.round(Number(seed)) || 0);
+      const walk = [];
+      for (let k2 = 0; k2 < 18; k2++) {
+        const open = p.legalMoves();
+        if (!open.length) break;
+        const tok = open[Math.floor(rnd() * open.length)];
+        walk.push(tok);
+        p.move(tok);
+      }
+      // The scramble is the board, not the player's doing.
+      game.scramble = walk.join(" ");
+      game.dealt = game.scramble;
+      p.history = [];
+      before = 0;
+      recon.push({ t: "scramble", tokens: walk });
+      renderGame();
+      return game.scramble;
+    },
+    // ── Shape: holes on demand ──────────────────────────────────────────
+    // carve() removes pieces: real holes, the mechanism's own remove, so
+    // what is left turns, scrambles and is judged exactly. Bench rule:
+    // whole board, unturned this run; one making per run. Reset heals.
+    carve: (...names) => {
+      spend();
+      if (game.build)
+        throw new Error("finish the build or Reset first: a carve reshapes the whole board");
+      if (game.challenge !== null)
+        throw new Error("a challenge hands you its board whole; carve in free play");
+      if (acted || road !== "solve")
+        throw new Error("you carve on the bench, not mid-solve: one making per run");
+      if (!names.length)
+        throw new Error("point the drill: carve takes slot names, or 'centers'");
+      const ref = build(game.source, game.kind, game.size); // uncarved reference
+      if (ref instanceof Fused)
+        throw new Error("a weld waits for its laws before it can be carved");
+      const skey = (slot) => slot.map((v) => Math.round(v * 1e4)).join(",");
+      const keys = new Set(game.carve ? game.carve.keys : []);
+      const carvedNames = new Set(game.carve ? game.carve.names : []);
+      const refPieces = ref.getPieces();
+      for (const raw of names.flat()) {
+        const name = String(raw);
+        if (name === "centers") {
+          for (const pc of refPieces) {
+            const k2 = new Set(ref.pieces[pc.index].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+            if (k2 === 1) keys.add(skey(pc.slot));
+          }
+          carvedNames.add("centers");
+          continue;
+        }
+        const idx = ref.pieceNamed(name); // refuses unknowns in its own words
+        keys.add(skey(refPieces.find((x) => x.index === idx).slot));
+        carvedNames.add(ref.nameOf(idx));
+      }
+      if (keys.size >= ref.pieces.length)
+        throw new Error("a board keeps at least one piece");
+      game.carve = { keys, names: [...carvedNames], shape: `${game.kind}|${game.size}` };
+      road = "carve";
+      // The carved board arrives on the bench: whole, at rest, its target
+      // wearing the same holes, every twin sharing them.
+      locNames.clear();
+      game.puzzle = build(game.source, game.kind, game.size, game.carve);
+      game.built = false;
+      game.scramble = "";
+      game.dealt = "";
+      p = game.puzzle;
+      before = 0;
+      twin = build(game.source, game.kind, game.size, game.carve);
+      ranges = rangesOf(twin);
+      game.target = twin.getPattern();
+      game.targetPos = twin.getPosition();
+      game.worst = Math.max(1, scrambleDepth(twin));
+      draw($("play-target"), twin);
+      recon.push({ t: "carve", names: game.carve.names });
+      renderGame();
+      return [...game.carve.names];
+    },
+    // ── Read: the mechanism's own answers ───────────────────────────────
+    // legal() is the move list derived from the one law, read off a twin
+    // at rest: pure, any phase, constant for the run. can() asks whether
+    // the board would take a sequence from here, judged as turn() judges,
+    // turning nothing: alg() parses, can() asks, turn() acts.
+    legal: () => (spend(), twin.legalMoves()),
+    can: (seq) => {
+      spend();
+      if (game.build) return false;
+      try {
+        p.effectOf(desugar(seqOf(seq)));
+        return true;
+      } catch {
+        return false;
+      }
     },
     // Reading what stands is always fair: mid-build, at() answers for the
     // pieces already placed and refuses only the slots still empty, so a
@@ -1356,13 +1512,17 @@ let reconActive = 0;
 // never move; stickers do, which is why the map can be cached per shape.
 const probeCache = new Map();
 function probeLocKeys() {
-  const key = `${game.kind}|${game.size}`;
+  const carveSig = game.carve ? [...game.carve.keys].sort().join(";") : "";
+  const key = `${game.kind}|${game.size}|${carveSig}`;
   if (!probeCache.has(key)) {
     const keep = game.usesPalette;
     const probe = PUZZLES[game.kind].make(
       {
         paint: ({ slot }) => slot.map((v) => Math.round(v * 1e4)).join(","),
         stickerInset: 0.1,
+        remove: game.carve && game.carve.keys.size
+          ? ({ slot }) => game.carve.keys.has(slot.map((v) => Math.round(v * 1e4)).join(","))
+          : undefined,
       },
       game.size,
     );
@@ -1405,7 +1565,7 @@ function weldBook(board) {
 
 function shadowBoard() {
   const keep = game.usesPalette;
-  const b = build(game.source, game.kind, game.size);
+  const b = build(game.source, game.kind, game.size, game.carve);
   game.usesPalette = keep;
   return b;
 }
@@ -1420,11 +1580,14 @@ async function watchBack(recon, startPos) {
   line.textContent = "";
 
   // The reader who asked for stillness gets the recon written out and a
-  // board that has already arrived.
-  if (still.matches) {
+  // board that has already arrived. A run that carved does too: a carve
+  // reshapes the shadow's very piece count, so it replays as its result,
+  // for now.
+  if (still.matches || recon.some((ev) => ev.t === "carve")) {
     for (const ev of recon) {
-      if (ev.t === "turn") for (const tok of ev.tokens) reconTick(line, tok);
+      if (ev.t === "turn" || ev.t === "scramble") for (const tok of ev.tokens) reconTick(line, tok);
       else if (ev.t === "place") reconTick(line, ev.piece);
+      else if (ev.t === "carve") for (const n of ev.names) reconTick(line, n, "is-struck");
     }
     renderGame();
     return;
@@ -1500,7 +1663,7 @@ async function watchBack(recon, startPos) {
       await sleep(Math.max(40, 90 * 0.96 ** played));
       el.className = "";
       played++;
-    } else if (ev.t === "turn") {
+    } else if (ev.t === "turn" || ev.t === "scramble") {
       for (const tok of ev.tokens) {
         if (!alive() || played > MAX_ANIMATED) break outer;
         const el = reconTick(line, tok, "is-live");
@@ -1516,7 +1679,7 @@ async function watchBack(recon, startPos) {
   if (reconActive !== gen) return;
   line.textContent = "";
   for (const ev of recon) {
-    if (ev.t === "turn") for (const tok of ev.tokens) reconTick(line, tok);
+    if (ev.t === "turn" || ev.t === "scramble") for (const tok of ev.tokens) reconTick(line, tok);
     else if (ev.t === "place") reconTick(line, ev.piece);
   }
   skip.hidden = true;
@@ -1604,6 +1767,12 @@ function runScriptButton() {
     out.textContent =
       `${result.chars} characters, ${result.moves} moves on a board you built yourself: ` +
       `practice, and the page keeps no record of it.`;
+    return;
+  }
+  if (result.road === "carve") {
+    out.textContent = hit
+      ? `Carved and reached: ${result.chars} characters, ${result.moves} moves.`
+      : `Carved: ${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers off the picture.`;
     return;
   }
   out.textContent = hit
@@ -2664,7 +2833,14 @@ function init() {
     }));
 
   $("play-start").addEventListener("click", () => startGame(true));
-  $("play-reset").addEventListener("click", () => startGame(false));
+  $("play-reset").addEventListener("click", () => {
+    if (game.carve) {
+      // Reset heals the carve, and the target must lose its holes too.
+      game.carve = null;
+      refreshWrite();
+    }
+    startGame(false);
+  });
   $("play-undo").addEventListener("click", undo);
 
   // A position is a string, so a game fits in a link. This is the whole of

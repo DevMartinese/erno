@@ -6,6 +6,8 @@ is allowed, and how a run is judged. The language is page glue over the
 public API of erno.js, not part of the library; every noun below is
 injected into the player's script by `runScript`, and every call burns
 fuel so a runaway loop dies with a message instead of hanging the page.
+This file describes what stands today; PATTERN.md and ENGINE.md, beside
+it, carry the designed road ahead and what the library must grow for it.
 
 ## The base is a fork
 
@@ -13,17 +15,20 @@ Before anything else, the game rests on one choice:
 
 **You are handed a whole cube, or you take it apart and build your own.**
 
-The default board arrives dealt and scrambled. `deal()` chooses the second
-road. Which road a script walks decides how it is judged, and the two are
-never confused: building the picture is not called reaching it.
+The default board arrives dealt and scrambled. `deal()` chooses the
+second road, and `carve()` opens a third: holes on the bench before the
+solve begins. Which road a script walks decides how it is judged, and
+they are never confused: building the picture is not called reaching it,
+and a carved board is judged over what exists.
 
 ## The grammar: four families
 
 | Family | Words | Board phase |
 |---|---|---|
-| **Read** (pure, leave the board as found) | `at` `face` `pieces` `cycles` `off` `distance` `solved` `moves` `bin` | see per-word rules below |
-| **Act** (mutates) | `turn` | whole only |
+| **Read** (pure, leave the board as found) | `at` `face` `pieces` `cycles` `off` `distance` `solved` `moves` `bin` `legal` `can` | see per-word rules below |
+| **Act** (mutates) | `turn` `scramble` | whole only |
 | **Build** (shifts phase) | `deal` `place` | `deal` any, `place` in pieces only |
+| **Shape** (edits the mechanism) | `carve` | whole, on the bench |
 | **Declare** (pure, board never touched) | `alg` | any phase, always |
 
 Control flow is JavaScript's own: `if`, `for`, `while`, `const`. The
@@ -50,11 +55,14 @@ never be confused.
 - **`alg(seq)`**. The blindfold half of the sport: declares a sequence
   without turning it. Parsed on the spot; refused on the spot, in the
   parser's words, if it is not real notation. Returns a frozen value:
-  `{ alg, moves, order, cycles, inverse }`, with `cycles` already in slot
-  names and `order` measured against the written picture. It studies a
-  twin rather than the board, so an alg can be written and read in any
-  phase, the cube in pieces included. `turn()` and `cycles()` accept an
-  alg wherever they accept a string.
+  `{ alg, moves, order, looksHome, cycles, inverse }`, with `cycles`
+  already in slot names. Two numbers, names kept apart: `order` is the
+  cubers' theorem, read on an unpainted twin ((R U) is 105 there whatever
+  the board wears), and `looksHome` is the same reading against the
+  written picture, shortened by its symmetries. It studies a twin rather
+  than the board, so an alg can be written and read in any phase, the
+  cube in pieces included. `turn()` and `cycles()` accept an alg wherever
+  they accept a string.
 
 ### Act
 
@@ -62,6 +70,22 @@ never be confused.
   the cube is in pieces, saying how many pieces are still in the bin. On
   the build road, a turn after the last piece lands turns the run into
   practice (see judgement).
+- **`scramble(seed?)`**. Walks the board's own legal moves, never a fixed
+  string, and is deterministic under a seed: same seed, same board, same
+  walk, for everyone. The scramble is the board, not the player's doing,
+  so `moves()` restarts at zero after it. A challenge owns its scramble
+  and refuses the word.
+
+### Shape
+
+- **`carve(...names | "centers")`**. Removes pieces: real holes, the
+  mechanism's own remove, so what is left turns, scrambles and is judged
+  exactly, and every twin the run studies wears the same holes. Bench
+  rule: whole board, unturned this run, one making per run; you carve on
+  the bench, not mid-solve. There is no `fill()`: nothing unsaws wood,
+  and Reset heals, target included. `carve("centers")` is the Void as a
+  sentence. Cubes and cuboids only; a weld waits for its laws. A carve is
+  refused inside a challenge, which hands you its board whole.
 
 ### Build
 
@@ -103,8 +127,13 @@ never be confused.
 - **`distance()`**. Stickers away from the picture. Whole only.
 - **`solved()`**. Whether the board wears the picture, any orientation.
   Whole only.
+- **`legal()`**. The mechanism's move list, derived from the one law and
+  read off a twin at rest: pure, any phase, constant for the run.
+- **`can(seq | alg)`**. Would the board take it from here, judged as
+  `turn()` judges, turning nothing. Three words, three jobs: `alg()`
+  parses, `can()` asks, `turn()` acts.
 - **`moves()`**. Turns spent since the board last became yours (after the
-  scramble, or after the last piece landed).
+  scramble, the last piece landing, or the carve).
 
 ## Phases
 
@@ -123,6 +152,7 @@ the difference instead of guessing:
 |---|---|---|
 | **Solver** | only turned | "Reached the pattern": characters + moves |
 | **Builder** | dealt and placed | "Built the pattern": characters + the two crowns, the picture and the law |
+| **Carver** | carved, then turned | "Carved and reached": on the carved board's own facelets |
 | **Practice** | built, then turned | told what happened; no record kept |
 
 Two crowns, because they are different virtues: a build can wear the
@@ -243,7 +273,7 @@ a body is the real thing:
 ```js
 alg("[AD, BU]").cycles   // [] : disjoint layers commute, the commutator dies
 alg("[AD, AL]").cycles   // real cycles: alive inside body A
-                         // (.order answers against YOUR picture, as always)
+                         // (.order is the theorem; .looksHome, your picture)
 turn("[AD, AL]2")
 while (!solved() && moves() < 40) turn(alg("[AD, AL]"))
 ```
@@ -264,6 +294,19 @@ Mid-build the reads speak the same dialect: `at("ADLB")` answers once it
 stands, `pieces()` walks the placed, and `place("DLB")` is turned away
 with the spelling lesson: a welded board spells pieces body-first.
 
+### A carver's run (holes on the bench)
+
+```js
+carve("URF", "UF")   // two piece-shaped holes; the target wears them too
+scramble(42)         // seeded: the same walk for everyone
+while (!solved() && moves() < 60) turn(alg("[R, U]"))
+// "Carved and reached: ..." or "Carved: ..., N stickers off the picture."
+```
+
+```js
+carve("centers")     // the Void, written as a sentence
+```
+
 ### What each family can do
 
 |  | Cube | Cuboid | Weld (Siamese, Fused, composed) |
@@ -271,6 +314,7 @@ with the spelling lesson: a welded board spells pieces body-first.
 | Handed, turned, judged by picture | yes | yes | yes |
 | The algebra and algs | yes | yes | yes, in weld tokens |
 | Built piece by piece | yes | yes | yes, home placements, body-first names |
+| Carved with holes | yes | yes | waits for its laws |
 | Exotic placements (any slot, spins) | yes | yes | not yet: home and unspun |
 | `off()` | yes | yes | not yet |
 | The law's crown | yes | corner twist law | laws unwritten; the verdict says so |
