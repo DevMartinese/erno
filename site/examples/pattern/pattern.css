@@ -395,6 +395,65 @@ body.example {
 }
 
 
+/* ── Watch: the overture ───────────────────────────────────────────────────
+   The whole loop played once by itself, three voices on one clock: code
+   typing, the cube executing it, and a subtitle line in plain notation.
+   The code block is a pre, not a textarea: it is the page speaking, and
+   the caret is the guide's own typing signal, gone the moment a block is
+   handed over. */
+.watch-code {
+  margin: 0;
+  min-height: calc(var(--lh) * 6 + var(--space-1-5) * 2);
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+  line-height: var(--lh);
+  color: var(--ink);
+  background: var(--code-bg);
+  border: var(--rule) solid var(--ink);
+  padding: var(--space-1-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.watch-code.is-typing::after {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 0.08em;
+  vertical-align: -0.2em;
+  background: var(--red);
+  animation: erno-caret 1s steps(2, jump-none) infinite;
+}
+/* The subtitle: notation only, never prose. A token wears yellow while its
+   turn is in the air, ink once it landed, and a strike if the greedy tried
+   it and took it back. */
+.watch-ticker {
+  min-height: calc(var(--lh) * 2);
+  margin: var(--space-2) 0 0;
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.watch-ticker span {
+  display: inline-block;
+  margin-right: 0.5em;
+  padding: 0 0.15em;
+}
+.watch-ticker .is-live {
+  background: var(--yellow);
+  color: var(--on-yellow);
+}
+.watch-ticker .is-struck {
+  text-decoration: line-through;
+  color: var(--text-quiet-xs);
+}
+.example-goal--watch {
+  margin: var(--space-3) var(--space-4);
+}
+
 /* ── The script plate ──────────────────────────────────────────────────────
    Its demo half shows the SAME board the Solve plate plays: one game
    object drawn twice. The first cut left this half empty for fear the

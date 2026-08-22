@@ -1431,6 +1431,258 @@ function runSequence() {
 
 // ── Wiring ──────────────────────────────────────────────────────────────────
 
+// ── Watch: the overture ─────────────────────────────────────────────────────
+//
+// The whole loop played once by itself when the plate first scrolls into
+// view. Nothing is recorded: every line is executed against the engine the
+// moment it finishes typing, the board beside it is the real result, and
+// the line underneath speaks each move in plain notation and nothing else.
+// The overture keeps its own puzzle and its own pattern; the game below is
+// never touched.
+
+const WATCH_PAINT = "return y > 0 ? U : D";
+const WATCH_GREEDY = `for (const m of ["R", "U", "F", "D", "L", "B"]) {
+  const d = distance()
+  turn(m)
+  if (distance() >= d) turn(m + "'")
+}`;
+const ov = { gen: 0, paused: false, started: false, code: "", board: null, pattern: null };
+
+// build() remembers whether a pattern reached for the palette, so the
+// generated code knows what to import; the overture's own builds must not
+// overwrite what the player's pattern said.
+function ovBuild(source) {
+  const keep = game.usesPalette;
+  const p = build(source, "cube", 3);
+  game.usesPalette = keep;
+  return p;
+}
+
+// A sleep that a restart cancels and an off-screen plate suspends: paused
+// time does not count, so scrolling away mid-reel loses nothing.
+const ovSleep = (gen, ms) =>
+  new Promise((resolve, reject) => {
+    let left = ms;
+    let last = performance.now();
+    const step = () => {
+      if (gen !== ov.gen) return reject(new Error("watch-restart"));
+      const now = performance.now();
+      if (!ov.paused) left -= now - last;
+      last = now;
+      if (left <= 0) return resolve();
+      setTimeout(step, 30);
+    };
+    step();
+  });
+
+async function ovType(gen, text, { reset = false } = {}) {
+  const pre = $("watch-code");
+  pre.classList.add("is-typing");
+  if (reset && ov.code) {
+    while (ov.code.length) {
+      ov.code = ov.code.slice(0, -1);
+      pre.textContent = ov.code;
+      await ovSleep(gen, 7);
+    }
+  }
+  for (const ch of text) {
+    ov.code += ch;
+    pre.textContent = ov.code;
+    await ovSleep(gen, ch === "\n" ? 150 : 26);
+  }
+  if (highlight) pre.innerHTML = highlight(ov.code);
+}
+
+function ovTick(text, cls) {
+  const el = document.createElement("span");
+  el.textContent = text;
+  if (cls) el.className = cls;
+  $("watch-ticker").append(el);
+  return el;
+}
+
+// One turn on the overture board, eased like every other turn on the page,
+// but answering to the reel's own clock: a restart aborts it and a paused
+// plate freezes it mid-air.
+function ovTurn(gen, move, ms = 190) {
+  return new Promise((resolve, reject) => {
+    const host = $("watch-canvas");
+    let t = 0;
+    let last = performance.now();
+    const step = (now) => {
+      if (gen !== ov.gen) return reject(new Error("watch-restart"));
+      if (!ov.paused) t += (now - last) / ms;
+      last = now;
+      const k = Math.min(1, t);
+      draw(host, ov.board, { move, progress: 1 - (1 - k) * (1 - k) });
+      if (k < 1) requestAnimationFrame(step);
+      else {
+        ov.board.move(move);
+        draw(host, ov.board);
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+// Who stands where a piece rests, in home letters: the same reading the
+// script console's at() gives, against the overture's own board.
+function ovOccupant(name) {
+  const twin = ovBuild(WATCH_PAINT);
+  const home = twin.pieceNamed(name);
+  const restKey = twin
+    .getPieces()
+    .find((x) => x.index === home)
+    .slot.map((v) => Math.round(v * 1e4))
+    .join(",");
+  const there = ov.board
+    .getPieces()
+    .find((x) => x.slot.map((v) => Math.round(v * 1e4)).join(",") === restKey);
+  return there ? ov.board.nameOf(there.index) : "?";
+}
+
+async function ovRun(gen) {
+  const canvas = $("watch-canvas");
+  const ticker = $("watch-ticker");
+  ov.code = "";
+  ticker.textContent = "";
+  canvas.innerHTML = "";
+  $("watch-code").textContent = "";
+  $("watch-goal").hidden = true;
+  $("watch-again").hidden = true;
+  $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
+
+  // I. A pattern is written. Returning a face letter returns its colour.
+  ov.board = ovBuild("return face");
+  await ovType(gen, "return face");
+  draw(canvas, ov.board);
+  for (const L of ["U", "R", "F", "D", "L", "B"]) {
+    ovTick(L);
+    await ovSleep(gen, 110);
+  }
+  await ovSleep(gen, 800);
+
+  await ovType(gen, WATCH_PAINT, { reset: true });
+  ov.board = ovBuild(WATCH_PAINT);
+  draw(canvas, ov.board);
+  ticker.textContent = "";
+  ovTick("U");
+  ovTick("/");
+  ovTick("D");
+  await ovSleep(gen, 900);
+
+  // II. The picture becomes the target.
+  ov.pattern = ov.board.getPattern();
+  $("watch-target").innerHTML = ov.board.toSVG({ fitSphere: true, padding: 8 });
+  $("watch-goal").hidden = false;
+  await ovSleep(gen, 900);
+
+  // III. The deal: scrambled for real, one turn at a time. The walk is
+  // taken silently first and then replayed in the open, so every token in
+  // the ticker is a turn the reader watched happen.
+  ticker.textContent = "";
+  const seq = ov.board.scramble(10);
+  ov.board.move("(" + seq + ")'");
+  draw(canvas, ov.board);
+  for (const tok of seq.split(/\s+/)) {
+    const el = ovTick(tok, "is-live");
+    await ovTurn(gen, tok);
+    el.className = "";
+  }
+  await ovSleep(gen, 700);
+
+  // IV. The nouns, one by one, in the console's own language.
+  $("watch-sig").textContent = "solve()";
+  await ovType(gen, 'turn("[R, U]")', { reset: true });
+  ticker.textContent = "";
+  for (const tok of expand("[R, U]").split(" ")) {
+    const el = ovTick(tok, "is-live");
+    await ovTurn(gen, tok);
+    el.className = "";
+  }
+  await ovSleep(gen, 500);
+
+  await ovType(gen, '\nat("UFR")');
+  ovTick(`UFR → ${ovOccupant("UFR")}`);
+  await ovSleep(gen, 950);
+
+  await ovType(gen, "\ndistance()");
+  ovTick(`${ov.board.distanceTo(ov.pattern)} / 54`);
+  await ovSleep(gen, 1100);
+
+  // V. The greedy plays: every try appears, and a move that widened the
+  // distance is struck out the moment it is taken back.
+  await ovType(gen, WATCH_GREEDY, { reset: true });
+  ticker.textContent = "";
+  for (const m of ["R", "U", "F", "D", "L", "B"]) {
+    const before = ov.board.distanceTo(ov.pattern);
+    const el = ovTick(m, "is-live");
+    await ovTurn(gen, m);
+    if (ov.board.distanceTo(ov.pattern) >= before) {
+      el.className = "is-struck";
+      await ovTurn(gen, m + "'", 110);
+    } else {
+      el.className = "";
+    }
+  }
+
+  // VI. The rest is yours.
+  ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
+  $("watch-code").classList.remove("is-typing");
+  $("watch-again").hidden = false;
+}
+
+function wireWatch() {
+  if (!$("watch-panel")) return;
+  const start = () => {
+    ov.gen++;
+    ovRun(ov.gen).catch((e) => {
+      if (e.message !== "watch-restart") throw e;
+    });
+  };
+  $("watch-again").addEventListener("click", start);
+
+  if (still.matches) {
+    // A reader who asked for stillness gets the finished tableau, whole and
+    // at once: the pattern, the deal, the greedy's keeps, the count.
+    ov.board = ovBuild(WATCH_PAINT);
+    ov.pattern = ov.board.getPattern();
+    $("watch-target").innerHTML = ov.board.toSVG({ fitSphere: true, padding: 8 });
+    $("watch-goal").hidden = false;
+    ov.board.scramble(10);
+    const kept = [];
+    for (const m of ["R", "U", "F", "D", "L", "B"]) {
+      const d = ov.board.distanceTo(ov.pattern);
+      ov.board.move(m);
+      if (ov.board.distanceTo(ov.pattern) >= d) ov.board.move(m + "'");
+      else kept.push(m);
+    }
+    draw($("watch-canvas"), ov.board);
+    const pre = $("watch-code");
+    pre.textContent = WATCH_GREEDY;
+    if (highlight) pre.innerHTML = highlight(WATCH_GREEDY);
+    $("watch-sig").textContent = "solve()";
+    for (const m of kept) ovTick(m);
+    ovTick(`→ ${ov.board.distanceTo(ov.pattern)} / 54`);
+    return;
+  }
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && !ov.started) {
+          ov.started = true;
+          start();
+        }
+        ov.paused = ov.started && !e.isIntersecting;
+      }
+    },
+    { threshold: 0.35 },
+  );
+  io.observe($("watch-panel"));
+}
+
 // ── The mode nav ────────────────────────────────────────────────────────────
 //
 // Scroll-spy plus hash-preserving clicks. The one decision that matters is
@@ -1570,6 +1822,7 @@ function init() {
   wireStamp();
   wireAssembly();
   wireModeNav();
+  wireWatch();
   for (const b of document.querySelectorAll("[data-script]"))
     b.addEventListener("click", () => {
       $("script-code").value = b.dataset.script;

@@ -35,6 +35,7 @@
     </header>
 
     <nav class="mode-nav" aria-label="Modes">
+      <a href="#watch-panel">Watch</a>
       <a href="#write-panel">Write</a>
       <a href="#stamp-panel">Stamp</a>
       <a href="#asm-panel">Assemble</a>
@@ -42,6 +43,36 @@
       <a href="#script-panel">Script</a>
       <a href="#code-panel">The code</a>
     </nav>
+
+    <section class="example-plate example-plate--flip" id="watch-panel">
+      <div class="example-text">
+        <h2>Watch</h2>
+        <p>
+          The whole game once through, playing itself: a pattern is
+          written, dealt out, and chased back. Nothing here is a
+          recording. Each line runs against the engine the moment it
+          finishes typing, and the line under the code speaks every move
+          in the letters cubers read.
+        </p>
+        <div class="example-editor">
+          <label class="example-label"><span id="watch-sig">f(x, y, z, n, face, row, col, kind)</span></label>
+          <pre class="watch-code" id="watch-code"></pre>
+        </div>
+        <p class="watch-ticker" id="watch-ticker"></p>
+        <div class="demo-controls">
+          <button id="watch-again" hidden>Play it again</button>
+        </div>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="watch-canvas"></div>
+        <div class="example-goal example-goal--watch" id="watch-goal" hidden>
+          <div class="example-goal-art" id="watch-target"></div>
+          <div class="example-goal-text">
+            <span class="example-label">Reach this</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section class="example-plate" id="write-panel">
       <div class="example-text">
