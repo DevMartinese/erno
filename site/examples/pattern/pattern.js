@@ -1131,11 +1131,15 @@ function runScript(source) {
     deal: () => {
       spend();
       const fresh = build(game.source, game.kind, game.size);
-      // A box of free pieces comes apart: cubes and cuboids both have a
-      // spider and a bin. A weld holds its pieces and a carve removed
-      // some, so those refuse in the mechanism's own terms.
-      if (fresh.constructor !== Cube && fresh.constructor !== Cuboid)
-        throw new Error("only a box of free pieces comes apart; weld or carve it and the pieces stop being free");
+      // What the mechanism holds rides the frame; what is free is dealt.
+      // Cubes and cuboids have a spider and free pieces. A weld comes
+      // apart too, thinking of it as one big solid: the shared pieces
+      // ride the weld and the rest go to the bin, addressed body-first.
+      // A carved board is missing pieces a bin would promise, so it
+      // refuses.
+      const welded = fresh instanceof Fused;
+      if (fresh.constructor !== Cube && fresh.constructor !== Cuboid && !welded)
+        throw new Error("this board does not come apart: a carve is missing the pieces a bin would promise");
       road = "build";
       game.built = false;
       game.puzzle = fresh;
@@ -1144,7 +1148,13 @@ function runScript(source) {
       p = fresh;
       const placed = new Set();
       const tray = [];
+      const book = welded ? weldBook(fresh) : null;
       fresh.pieces.forEach((_, i) => {
+        if (book) {
+          if (book.held.has(i)) placed.add(i); // centres and the weld's own
+          else tray.push(i);
+          return;
+        }
         const k = new Set(fresh.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
         if (k === 1) placed.add(i); // centres ride the spider
         else tray.push(i);
@@ -1155,12 +1165,17 @@ function runScript(source) {
       }
       const locOf = (i) =>
         nameSlot(p.getPieces().find((x) => x.index === i).slot);
-      game.build = { placed, tray, locOf };
+      game.build = { placed, tray, locOf, book };
       recon.push({ t: "deal" });
       renderGame();
-      return tray.map((i) => p.nameOf(i));
+      return tray.map((i) => (book ? book.byIndex.get(i) : p.nameOf(i)));
     },
-    bin: () => (spend(), game.build ? game.build.tray.map((i) => p.nameOf(i)) : []),
+    bin: () => {
+      spend();
+      if (!game.build) return [];
+      const book = game.build.book;
+      return game.build.tray.map((i) => (book ? book.byIndex.get(i) : p.nameOf(i)));
+    },
     // place(piece) sets it in its home slot, solved. place(piece, slot,
     // spin) is the whole of Assemble's power in one call: any free slot of
     // the right kind, spun on the spot, so a script can build the perfect
@@ -1168,6 +1183,31 @@ function runScript(source) {
     place: (pieceName, slotName, spin = 0) => {
       spend();
       if (!game.build) throw new Error("nothing is in pieces: deal() first");
+      const book = game.build.book;
+      if (book) {
+        // The welded dialect: body-first names, home placement only. The
+        // weld's reduced symmetry is the mechanism's to enforce, so until
+        // it can name cross-slot carries, a piece goes where it lives.
+        const name = String(pieceName);
+        const idx = book.byName.get(name);
+        if (idx === undefined)
+          throw new Error(`${name} is not a piece here: a welded board spells pieces body-first, like A${p.nameOf(game.build.tray[0])}`);
+        if (!game.build.tray.includes(idx))
+          throw new Error(`${name} is not in the bin`);
+        if ((slotName && String(slotName) !== name) || spin)
+          throw new Error("on a welded board a piece goes to its home, unspun, for now");
+        recon.push({ t: "place", piece: name, index: idx, from: name, slot: name, spins: 0 });
+        game.build.tray.splice(game.build.tray.indexOf(idx), 1);
+        game.build.placed.add(idx);
+        if (!game.build.tray.length) {
+          game.build = null;
+          game.built = true;
+          p.history = [];
+          before = 0;
+        }
+        renderGame();
+        return;
+      }
       const idx = p.pieceNamed(pieceName);
       if (!game.build.tray.includes(idx))
         throw new Error(`${pieceName} is not in the bin`);
@@ -1183,7 +1223,7 @@ function runScript(source) {
       for (let k = 0; k < spins; k++)
         if (home.length === 3) p.twistCorner(slot);
         else p.flipEdge(slot);
-      recon.push({ t: "place", piece: home, from, slot, spins });
+      recon.push({ t: "place", piece: home, index: idx, from, slot, spins });
       game.build.tray.splice(game.build.tray.indexOf(idx), 1);
       game.build.placed.add(idx);
       if (!game.build.tray.length) {
@@ -1201,6 +1241,15 @@ function runScript(source) {
     // script can look at its own half-built work and decide.
     at: (name) => {
       spend();
+      if (game.build && game.build.book) {
+        // The welded dialect: a placed piece stands in its home.
+        const idx = game.build.book.byName.get(String(name));
+        if (idx === undefined)
+          throw new Error(`${name} is not a slot here: a welded board spells body-first`);
+        if (!game.build.placed.has(idx))
+          throw new Error(`${name} stands empty: nothing is placed there yet`);
+        return String(name);
+      }
       if (game.build) {
         const slot = p.nameOf(p.pieceNamed(name));
         const standing = new Set(
@@ -1215,6 +1264,12 @@ function runScript(source) {
     // and who is standing in it right now.
     pieces: () => {
       spend();
+      if (game.build && game.build.book) {
+        const book = game.build.book;
+        return [...game.build.placed]
+          .filter((i) => book.byIndex.has(i))
+          .map((i) => ({ at: book.byIndex.get(i), is: book.byIndex.get(i) }));
+      }
       // Mid-build it walks only what is standing; ghosts in the bin have
       // no address worth reporting.
       const standing = game.build
@@ -1317,6 +1372,37 @@ function probeLocKeys() {
   return probeCache.get(key);
 }
 
+// ── The welded address book ─────────────────────────────────────────────────
+// On a welded board the Singmaster spelling repeats across bodies: both
+// cubes of a Siamese own a DLB. So the game addresses free pieces the way
+// the moves already do, body letter first: ADLB and BDLB. A piece inside
+// more than one body is the weld's own and rides the frame, like a centre
+// rides the spider. The bodies come from the mechanism itself.
+function weldBook(board) {
+  const bodies = board.bodies;
+  const inBody = (slot, b) =>
+    slot.every((v, i) => Math.abs(v - b.at[i]) <= (b.size[i] - 1) / 2 + 0.01);
+  const byIndex = new Map();
+  const byName = new Map();
+  const held = new Set();
+  for (const pc of board.getPieces()) {
+    const k = new Set(
+      board.pieces[pc.index].faces.filter((f) => f.letter).map((f) => f.letter),
+    ).size;
+    const owners = bodies
+      .map((b, j) => (inBody(pc.slot, b) ? j : -1))
+      .filter((j) => j >= 0);
+    if (k === 1 || owners.length !== 1) {
+      held.add(pc.index);
+      continue;
+    }
+    const name = String.fromCharCode(65 + owners[0]) + board.nameOf(pc.index);
+    byIndex.set(pc.index, name);
+    byName.set(name, pc.index);
+  }
+  return { byIndex, byName, held };
+}
+
 function shadowBoard() {
   const keep = game.usesPalette;
   const b = build(game.source, game.kind, game.size);
@@ -1390,15 +1476,19 @@ async function watchBack(recon, startPos) {
     if (ev.t === "deal") {
       shadow = shadowBoard();
       veil = new Set();
-      shadow.pieces.forEach((_, i) => {
-        const k = new Set(shadow.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
-        if (k === 1) veil.add(i);
-      });
+      if (shadow instanceof Fused) {
+        for (const i of weldBook(shadow).held) veil.add(i);
+      } else {
+        shadow.pieces.forEach((_, i) => {
+          const k = new Set(shadow.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+          if (k === 1) veil.add(i);
+        });
+      }
       line.textContent = "";
       drawBoth();
       await sleep(300);
     } else if (ev.t === "place") {
-      const idx = shadow.pieceNamed(ev.piece);
+      const idx = ev.index ?? shadow.pieceNamed(ev.piece);
       if (ev.from !== ev.slot) shadow.swapPieces(ev.from, ev.slot);
       for (let k = 0; k < ev.spins; k++)
         if (ev.piece.length === 3) shadow.twistCorner(ev.slot);
@@ -1492,9 +1582,11 @@ function runScriptButton() {
         : "not a lawful cube"
       : "its laws unwritten";
     out.textContent = hit
-      ? law && law.lawful
-        ? `Built the pattern: ${result.chars} characters, both crowns.`
-        : `Built the picture: ${result.chars} characters, but ${lawWord}.`
+      ? law
+        ? law.lawful
+          ? `Built the pattern: ${result.chars} characters, both crowns.`
+          : `Built the picture: ${result.chars} characters, but ${lawWord}.`
+        : `Built the pattern: ${result.chars} characters; the picture crown, its laws unwritten.`
       : `Built: ${result.chars} characters, ${game.puzzle.distanceTo(game.target)} stickers off the picture, ${lawWord}.`;
     if (hit && law && law.lawful && game.challenge !== null) {
       const key = `erno-pattern-built-${game.challenge}`;
@@ -2242,9 +2334,13 @@ function cycBuild() {
   cyc.board = shadowBoard();
   cyc.i = 0;
   cycDraw();
+  // A new board may not speak the old bar: a cube's R means nothing to a
+  // weld. Revalidate hard, so an unspeakable bar stops instead of crashing.
+  const input = $("cycle-input");
+  if (input) cycSet(input.value, { hard: true });
 }
 
-function cycSet(text) {
+function cycSet(text, { hard = false } = {}) {
   const input = $("cycle-input");
   let tokens;
   let order;
@@ -2258,6 +2354,13 @@ function cycSet(text) {
   } catch (err) {
     input.setAttribute("data-bad", "");
     $("cycle-read").textContent = err.message;
+    // A typing slip keeps the old bar playing; a board change that made
+    // the old bar unspeakable stops it instead.
+    if (hard) {
+      cyc.tokens = [];
+      cyc.els = [];
+      $("cycle-ticker").textContent = "";
+    }
     return;
   }
   input.removeAttribute("data-bad");
@@ -2285,13 +2388,22 @@ function cycTurn(gen, move, ms = 210) {
       if (!cyc.paused) t += (now - last) / ms;
       last = now;
       const k = Math.min(1, t);
-      cycDraw({ move, progress: 1 - (1 - k) * (1 - k) });
-      if (k < 1) requestAnimationFrame(step);
-      else {
+      try {
+        cycDraw({ move, progress: 1 - (1 - k) * (1 - k) });
+        if (k < 1) return requestAnimationFrame(step);
         cyc.board.move(move);
         cycDraw();
-        resolve();
+      } catch (err) {
+        // A bar the board refuses mid-flight (a blocking weld, say) stops
+        // in the mechanism's words instead of crashing the loop.
+        cyc.tokens = [];
+        cyc.els = [];
+        $("cycle-ticker").textContent = "";
+        $("cycle-input").setAttribute("data-bad", "");
+        $("cycle-read").textContent = err.message;
+        cycDraw();
       }
+      resolve();
     };
     requestAnimationFrame(step);
   });

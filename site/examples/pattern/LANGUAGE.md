@@ -65,19 +65,27 @@ never be confused.
 
 ### Build
 
-- **`deal()`**. Takes the board apart the way Assemble does: a fresh
-  board at rest, centres bolted to the core, everything else in a
-  shuffled bin. Returns the bin as piece names. The box family comes
-  apart, cube and cuboid alike, since both have a spider and free
-  pieces; welded or carved boards are refused by name.
+- **`deal()`**. Takes the board apart: a fresh board at rest, what the
+  mechanism holds riding the frame, everything free in a shuffled bin,
+  returned as piece names. On a cube or cuboid the centres ride the
+  spider. On a weld, thought of as one big solid, the shared pieces ride
+  the weld like centres ride the spider, and the free pieces of both
+  bodies go to the bin, addressed body-first: `ADLB` and `BDLB`, the
+  same dialect the moves already speak. A carved board is missing the
+  pieces a bin would promise, so it refuses.
 - **`bin()`**. The names still waiting to be placed.
 - **`place(piece, slot?, spin?)`**. Sets a piece from the bin into any
   free slot of its kind, spun on the spot: the whole of Assemble's power
   in one call, so a script can build the perfect cube or an impossible
   one. Defaults: the piece's home slot, no spin. Refusals speak:
-  wrong-kind slots, taken slots, pieces not in the bin. When the last
-  piece lands the board is whole, the move count starts at zero (the
-  build IS the board, the way the scramble is), and the judge may speak.
+  wrong-kind slots, taken slots, pieces not in the bin. On a welded
+  board a piece goes to its home, unspun, for now: the weld's reduced
+  symmetry is the mechanism's to enforce, and the language will not
+  fake a carry it cannot name. When the last piece lands the board is
+  whole, the move count starts at zero (the build IS the board, the way
+  the scramble is), and the judge speaks where its laws are written:
+  the weld's laws are not yet, and the verdict says so instead of
+  pretending.
 
 ### Read
 
@@ -223,28 +231,53 @@ deal()                            // bin(): 8 corners and 8 edges
 for (const p of bin()) place(p)   // "Built the pattern: 39 characters, both crowns."
 ```
 
-### A Siamese, handed (Puzzle: Siamese)
+### A Siamese, on both roads (Puzzle: Siamese)
 
 Two cubes sharing a welded block. The vocabulary is per body, A-moves and
 B-moves, and only the layers that come back to themselves exist at all;
-the algebra takes the weld tokens like any others:
+the algebra takes the weld tokens like any others. And the weld teaches a
+lesson no single cube can: layers on different bodies never share a
+piece, so a commutator across the weld is nothing at all, and one inside
+a body is the real thing:
 
 ```js
-turn("[AD, BU]2")
-while (!solved() && moves() < 40) turn(alg("[AD, BU]"))
+alg("[AD, BU]").cycles   // [] : disjoint layers commute, the commutator dies
+alg("[AD, AL]").cycles   // real cycles: alive inside body A
+                         // (.order answers against YOUR picture, as always)
+turn("[AD, AL]2")
+while (!solved() && moves() < 40) turn(alg("[AD, AL]"))
 ```
 
-### Why the weld never comes apart
+And it comes apart, one big solid with a frame inside: fourteen pieces
+ride the frame (the centres and the weld's own), thirty four go to the
+bin, spelled body-first:
 
 ```js
-deal()   // on a Siamese or any welded or carved board:
-         // "only a box of free pieces comes apart; weld or carve it
-         //  and the pieces stop being free"
+deal()                            // bin(): ADLB, BUFR, ... 34 free pieces
+for (const p of bin()) place(p)
+// "Built the pattern: 39 characters; the picture crown, its laws
+//  unwritten."  The weld has no written laws yet, and the verdict says
+//  so rather than pretending a second crown.
 ```
 
-A welded board has pieces held by the weld, not by a core, and a carved
-one is missing some; a bin of either would be a lie about the mechanism,
-so the language refuses in the mechanism's own terms.
+Mid-build the reads speak the same dialect: `at("ADLB")` answers once it
+stands, `pieces()` walks the placed, and `place("DLB")` is turned away
+with the spelling lesson: a welded board spells pieces body-first.
+
+### What each family can do
+
+|  | Cube | Cuboid | Weld (Siamese, Fused, composed) |
+|---|---|---|---|
+| Handed, turned, judged by picture | yes | yes | yes |
+| The algebra and algs | yes | yes | yes, in weld tokens |
+| Built piece by piece | yes | yes | yes, home placements, body-first names |
+| Exotic placements (any slot, spins) | yes | yes | not yet: home and unspun |
+| `off()` | yes | yes | not yet |
+| The law's crown | yes | corner twist law | laws unwritten; the verdict says so |
+
+The one board that never comes apart is the carved one (Void): it is
+missing the pieces a bin would promise, and the language refuses in the
+mechanism's own terms.
 
 ## The two voices
 
