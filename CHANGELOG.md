@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.9 (2026-08-22)
+
+- The laws of the possible. `lawful()` judges a position against the
+  fundamental theorem of the cube - corner twists sum to a multiple of
+  three, edges flip in pairs, corner and edge permutation parities agree -
+  and names the broken law in a cuber's words. Three tamper verbs do what
+  a thumb does to a borrowed cube: `twistCorner("URF")`, `flipEdge("UF")`,
+  `swapPieces("UF", "UB")`, each riding a real cube symmetry so stickers
+  stay on faces, each breaking exactly its own law, each cancelling in
+  pairs exactly as the theorem says. Unlawfulness is an invariant: no
+  amount of scrambling launders a twisted corner. 3×3 family (Cube, Void)
+  for now; anything else is refused by name rather than misjudged.
+
 ## 0.2.8 (2026-08-22)
 
 - An in-place turn is named the way a cuber names it. effectOf's `turns`

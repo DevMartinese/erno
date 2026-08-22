@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Cuboid, Fisher, Fused, Twisty, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Cuboid, Fisher, Fused, Twisty, Void, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -433,6 +433,64 @@ test("an in-place turn is named the way a cuber names it", () => {
     flips.some((t) => t.name.length === 1 && /rotated 180/.test(t.spin)),
     "a centre reports its rotation",
   );
+});
+
+test("the laws of the possible, and the verbs that break them", () => {
+  // The fundamental theorem of the cube in street clothes: corner twists
+  // sum to a multiple of three, edges flip in pairs, and the corner and
+  // edge permutations agree in parity. move() cannot break them, by
+  // theorem; twistCorner, flipEdge and swapPieces are the prankster's
+  // verbs - what a thumb does to a borrowed cube - and lawful() is the
+  // judge that names the broken law in the words a cuber would use.
+  for (let i = 0; i < 5; i++) {
+    const p = new Cube({ size: 3 });
+    p.scramble();
+    assert(p.lawful().lawful, "every reachable position is lawful");
+  }
+  const one = (cube, law) => {
+    const b = cube.lawful().breaks;
+    assert(b.length === 1 && new RegExp(law).test(b[0]), `${law}: ${b.join(" / ")}`);
+  };
+  one(new Cube({ size: 3 }).twistCorner("URF"), "twist");
+  one(new Cube({ size: 3 }).flipEdge("UF"), "flip");
+  one(new Cube({ size: 3 }).swapPieces("URF", "ULB"), "parity");
+  one(new Cube({ size: 3 }).swapPieces("UF", "DB"), "parity");
+
+  // tampers cancel in pairs, exactly as the laws say they must
+  assert(
+    new Cube({ size: 3 }).twistCorner("URF").twistCorner("ULB", "counterclockwise").lawful().lawful,
+    "cw and ccw twists cancel",
+  );
+  assert(new Cube({ size: 3 }).flipEdge("UF").flipEdge("UB").lawful().lawful, "flips pair up");
+  assert(
+    new Cube({ size: 3 }).swapPieces("URF", "ULB").swapPieces("UF", "UB").lawful().lawful,
+    "a corner swap and an edge swap restore parity",
+  );
+
+  // unlawfulness is an INVARIANT: no amount of scrambling launders it
+  const damaged = new Cube({ size: 3 }).twistCorner("URF");
+  damaged.scramble();
+  assert(!damaged.lawful().lawful, "a twisted corner survives any sequence");
+
+  // a swap rides a real cube symmetry, so the stickers stay on the faces
+  assert(
+    !new Cube({ size: 3 }).swapPieces("URF", "DLB").getState().includes("?"),
+    "swapped pieces still read as stickers",
+  );
+
+  // the three can break together, and each is named
+  const chaos = new Cube({ size: 3 }).twistCorner("URF").flipEdge("UF").swapPieces("UL", "UB");
+  assertEqual(chaos.lawful().breaks.length, 3, "three laws, three charges");
+
+  // the Void is under the law; the Megaminx says its laws are not written
+  assert(!new Void().flipEdge("UF").lawful().lawful, "the Void answers to it");
+  let said = "";
+  try {
+    new Megaminx().lawful();
+  } catch (e) {
+    said = e.message;
+  }
+  assert(/not written here/.test(said), "and the Megaminx is refused honestly");
 });
 
 test("parse hands back a tree, not just a string", () => {

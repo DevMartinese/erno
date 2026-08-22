@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.2.8. Every code block below is executed against the library
+Version 0.2.9. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
@@ -168,7 +168,7 @@ Plus `Twisty`, the generic engine every one of them runs on, and
 
 # Full documentation
 
-What follows is the complete README of erno.js 0.2.8, unabridged.
+What follows is the complete README of erno.js 0.2.9, unabridged.
 
 ---
 
@@ -360,6 +360,36 @@ Not every pattern you can imagine is one a puzzle can reach. A turn permutes
 pieces but never changes what *kind* of piece one is, so a pattern that only
 asks about the kind is the same however you turn it, and there is nothing to
 solve. See `site/examples/pattern` for a game built on all of this.
+
+### The laws of the possible
+
+Every position a sequence can reach obeys three laws, and every cuber has
+met them the hard way: a cube that came back from a borrower with one
+corner turned is not scrambled, it is *unsolvable*. Corner twists sum to a
+multiple of three, edges flip in pairs, and the corner and edge
+permutations agree in parity, so two pieces alone can never swap.
+
+`move()` cannot break them, by theorem. Three verbs do what a thumb does:
+
+```js
+import { Cube } from 'erno.js'
+
+const cube = new Cube({ size: 3 })
+cube.twistCorner("URF")           // 120° about its own axis, like a prankster
+cube.lawful()
+// { lawful: false, breaks: ["the corner twists add up to 1 mod 3: ..."] }
+
+cube.twistCorner("ULB", "counterclockwise")   // a second, the other way
+console.assert(cube.lawful().lawful)          // the sum is whole again
+
+cube.flipEdge("UF")               // alone, unlawful; in pairs, fine
+cube.swapPieces("UF", "UB")       // rides a real cube symmetry
+console.assert(!cube.lawful().lawful)
+```
+
+Unlawfulness is an invariant: scramble a damaged cube all you like, and
+`lawful()` still names the law that was broken. That is the whole tragedy
+of the borrowed cube, stated as a theorem.
 
 ### Renderers that are not this one
 

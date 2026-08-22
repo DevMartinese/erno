@@ -187,6 +187,36 @@ pieces but never changes what *kind* of piece one is, so a pattern that only
 asks about the kind is the same however you turn it, and there is nothing to
 solve. See `site/examples/pattern` for a game built on all of this.
 
+### The laws of the possible
+
+Every position a sequence can reach obeys three laws, and every cuber has
+met them the hard way: a cube that came back from a borrower with one
+corner turned is not scrambled, it is *unsolvable*. Corner twists sum to a
+multiple of three, edges flip in pairs, and the corner and edge
+permutations agree in parity, so two pieces alone can never swap.
+
+`move()` cannot break them, by theorem. Three verbs do what a thumb does:
+
+```js
+import { Cube } from 'erno.js'
+
+const cube = new Cube({ size: 3 })
+cube.twistCorner("URF")           // 120° about its own axis, like a prankster
+cube.lawful()
+// { lawful: false, breaks: ["the corner twists add up to 1 mod 3: ..."] }
+
+cube.twistCorner("ULB", "counterclockwise")   // a second, the other way
+console.assert(cube.lawful().lawful)          // the sum is whole again
+
+cube.flipEdge("UF")               // alone, unlawful; in pairs, fine
+cube.swapPieces("UF", "UB")       // rides a real cube symmetry
+console.assert(!cube.lawful().lawful)
+```
+
+Unlawfulness is an invariant: scramble a damaged cube all you like, and
+`lawful()` still names the law that was broken. That is the whole tragedy
+of the borrowed cube, stated as a theorem.
+
 ### Renderers that are not this one
 
 The SVG is one consumer of the engine, not the engine. `getPieces()` hands
