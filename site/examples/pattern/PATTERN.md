@@ -127,8 +127,9 @@ true mirrors for `reflect`: `diag` (`AD↔AL'`), `anti` (`AD↔BR'`),
 `flat` (every prime toggles in place).
 
 **Publication is per geometry** — derived by the engine like the move
-list, never hand-listed. Unequal bodies publish nothing; unknown names
-are refused with the board's list. Transforms port **algorithms**
+list, never hand-listed. Unequal bodies are nobody's image, so exchange
+and swap never survive there; a mirror the compound truly has is still
+published. Unknown names are refused with the board's list. Transforms port **algorithms**
 (same order, same cycle shape, mirrored slots), never solutions: the
 other body wears its own scramble.
 
@@ -287,7 +288,8 @@ alg("[AD, BU]").cycles           // [] — disjoint layers commute; it dies
 **Weld that is not twins (3×3 + 2×2, cube + cuboid) — ask, split, work:**
 ```js
 alg("[AD, AL]").exchange()
-// refused: this weld publishes no symmetries: its bodies are not each other's image.
+// refused: this weld publishes no exchange: its bodies are not each
+// other's image (it publishes diag).
 const inB = legal().filter(m => m.startsWith("B"))
 alg("BR")                        // refused: no quarter turn about that axis …
 if (can("BR2")) turn("BR2")      // the polite habit

@@ -609,6 +609,9 @@ export class Twisty {
   constructor(def, options = {}) {
     this.def = def;
     this.name = def.name;
+    // kept whole so a runtime carve can rebuild this board as it was
+    // asked for, holes added, nothing else changed
+    this._options = options;
     this.tile = options.tile || 40;
     this.colors = { ...def.colors, ...(options.colors || {}) };
     this.plastic = options.plastic || def.plastic || "#0d0d0d";
@@ -1674,6 +1677,16 @@ export class Twisty {
       // so one question answers for both kinds of impossibility
       return false;
     }
+    // A token whose layer grabs no pieces is not a move: on a carved
+    // board the middle slice may hold nothing but absence, and turning
+    // nothing is not a turn. This is what makes carve('centers') answer
+    // the same moves the Void answers.
+    if (spec.angle !== 0) {
+      let grabs = 0;
+      for (let i = 0; i < this.pieces.length && !grabs; i++)
+        if (this._selected(i, spec)) grabs = 1;
+      if (!grabs) return false;
+    }
     return !this._blocking || this._turnFits(spec);
   }
 
@@ -2033,6 +2046,38 @@ export class Twisty {
     const seq = this.def.scramble(rnd, length);
     this.move(seq);
     return seq;
+  }
+
+  /**
+   * Carve pieces out of a LIVE board: rebuilds the mechanism with the
+   * removal while carrying every surviving piece's current placement, so
+   * the absence is a piece-shaped hole standing exactly where the piece
+   * stood, and it travels under turns the way the piece would have.
+   * Returns the carved board; this one is left untouched.
+   * @param {Function|string|{box: number[][]}} remove - as the `remove`
+   *   option: a predicate, "centers", "core", or a box
+   * @returns {Twisty}
+   */
+  carve(remove) {
+    const extra = normalizeRemove(remove);
+    if (!extra)
+      throw new Error(
+        'erno: carve takes what remove takes: a predicate, "centers", "core", or { box }',
+      );
+    const prior = this._remove;
+    const merged = prior ? (info) => !!(prior(info) || extra(info)) : remove;
+    const next = new this.constructor({ ...this._options, remove: merged });
+    const key = (p) => p.map((v) => Math.round(v * 1e4)).join(",");
+    const mine = new Map(this.pieces.map((pc, i) => [key(pc.slotPoint), i]));
+    next.pieces.forEach((pc, j) => {
+      const i = mine.get(key(pc.slotPoint));
+      if (i === undefined) return; // a piece born of nothing stays home
+      next._rot[j] = this._rot[i];
+      next._slotT[j] = this._slotT[i];
+      next._bodyT[j] = this._bodyT[i];
+    });
+    next.history = [...this.history];
+    return next;
   }
 
   /**

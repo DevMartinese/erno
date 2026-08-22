@@ -1128,33 +1128,36 @@ function runScript(source) {
     return b2;
   };
 
-  // ── The mirror tables ───────────────────────────────────────────────────
+  // ── The transforms consult the mechanism ────────────────────────────────
   // No thumb performs a reflection, so there is no mirror token; these are
-  // methods. One rule makes every table, and the slice rides its pair's
-  // double flip, which is why M maps to M under RL: Rw = R M' must reflect
-  // to Lw' = L' M', and it does.
-  const REFLECT = {
-    RL: { swap: "RL", keep: "Mx" },
-    UD: { swap: "UD", keep: "Ey" },
-    FB: { swap: "FB", keep: "Sz" },
-  };
-  const reflectSeq = (plane, text) => {
-    const P = REFLECT[plane];
-    return text.replace(/(\d*)([A-Za-z])(w?)(2'|2|')?/g, (m0, pre, base, w, suf = "") => {
-      const upper = base.toUpperCase();
-      const isMove = "RLUDFBMES".includes(upper) || "xyz".includes(base);
-      if (!isMove) return m0;
-      let out = base;
-      let toggle = true;
-      if (P.keep.includes(base) || P.keep.includes(upper)) toggle = false;
-      else if (P.swap.includes(upper)) {
-        const other = P.swap[1 - P.swap.indexOf(upper)];
-        out = base === upper ? other : other.toLowerCase();
+  // methods, and their tables come from the engine's own published
+  // symmetries, derived from the geometry, never hand-listed here.
+  const symsOf = () => (twin.symmetries ? twin.symmetries() : []);
+  const applySym = (sym, text, weld) => {
+    const re = weld
+      ? /[A-Z](?:[URFDLB]|[MES])(?:2'|2|')?/g
+      : /(?:\d*)(?:[A-Za-z])(?:w?)(?:2'|2|')?/g;
+    return text.replace(re, (tok) => {
+      try {
+        return sym.map(tok);
+      } catch {
+        return tok;
       }
-      if (suf.startsWith("2")) toggle = false; // half turns only map the letter
-      const suffix = toggle ? (suf === "'" ? "" : suf === "" ? "'" : suf) : suf;
-      return pre + out + w + suffix;
     });
+  };
+  // Slot names for the run: body-first on welds, Singmaster on boxes.
+  let slotNames = null;
+  const slotName = (slot) => {
+    if (!slotNames) {
+      slotNames = new Map();
+      const book2 = twin instanceof Fused ? weldBook(twin) : null;
+      for (const pc of twin.getPieces())
+        slotNames.set(
+          pc.slot.map((v) => Math.round(v * 1e4)).join(","),
+          book2 ? book2.byIndex.get(pc.index) || twin.nameOf(pc.index) : twin.nameOf(pc.index),
+        );
+    }
+    return slotNames.get(slot.map((v) => Math.round(v * 1e4)).join(",")) || "?";
   };
 
   // ── The alg value ───────────────────────────────────────────────────────
@@ -1175,7 +1178,7 @@ function runScript(source) {
     if (tokens.length) {
       const e = twin2.effectOf(flat);
       looksHome = e.order;
-      cyc2 = e.cycles.map((c) => c.map(nameSlot));
+      cyc2 = e.cycles.map((c) => c.map(slotName));
       order = null;
       try {
         order = plainBoard().effectOf(flat).order;
@@ -1230,25 +1233,33 @@ function runScript(source) {
       commutator: (b) => makeAlg(`[${src}, ${kin(b).alg}]`),
       conjugate: (b) => makeAlg(`[${src}: ${kin(b).alg}]`),
       reflect: (plane) => {
-        if (dialect !== "box")
-          throw new Error("this weld's mirrors wait for the engine to publish them");
-        if (!REFLECT[plane])
-          throw new Error(`no plane named ${plane}: a box publishes RL, UD, FB`);
-        return makeAlg(reflectSeq(plane, flat));
+        const mirrors = symsOf().filter((s) => s.kind === "mirror");
+        const sym = mirrors.find((s) => s.name === String(plane));
+        if (!sym)
+          throw new Error(
+            `no plane named ${plane}: this board publishes ${mirrors.map((s) => s.name).join(", ") || "no mirrors"}`,
+          );
+        return makeAlg(applySym(sym, flat, dialect === "weld"));
       },
       exchange: () => {
-        throw new Error(
-          dialect === "weld"
-            ? "exchange waits for the engine to publish this weld's symmetries"
-            : "exchange belongs to welds of twin bodies",
-        );
+        const sym = symsOf().find((s) => s.name === "exchange");
+        if (!sym)
+          throw new Error(
+            dialect === "weld"
+              ? `this weld publishes no exchange: its bodies are not each other's image (it publishes ${symsOf().map((s) => s.name).join(", ") || "nothing"})`
+              : "exchange belongs to welds of twin bodies",
+          );
+        return makeAlg(applySym(sym, flat, true));
       },
       swap: () => {
-        throw new Error(
-          dialect === "weld"
-            ? "swap waits for the engine to publish this weld's symmetries"
-            : "swap belongs to welds of twin bodies",
-        );
+        const sym = symsOf().find((s) => s.name === "swap");
+        if (!sym)
+          throw new Error(
+            dialect === "weld"
+              ? `this weld publishes no swap (it publishes ${symsOf().map((s) => s.name).join(", ") || "nothing"})`
+              : "swap belongs to welds of twin bodies",
+          );
+        return makeAlg(applySym(sym, flat, true));
       },
       equals: (b) => {
         const o = b && b.alg !== undefined && b.dialect ? b : makeAlg(b);
@@ -1470,6 +1481,7 @@ function runScript(source) {
       before = 0;
       twin = build(game.source, game.kind, game.size, game.carve);
       ranges = rangesOf(twin);
+      slotNames = null;
       game.target = twin.getPattern();
       game.targetPos = twin.getPosition();
       game.worst = Math.max(1, scrambleDepth(twin));
@@ -1526,6 +1538,7 @@ function runScript(source) {
       before = 0;
       twin = build(game.source, game.kind, game.size, game.carve);
       ranges = rangesOf(twin);
+      slotNames = null;
       renderGame();
       return made.spec;
     },

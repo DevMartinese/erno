@@ -935,6 +935,27 @@ export class Cuboid extends Twisty {
     super(def, options);
     this.dims = dims;
   }
+
+  /**
+   * The box family's published symmetries: the three coordinate mirrors,
+   * named by the pair of faces each one swaps. A coordinate mirror always
+   * maps a box to itself, so on this family publication is a theorem;
+   * the closure check runs anyway, which is better than a theorem.
+   * @returns {{name: string, kind: string, map: (token: string) => string}[]}
+   */
+  symmetries() {
+    if (!this._symmetries) {
+      const mirrors = [
+        ["RL", [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+        ["UD", [[1, 0, 0], [0, -1, 0], [0, 0, 1]]],
+        ["FB", [[1, 0, 0], [0, 1, 0], [0, 0, -1]]],
+      ];
+      this._symmetries = mirrors
+        .map(([name, g]) => symPublish(this, name, g, null))
+        .filter(Boolean);
+    }
+    return this._symmetries;
+  }
 }
 
 /** Rubik's Domino — 3×2×3, Ernő Rubik's 1978 pre-cube puzzle. */
@@ -979,6 +1000,9 @@ export class Cube extends Cuboid {
         `erno: Cube takes a single number for size, not [${n}]: use Cuboid for uneven sides`,
       );
     super({ ...options, size: [n, n, n] });
+    // the options as ASKED, so a runtime carve rebuilds through this
+    // class's own front door
+    this._options = options;
   }
 }
 
@@ -1322,6 +1346,98 @@ export class Fused extends Twisty {
     super(def, options);
     this.bodies = bodies;
   }
+
+  /**
+   * The weld's published symmetries, derived from its bodies: exchange
+   * (the body-swapping rotation), swap (the body-fixing one), and the
+   * pure mirrors that survive, named flat (plane across the free axis),
+   * diag (plane containing the offset) and anti (plane across it). A
+   * weld of unequal bodies publishes nothing, honestly.
+   * @returns {{name: string, kind: string, map: (token: string) => string}[]}
+   */
+  symmetries() {
+    if (this._symmetries) return this._symmetries;
+    const centers = this.bodies.map((b) => b.at);
+    const dims = this.bodies.map((b) => b.size);
+    const centroid = [0, 1, 2].map(
+      (i) => centers.reduce((s, c) => s + c[i], 0) / centers.length,
+    );
+    const rel = centers.map((c) => c.map((v, i) => v - centroid[i]));
+    const offset = rel.length === 2 ? rel[1].map((v, i) => v - rel[0][i]) : null;
+    const found = [];
+    for (const g of SYM_OPS) {
+      // identity teaches nothing
+      if (g[0][0] === 1 && g[1][1] === 1 && g[2][2] === 1 && symDet(g) === 1
+        && g[0][1] === 0 && g[0][2] === 0 && g[1][0] === 0 && g[1][2] === 0 && g[2][0] === 0 && g[2][1] === 0)
+        continue;
+      // does g map the body set to itself, dimensions included?
+      const bodyMap = [];
+      let ok = true;
+      for (let k = 0; k < rel.length && ok; k++) {
+        const image = symMatVec(g, rel[k]);
+        const j = rel.findIndex((r) => symVecEq(r, image));
+        if (j < 0) { ok = false; break; }
+        // |g| permutes the axes; the dims must follow it
+        const mapped = [0, 1, 2].map((row) => {
+          const col = g[row].findIndex((v) => v !== 0);
+          return dims[k][col];
+        });
+        if (!symVecEq(mapped, dims[j])) { ok = false; break; }
+        bodyMap[k] = j;
+      }
+      if (!ok) continue;
+      found.push({ g, det: symDet(g), bodyMap });
+    }
+    const out = [];
+    const swapsBodies = (o) => o.bodyMap.some((j, k) => j !== k);
+    const isPureMirror = (o) =>
+      o.det < 0 && o.g[0][0] + o.g[1][1] + o.g[2][2] === 1 &&
+      symVecEq(symMatVec(o.g, symMatVec(o.g, [1, 2, 3])), [1, 2, 3]);
+    const axisAligned = (v) => v.filter((x) => Math.abs(x) > 1e-6).length === 1;
+    const mirrorNormal = (g) => {
+      // the -1 eigenvector of a pure reflection
+      for (const v of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, -1, 0], [1, 0, 1], [1, 0, -1], [0, 1, 1], [0, 1, -1]]) {
+        const gv = symMatVec(g, v);
+        if (symVecEq(gv, v.map((x) => -x))) return v;
+      }
+      return null;
+    };
+    // exchange: prefer the body-swapping 180° rotation about a lattice axis
+    const rotations = found.filter((o) => o.det > 0);
+    const exchange =
+      rotations.find((o) => swapsBodies(o) && axisAligned(mirrorNormalFor180(o.g))) ||
+      rotations.find((o) => swapsBodies(o));
+    function mirrorNormalFor180(g) {
+      // a 180° rotation's axis: the +1 eigenvector
+      for (const v of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, -1, 0], [1, 0, 1], [1, 0, -1], [0, 1, 1], [0, 1, -1]]) {
+        if (symVecEq(symMatVec(g, v), v)) return v;
+      }
+      return [0, 0, 0];
+    }
+    if (exchange) {
+      const p = symPublish(this, "exchange", exchange.g, exchange.bodyMap);
+      if (p) out.push(p);
+    }
+    const swap = rotations.find((o) => !swapsBodies(o));
+    if (swap) {
+      const p = symPublish(this, "swap", swap.g, swap.bodyMap);
+      if (p) out.push(p);
+    }
+    for (const o of found.filter(isPureMirror)) {
+      const n = mirrorNormal(o.g);
+      if (!n) continue;
+      let name;
+      if (axisAligned(n)) name = "flat";
+      else if (offset && Math.abs(n[0] * offset[0] + n[1] * offset[1] + n[2] * offset[2]) < 1e-6)
+        name = "diag";
+      else name = "anti";
+      if (out.some((s) => s.name === name)) continue;
+      const p = symPublish(this, name, o.g, o.bodyMap);
+      if (p) out.push(p);
+    }
+    this._symmetries = out;
+    return out;
+  }
 }
 
 /**
@@ -1354,6 +1470,7 @@ export class Siamese extends Fused {
         { size: [n, n, n], at },
       ],
     });
+    this._options = options; // as asked, for the runtime carve
   }
 }
 
@@ -2109,6 +2226,138 @@ export class Puzzle extends Twisty {
   }
 }
 
+
+
+// ── Symmetries, published per geometry ───────────────────────────────────────
+//
+// Each mechanism can publish the symmetries of its own solid as a named
+// table of token maps, derived from the geometry the way legalMoves() is
+// derived from the one law - never hand-listed. The derivation is one
+// rule: a turn about an axis u conjugated by an orthogonal map g becomes a
+// turn about g·u, with its sense reversed exactly when g is a reflection.
+// Everything else - M mapping to M under the RL mirror, Rw coming back
+// Lw', the Siamese's exchange being prime-free - falls out of that rule
+// and the engine's own axis conventions.
+
+const SYM_AXIS = {
+  U: [0, 1, 0], D: [0, -1, 0],
+  R: [1, 0, 0], L: [-1, 0, 0],
+  F: [0, 0, 1], B: [0, 0, -1],
+};
+// Slice and rotation letters follow a face's convention: M follows L,
+// E follows D, S follows F; x follows R, y follows U, z follows F.
+const SYM_CONV = { M: "L", E: "D", S: "F", x: "R", y: "U", z: "F" };
+const SYM_FACE_OF = { "1,0,0": "R", "-1,0,0": "L", "0,1,0": "U", "0,-1,0": "D", "0,0,1": "F", "0,0,-1": "B" };
+
+const symMatVec = (g, v) => [
+  g[0][0] * v[0] + g[0][1] * v[1] + g[0][2] * v[2],
+  g[1][0] * v[0] + g[1][1] * v[1] + g[1][2] * v[2],
+  g[2][0] * v[0] + g[2][1] * v[1] + g[2][2] * v[2],
+];
+const symDet = (g) =>
+  g[0][0] * (g[1][1] * g[2][2] - g[1][2] * g[2][1]) -
+  g[0][1] * (g[1][0] * g[2][2] - g[1][2] * g[2][0]) +
+  g[0][2] * (g[1][0] * g[2][1] - g[1][1] * g[2][0]);
+const symVecEq = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+
+// The 48 signed permutation matrices: every way a lattice can be held.
+const SYM_OPS = (() => {
+  const out = [];
+  const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  for (const p of perms)
+    for (let s = 0; s < 8; s++) {
+      const g = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+      for (let r = 0; r < 3; r++) g[r][p[r]] = s & (1 << r) ? -1 : 1;
+      out.push(g);
+    }
+  return out;
+})();
+
+// One token through one map. Body letters ride bodyMap (null on a box);
+// quarters toggle when det is negative or the image letter's own axis
+// convention points the other way; halves only map the letter.
+function symMapToken(g, det, bodyMap, token) {
+  // Two grammars, parsed apart: box tokens have no body letter, weld
+  // tokens always lead with one.
+  let body = null;
+  let pre = "";
+  let base;
+  let w = "";
+  let suf = "";
+  if (bodyMap === null) {
+    const m = /^(\d*)([A-Za-z])(w?)(2'|2|')?$/.exec(token);
+    if (!m) return null;
+    [, pre, base, w, suf = ""] = m;
+  } else {
+    const m = /^([A-Z])([URFDLB]|[MES])(2'|2|')?$/.exec(token);
+    if (!m) return null;
+    [, body, base, suf = ""] = m;
+  }
+  const upper = base.toUpperCase();
+  const conv = SYM_CONV[base] || SYM_CONV[upper] || ("URFDLB".includes(upper) ? upper : null);
+  if (!conv) return null;
+  const u = SYM_AXIS[conv];
+  const gu = symMatVec(g, u).map((v) => Math.round(v));
+  let sense = 1;
+  const face = SYM_FACE_OF[gu.join(",")];
+  let out;
+  if ("URFDLB".includes(upper)) {
+    // faces and wides: every direction has a letter, sense follows det only
+    out = base === upper ? face : face.toLowerCase();
+  } else {
+    // slices and rotations: one letter per axis; the opposite direction is
+    // the same letter with its sense reversed
+    const mine = SYM_AXIS[SYM_CONV[base]];
+    if (symVecEq(gu, mine)) out = base;
+    else if (symVecEq(gu, mine.map((v) => -v))) {
+      // the image letter is the one whose convention axis is -gu
+      out = base;
+      sense = -sense;
+    } else {
+      // the image axis belongs to a different letter family
+      const flip = [];
+      for (const [letter, c] of Object.entries(SYM_CONV)) {
+        if ("MES".includes(letter) !== "MES".includes(base)) continue;
+        if (!("MES".includes(letter) || "xyz".includes(letter))) continue;
+        const ax = SYM_AXIS[c];
+        if (symVecEq(gu, ax)) { out = letter; break; }
+        if (symVecEq(gu, ax.map((v) => -v))) { out = letter; sense = -sense; break; }
+      }
+      if (!out) return null;
+    }
+  }
+  if (det < 0) sense = -sense;
+  let suffix = suf;
+  if (!suf.startsWith("2")) {
+    const q = suf === "'" ? -1 : 1;
+    suffix = q * sense === 1 ? "" : "'";
+  }
+  const newBody = body ? String.fromCharCode(65 + bodyMap[body.charCodeAt(0) - 65]) : "";
+  return `${newBody}${pre}${out}${w}${suffix}`;
+}
+
+// A publishable symmetry must close over the vocabulary: every token maps
+// to a token the mechanism also names. On a box that is a theorem; here it
+// is checked, which is better.
+function symPublish(board, name, g, bodyMap) {
+  const det = symDet(g);
+  const vocab = new Set(board.vocabulary());
+  const table = new Map();
+  for (const t of vocab) {
+    const image = symMapToken(g, det, bodyMap, t);
+    if (!image || !vocab.has(image)) return null;
+    table.set(t, image);
+  }
+  return {
+    name,
+    kind: det < 0 ? "mirror" : "rotation",
+    map: (token) => {
+      const image = symMapToken(g, det, bodyMap, String(token));
+      if (!image) throw new Error(`erno: '${token}' has no image under ${name}`);
+      return image;
+    },
+  };
+}
 
 // ── The board spec ───────────────────────────────────────────────────────────
 //

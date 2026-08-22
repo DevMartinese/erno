@@ -71,11 +71,18 @@ never be confused.
     `inverse()` (a bare sequence reverses in the open exactly as
     `Erno.inverse` writes it; a wrapped group keeps its wrapper:
     `(R U)6` comes back `(R U)6'`), `commutator(b)`, `conjugate(b)`.
-  - **Transforms**: `reflect(plane)` stands on the box family, planes
-    `RL`, `UD`, `FB`, total by theorem; the slice rides its pair's
-    double flip, which is why M maps to M under RL and `Rw` comes back
-    `Lw'`. `exchange()` and `swap()` wait for the engine to publish each
-    weld's symmetries, and say so.
+  - **Transforms**, consulting the mechanism's own published
+    symmetries, derived from the geometry and never hand-listed:
+    `reflect(plane)` speaks the published mirrors, `RL`, `UD`, `FB` on
+    the box family, `flat`, `diag`, `anti` on the classic weld; the
+    slice rides its pair's double flip, which is why M maps to M under
+    RL and `Rw` comes back `Lw'`. `exchange()` and `swap()` are the
+    weld's prime-free rotations: `[AD, AL]` ports to `[BU, BR]`,
+    brackets kept, the same technique on the other body. An unequal
+    weld never publishes exchange, its bodies being nobody's image, and
+    the refusal names what it does publish. Transforms port the
+    theorem, order and cycle shape; `looksHome` may change, because
+    your picture need not share the board's symmetry.
   - **Questions**: `equals(b)` is the writing plus the dialect, so
     `R R'` honestly differs from the empty alg; `sameEffect(b)` is the
     other question, answered on unpainted twins. Cross-dialect
@@ -362,8 +369,8 @@ carve("centers")     // the Void, written as a sentence
 | The algebra and algs | yes | yes | yes, in weld tokens |
 | Built piece by piece | yes | yes | yes, home placements, body-first names |
 | Carved with holes | yes | yes | waits for its laws |
-| `reflect` | yes | yes | waits for published symmetries |
-| `exchange` / `swap` | refused by name | refused by name | wait for published symmetries |
+| `reflect` | yes | yes | published mirrors: flat, diag, anti |
+| `exchange` / `swap` | refused by name | refused by name | prime-free rotations on twins; unequal welds refuse, naming what stands |
 | Exotic placements (any slot, spins) | yes | yes | not yet: home and unspun |
 | `off()` | yes | yes | not yet |
 | `board()` spells it | `"3"` | `"3x3x2"` | `"3 + 3 @ 2,2,0"` |

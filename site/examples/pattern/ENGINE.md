@@ -49,7 +49,8 @@ list is per-instance, not per-class:
   prime-free) plus the mirrors `diag`, `anti`, `flat`;
 - a Siamese at another offset keeps `exchange` (equal bodies always
   have the 180° turn about the shared block) but may lose the mirrors;
-- a weld of unequal bodies publishes nothing;
+- a weld of unequal bodies never publishes exchange or swap; the
+  mirrors its compound truly has still appear;
 - a carve re-publishes: the Void keeps all three planes; a one-corner
   carve keeps what survives.
 

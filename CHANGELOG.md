@@ -15,6 +15,21 @@
   same walk on every machine under the same seed - a blocking weld
   included, since the walk picks from what is legal as it goes. The
   seed is what lets a scramble be part of a challenge's identity.
+- Symmetries, published per geometry: `symmetries()` on the box family
+  and on welds derives the solid's own symmetries and hands back named
+  token maps - a box its three mirrors, the classic siamese pair its
+  five (exchange and swap as prime-free rotations, flat, diag and anti
+  as mirrors), an unequal weld never an exchange but every mirror its
+  compound truly has. One rule makes every table: a turn conjugates to
+  a turn about the mapped axis, reversing exactly under reflections;
+  M mapping to M under the RL mirror falls out, it is not special-cased.
+  Every map is checked to close over the vocabulary at publication.
+- Carving a live board: `carve(remove)` rebuilds the mechanism with the
+  removal while every surviving piece keeps its current placement, so
+  the hole stands where the piece stood and travels under turns. At
+  rest, `carve("centers")` renders byte for byte as `new Void()`. And a
+  token whose layer would grab nothing is not a move: `canMove` and
+  `legalMoves` shed it, since turning nothing is not a turn.
 
 ## 0.2.10 (2026-08-22)
 

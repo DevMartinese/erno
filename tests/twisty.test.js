@@ -1810,6 +1810,67 @@ test("the spec's refusals name the thing", () => {
   assert(said.includes("origin"), "the first body anchors the lattice");
 });
 
+test("a box publishes its three mirrors, derived, and the tables hold", () => {
+  const c = new Cube({ size: 3 });
+  const names = c.symmetries().map((s) => s.name);
+  assert(names.join(" ") === "RL UD FB", `publishes ${names}`);
+  const rl = c.symmetries()[0];
+  for (const [t, want] of [
+    ["R", "L'"], ["L2", "R2"], ["M", "M"], ["Rw", "Lw'"], ["3Rw", "3Lw'"],
+    ["x", "x"], ["y", "y'"], ["E", "E'"], ["S", "S'"], ["u", "u'"],
+  ])
+    assert(rl.map(t) === want, `RL sends ${t} to ${rl.map(t)}, not ${want}`);
+  const ud = c.symmetries()[1];
+  assert(ud.map("E") === "E" && ud.map("M") === "M'", "the slice rides its own pair");
+});
+
+test("every published symmetry is an involution over the whole vocabulary", () => {
+  for (const board of [new Cube({ size: 3 }), new Cuboid({ size: [3, 3, 2] }), new Siamese()])
+    for (const s of board.symmetries())
+      for (const t of board.vocabulary())
+        assert(s.map(s.map(t)) === t, `${s.name} twice moves ${t}`);
+});
+
+test("the classic Siamese publishes its five, with the promised maps", () => {
+  const s = new Siamese();
+  const byName = Object.fromEntries(s.symmetries().map((x) => [x.name, x]));
+  assert(
+    Object.keys(byName).sort().join(" ") === "anti diag exchange flat swap",
+    `publishes ${Object.keys(byName)}`,
+  );
+  assert(byName.exchange.kind === "rotation" && byName.swap.kind === "rotation", "the ports are rotations");
+  assert(byName.exchange.map("AD") === "BU" && byName.exchange.map("AL") === "BR", "exchange is prime-free");
+  assert(byName.swap.map("AD") === "AL" && byName.swap.map("AF") === "AB", "swap stays in the body");
+  assert(byName.diag.map("AD") === "AL'", "diag toggles across the diagonal");
+  assert(byName.anti.map("AD") === "BR'", "anti crosses the bar");
+  assert(byName.flat.map("AD") === "AD'", "flat toggles in place");
+});
+
+test("a transform ports understanding: same order, same shape, other body", () => {
+  const s = new Siamese();
+  const a = s.effectOf("AD AL AD' AL'");
+  const b = s.effectOf("BU BR BU' BR'");
+  assert(a.order === b.order && a.moved === b.moved, "the exchanged commutator matches");
+});
+
+test("an unequal weld never exchanges, and keeps only its true mirrors", () => {
+  // The doc draft said unequal bodies publish nothing; the geometry says
+  // better: they are nobody's image, so exchange and swap can never
+  // survive, but a mirror the compound really has is published honestly.
+  const corner = new Fused({
+    bodies: [
+      { size: [3, 3, 3], at: [0, 0, 0] },
+      { size: [2, 2, 2], at: [1.5, 1.5, 0.5] },
+    ],
+  });
+  const names = corner.symmetries().map((x) => x.name);
+  assert(!names.includes("exchange") && !names.includes("swap"), "unequal bodies are nobody's image");
+  assert(names.includes("diag"), "the corner-grown cube really is diagonal-mirror symmetric");
+  const diag = corner.symmetries().find((x) => x.name === "diag");
+  const vocab = corner.vocabulary();
+  for (const t of vocab) assert(vocab.includes(diag.map(t)), `diag closes over ${t}`);
+});
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed`);

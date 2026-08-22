@@ -849,6 +849,50 @@ a.scramble(15, 42)      // same seed,
 b.scramble(15, 42)      // same walk, same board after it
 ```
 
+## Symmetries, published
+
+Each mechanism can publish the symmetries of its own solid, derived from
+the geometry the way `legalMoves()` is derived from the one law. A box
+publishes its three mirrors; the classic siamese pair publishes five
+names; a weld of unequal bodies never publishes `exchange`, because its
+bodies are nobody's image, but a mirror the compound truly has still
+appears. Every entry maps tokens to tokens, and every map closes over
+the vocabulary, checked at publication:
+
+```js
+import { Cube, Siamese } from 'erno.js'
+
+const rl = new Cube({ size: 3 }).symmetries()[0]
+rl.map("R")    // "L'"
+rl.map("M")    // "M": the slice rides its pair's double flip
+rl.map("Rw")   // "Lw'"
+
+const s = new Siamese()
+s.symmetries().map(t => t.name)   // exchange, swap, flat, diag, anti
+const ex = s.symmetries().find(t => t.name === "exchange")
+ex.map("AD")   // "BU", prime-free: a 180° rotation, not a mirror
+```
+
+## Carving a live board
+
+`remove` exists at construction; `carve` does it to a board mid-life:
+it rebuilds the mechanism with the removal while every surviving piece
+keeps its current placement, so the absence is a piece-shaped hole
+standing exactly where the piece stood, and it travels under turns the
+way the piece would have:
+
+```js
+import { Cube } from 'erno.js'
+
+const cube = new Cube({ size: 3 })
+cube.scramble(12, 42)
+const holed = cube.carve(({ slot }) => slot.join(",") === "1,1,1")
+// one corner gone, every other piece exactly where it was
+```
+
+A token whose layer would grab nothing is not a move: `canMove` and
+`legalMoves` shed it, because turning nothing is not a turn.
+
 ## Blocking
 
 Fusion supplies the shape. What makes a Siamese cube a *puzzle* is which turns
