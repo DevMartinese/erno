@@ -488,7 +488,8 @@ body.example {
   font-family: var(--mono);
   font-size: 0.78rem;
 }
-[data-script] {
+[data-script],
+#recon-skip {
   font-family: var(--mono);
   font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
@@ -497,9 +498,20 @@ body.example {
   color: var(--text-quiet);
   cursor: pointer;
 }
-[data-script]:hover {
+[data-script]:hover,
+#recon-skip:hover {
   color: var(--ink);
   border-color: var(--ink);
+}
+.recon-row {
+  margin: var(--space-1) 0 0;
+  min-height: 1.4rem;
+}
+/* The recon line under the status: same voice as Watch's ticker, one line
+   of notation that grows as the board watches the run back. */
+#script-recon {
+  min-height: var(--lh);
+  margin-top: var(--space-1);
 }
 
 

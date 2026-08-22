@@ -1044,6 +1044,12 @@ function runScript(source) {
   // take it apart and build your own. Which road a script walked decides
   // how it is judged, and building the picture is never called reaching it.
   let road = "solve";
+  // Every run leaves a recon: the reconstruction a cuber would write of
+  // what actually happened, recorded from the engine's own truth as it
+  // runs, never re-derived. The board watches it back afterwards.
+  const recon = [];
+  const startedWhole = !game.build;
+  const startPos = startedWhole ? p.getPosition() : null;
   // A board in pieces neither turns nor judges: the nouns that need a whole
   // cube say so instead of moving ghosts.
   const whole = () => {
@@ -1085,7 +1091,9 @@ function runScript(source) {
       spend();
       whole();
       if (road === "build") road = "mixed";
+      const h0 = p.history.length;
       p.move(desugar(seq));
+      recon.push({ t: "turn", tokens: p.history.slice(h0) });
       renderCode();
     },
     // ── Construction: the cube itself is code ──────────────────────────
@@ -1116,6 +1124,7 @@ function runScript(source) {
       const locOf = (i) =>
         nameSlot(p.getPieces().find((x) => x.index === i).slot);
       game.build = { placed, tray, locOf };
+      recon.push({ t: "deal" });
       renderGame();
       return tray.map((i) => p.nameOf(i));
     },
@@ -1142,6 +1151,7 @@ function runScript(source) {
       for (let k = 0; k < spins; k++)
         if (home.length === 3) p.twistCorner(slot);
         else p.flipEdge(slot);
+      recon.push({ t: "place", piece: home, from, slot, spins });
       game.build.tray.splice(game.build.tray.indexOf(idx), 1);
       game.build.placed.add(idx);
       if (!game.build.tray.length) {
@@ -1208,8 +1218,160 @@ function runScript(source) {
   };
 
   const fn = new Function(...Object.keys(api), `"use strict";\n${source}`);
-  fn(...Object.values(api));
-  return { moves: Math.max(0, p.history.length - before), chars: source.trim().length, road };
+  try {
+    fn(...Object.values(api));
+  } catch (err) {
+    // A script that dies mid-way still leaves the recon of everything it
+    // did before dying, so the board can show you exactly where.
+    err.recon = recon;
+    err.startedWhole = startedWhole;
+    err.startPos = startPos;
+    throw err;
+  }
+  return {
+    moves: Math.max(0, p.history.length - before),
+    chars: source.trim().length,
+    road,
+    recon,
+    startedWhole,
+    startPos,
+  };
+}
+
+// ── Watch it back ───────────────────────────────────────────────────────────
+//
+// Every run leaves a recon and the board replays it. The replay walks a
+// SHADOW board while the real one already stands at the truth, which is
+// what makes every hard case trivial: skipping, interrupting, or a script
+// that died mid-way all end the same way, by drawing the truth.
+
+let reconGen = 0;
+let reconActive = 0;
+
+function shadowBoard() {
+  const keep = game.usesPalette;
+  const b = build(game.source, game.kind, game.size);
+  game.usesPalette = keep;
+  return b;
+}
+
+async function watchBack(recon, startPos) {
+  const gen = ++reconGen;
+  const alive = () => gen === reconGen;
+  const host = $("play-canvas");
+  const mirror = $("script-canvas");
+  const line = $("script-recon");
+  const skip = $("recon-skip");
+  line.textContent = "";
+
+  // The reader who asked for stillness gets the recon written out and a
+  // board that has already arrived.
+  if (still.matches) {
+    for (const ev of recon) {
+      if (ev.t === "turn") for (const tok of ev.tokens) reconTick(line, tok);
+      else if (ev.t === "place") reconTick(line, ev.piece);
+    }
+    renderGame();
+    return;
+  }
+
+  reconActive = gen;
+  game.busy = true;
+  renderMoves();
+  for (const id of ["play-start", "play-undo", "play-share", "seq-run", "script-run"])
+    $(id).disabled = true;
+  skip.hidden = false;
+
+  let shadow = shadowBoard();
+  if (startPos) shadow.setPosition(startPos);
+  let veil = null; // piece indices standing, while the shadow is in pieces
+  const drawBoth = (turn) => {
+    const opts = { fitSphere: true, padding: 8, turn };
+    if (veil) opts.pieces = (i) => veil.has(i);
+    const svg = shadow.toSVG(opts);
+    host.innerHTML = svg;
+    mirror.innerHTML = svg;
+  };
+  drawBoth();
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const easeTurnOn = (move, ms) =>
+    new Promise((resolve) => {
+      const start = performance.now();
+      const step = (now) => {
+        if (!alive()) return resolve();
+        const t = Math.min(1, (now - start) / ms);
+        drawBoth({ move, progress: 1 - (1 - t) * (1 - t) });
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          shadow.move(move);
+          drawBoth();
+          resolve();
+        }
+      };
+      requestAnimationFrame(step);
+    });
+
+  // The pace ramps: the first turns play at the keypad's own speed, the
+  // rest accelerate, and past a budget the recon simply finishes standing.
+  const MAX_ANIMATED = 150;
+  let played = 0;
+  outer: for (const ev of recon) {
+    if (!alive() || played > MAX_ANIMATED) break;
+    if (ev.t === "deal") {
+      shadow = shadowBoard();
+      veil = new Set();
+      shadow.pieces.forEach((_, i) => {
+        const k = new Set(shadow.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+        if (k === 1) veil.add(i);
+      });
+      line.textContent = "";
+      drawBoth();
+      await sleep(300);
+    } else if (ev.t === "place") {
+      const idx = shadow.pieceNamed(ev.piece);
+      if (ev.from !== ev.slot) shadow.swapPieces(ev.from, ev.slot);
+      for (let k = 0; k < ev.spins; k++)
+        if (ev.piece.length === 3) shadow.twistCorner(ev.slot);
+        else shadow.flipEdge(ev.slot);
+      veil.add(idx);
+      if (veil.size === shadow.pieces.length) veil = null;
+      const el = reconTick(line, ev.piece, "is-live");
+      drawBoth();
+      await sleep(Math.max(40, 90 * 0.96 ** played));
+      el.className = "";
+      played++;
+    } else if (ev.t === "turn") {
+      for (const tok of ev.tokens) {
+        if (!alive() || played > MAX_ANIMATED) break outer;
+        const el = reconTick(line, tok, "is-live");
+        await easeTurnOn(tok, Math.max(45, 190 * 0.93 ** played));
+        el.className = "";
+        played++;
+      }
+    }
+  }
+
+  // However it ended, the truth stands. A newer replay may already own the
+  // stage; if so this one leaves without touching anything.
+  if (reconActive !== gen) return;
+  line.textContent = "";
+  for (const ev of recon) {
+    if (ev.t === "turn") for (const tok of ev.tokens) reconTick(line, tok);
+    else if (ev.t === "place") reconTick(line, ev.piece);
+  }
+  skip.hidden = true;
+  game.busy = false;
+  $("script-run").disabled = false;
+  renderGame();
+}
+
+function reconTick(line, text, cls) {
+  const el = document.createElement("span");
+  el.textContent = text;
+  if (cls) el.className = cls;
+  line.append(el);
+  return el;
 }
 
 function runScriptButton() {
@@ -1219,15 +1381,20 @@ function runScriptButton() {
     out.textContent = "";
     return;
   }
+  reconGen++;
+  const replayable = (r) =>
+    r && r.recon && r.recon.length && r.startedWhole && !game.build;
   let result;
   try {
     result = runScript(src);
   } catch (err) {
-    renderGame();
     out.textContent = err.message;
+    if (replayable(err)) watchBack(err.recon, err.startPos);
+    else renderGame();
     return;
   }
-  renderGame();
+  if (replayable(result)) watchBack(result.recon, result.startPos);
+  else renderGame();
   // A script may end with the board still in pieces; saying "reached the
   // pattern" about a hidden whole state would be a lie about a veil.
   if (game.build) {
@@ -2109,6 +2276,9 @@ function init() {
   });
   $("seq-run").addEventListener("click", runSequence);
   $("script-run").addEventListener("click", runScriptButton);
+  $("recon-skip").addEventListener("click", () => {
+    reconGen++; // the replay yields and the truth is drawn
+  });
   wireStamp();
   wireAssembly();
   wireModeNav();

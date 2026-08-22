@@ -392,6 +392,14 @@
           the page tells you what happened and keeps no record.
         </p>
         <p>
+          Every run leaves a <em>recon</em>, the reconstruction a cuber
+          writes of what actually happened, and the board watches it back:
+          turns replayed at speed, placed pieces landing one by one, the
+          line under the status speaking it all in notation. A script that
+          dies mid-way replays up to the very move where it died. To the
+          end skips the theatre; the truth was already standing either way.
+        </p>
+        <p>
           Scored twice, because they are two different virtues: fewest
           characters is insight about the writing, fewest moves is insight
           about the cube.
@@ -419,6 +427,10 @@ for (const m of ["R", "U", "F", "D", "L", "B"]) {
           <button id="script-run">Run script</button>
         </div>
         <p class="demo-readout" id="script-status"></p>
+        <p class="watch-ticker" id="script-recon"></p>
+        <p class="recon-row">
+          <button type="button" id="recon-skip" hidden>to the end</button>
+        </p>
       </div>
       <div class="example-demo">
         <div class="example-canvas" id="script-canvas"></div>
