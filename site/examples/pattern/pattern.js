@@ -221,6 +221,15 @@ function scrambleDepth(puzzle) {
 
 // ── Drawing ─────────────────────────────────────────────────────────────────
 
+// The same highlighter the guide uses, fetched the same way. The page does
+// not depend on it: until the import lands the code is plain text, which is
+// only a duller shade of correct, so a CDN outage costs colour and nothing
+// else.
+let highlight = null;
+import("https://esm.sh/sugar-high")
+  .then((m) => { highlight = m.highlight; renderCode(); })
+  .catch(() => { /* offline: plain text stands */ });
+
 const draw = (host, puzzle, turn) => {
   host.innerHTML = puzzle.toSVG({ fitSphere: true, turn, padding: 8 });
 };
@@ -1249,7 +1258,9 @@ function renderCode() {
 
   lines.push("");
   lines.push(`puzzle.toSVG({ fitSphere: true });`);
-  host.textContent = lines.join("\n");
+  const text = lines.join("\n");
+  if (highlight) host.innerHTML = highlight(text);
+  else host.textContent = text;
 }
 
 // ── The sequence console ────────────────────────────────────────────────────

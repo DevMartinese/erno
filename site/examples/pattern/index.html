@@ -350,8 +350,13 @@
               <button type="button" data-script='if (at("UFR") != "URF") turn("R U R&#39; U&#39;")'>peek then turn</button>
             </span>
           </label>
-          <textarea id="script-code" spellcheck="false" rows="6"
-            placeholder="while (!solved() && moves() < 100) turn(&quot;[R, U]&quot;)"></textarea>
+          <textarea id="script-code" spellcheck="false" rows="6">
+// read, decide, turn: keep a move only if the picture gets closer
+for (const m of ["R", "U", "F", "D", "L", "B"]) {
+  const d = distance()
+  turn(m)
+  if (distance() >= d) turn(m + "'")
+}</textarea>
         </div>
         <div class="demo-controls">
           <button id="script-run">Run script</button>

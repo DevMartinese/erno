@@ -311,6 +311,7 @@ body.example {
   display: block;
   padding: var(--space-5) var(--space-4);
   overflow: auto;
+  background: var(--code-bg);
 }
 .example-demo--code pre {
   margin: 0;
