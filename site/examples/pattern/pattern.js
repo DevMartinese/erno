@@ -1740,38 +1740,29 @@ async function ovRun(gen) {
   $("watch-code").textContent = "";
   $("watch-goal").hidden = true;
   $("watch-again").hidden = true;
-  $("watch-sig").textContent = "bin(), place(piece)";
+  $("watch-sig").textContent = "deal(), bin(), place(piece)";
 
-  // 0. The cube is built in the language itself: bin() deals the cubies,
-  // place() sets each one, and the loop below is executed as written, one
-  // landing per iteration.
+  // I. FIRST the cube is created, in the console's own syntax: deal()
+  // opens the bin, place() sets each cubie, and the loop below is executed
+  // as written, one landing per iteration.
   ov.board = ovBuild("return face");
-  ovSay("The cube is code too: bin() deals the twenty six cubies, place() sets each one in its slot. Centres first, bolted to the core, then every edge and corner, named below as it lands.");
-  await ovType(gen, "for (const p of bin()) place(p)");
+  ovSay("First the cube, and the cube is code: deal() opens the bin of twenty six cubies, place() sets each one in its slot. Centres first, bolted to the core, then every edge and corner, named below as it lands.");
+  await ovType(gen, "deal()\nfor (const p of bin()) place(p)");
   await ovAssemble(gen);
-  await ovSleep(gen, 700);
-
-  // I. A pattern is written. Returning a face letter returns its colour.
-  $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
-  ovSay("Your function runs once per sticker. Returning the face letter returns its colour, so this is the solved cube.");
-  await ovType(gen, "return face", { reset: true });
-  draw(canvas, ov.board);
-  ticker.textContent = "";
-  for (const L of ["U", "R", "F", "D", "L", "B"]) {
-    ovTick(L);
-    await ovSleep(gen, 110);
-  }
   await ovSleep(gen, 900);
 
-  ovSay("Change the function and the same cube wears the new picture: above the middle U, below it D.");
-  await ovType(gen, WATCH_PAINT, { reset: true });
+  // II. THEN, on the standing cube, the syntax that creates the pattern:
+  // one function of every sticker.
+  $("watch-sig").textContent = "f(x, y, z, n, face, row, col, kind)";
+  ovSay("The cube stands, so now the pattern: one function, run once per sticker, paints it. Above the middle every sticker answers U, below it D.");
+  await ovType(gen, "return y > 0 ? U : D", { reset: true });
   ov.board = ovBuild(WATCH_PAINT);
   draw(canvas, ov.board);
   ticker.textContent = "";
   ovTick("U");
   ovTick("/");
   ovTick("D");
-  await ovSleep(gen, 1100);
+  await ovSleep(gen, 1200);
 
   // II. The picture becomes the target.
   ovSay("The picture you wrote is now the goal to chase.");
@@ -1783,7 +1774,7 @@ async function ovRun(gen) {
   // III. The deal: scrambled for real, one turn at a time. The walk is
   // taken silently first and then replayed in the open, so every token in
   // the ticker is a turn the reader watched happen.
-  ovSay("The deal: ten real turns walk the picture away.");
+  ovSay("The scramble: ten real turns walk the picture away.");
   ticker.textContent = "";
   const seq = ov.board.scramble(10);
   ov.board.move("(" + seq + ")'");
