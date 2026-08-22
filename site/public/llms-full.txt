@@ -5,7 +5,7 @@
 > solid plus cut planes plus moves, and the engine derives the pieces, the
 > state and which turns are possible.
 
-Version 0.2.9. Every code block below is executed against the library
+Version 0.2.10. Every code block below is executed against the library
 before this file is written, so it runs as printed.
 
 ## Install
@@ -168,7 +168,7 @@ Plus `Twisty`, the generic engine every one of them runs on, and
 
 # Full documentation
 
-What follows is the complete README of erno.js 0.2.9, unabridged.
+What follows is the complete README of erno.js 0.2.10, unabridged.
 
 ---
 
@@ -261,7 +261,8 @@ cube.move("[R: [U, D]]")   // they nest
 `(A)n` repeats, `'` inverts a move or a whole group, `[A, B]` is a
 commutator and `[A: B]` a conjugate. Nothing else. No puzzle's notation uses
 brackets or parentheses, so the two can never be confused, and every puzzle
-takes it: a Megaminx `[A, C]2`, a Siamese `[AD, AL]2`.
+takes it, the quick start's `Erno` included: a Megaminx `[A, C]2`, a
+Siamese `[AD, AL]2`.
 
 It compresses because understanding compresses. `(R U)105` is eight
 characters and two hundred and ten moves, and it is eight characters only
@@ -270,10 +271,14 @@ if you know that `R U` has order 105.
 ### Reading a sequence
 
 Running a sequence tells you where the puzzle ended up. `effectOf` tells you
-what the sequence *is*:
+what the sequence *is*. Cycles are read off pieces, so this one belongs to
+the piece engine: `Cube` and every puzzle in the catalogue below, but not
+the facelet `Erno` above, which has stickers and nothing behind them:
 
 ```js
-cube.effectOf("[R U' R', D]")
+import { Cube } from 'erno.js'
+
+new Cube().effectOf("[R U' R', D]")
 // {
 //   sequence: "R U' R' D R U R' D'",
 //   moves: 8,
@@ -322,9 +327,14 @@ solver up is a string away.
 
 `getState()` reads the puzzle from outside, and two different placements can
 wear the same face. `getPosition()` reads it from inside, so it round-trips
-exactly on every puzzle in the catalogue, Megaminx and shape-shifters included:
+exactly on every puzzle on the piece engine, Megaminx and shape-shifters
+included. (`Erno` is the one puzzle without an inside: facelets are all it
+has, so its `getState()` already says everything there is to save.)
 
 ```js
+import { Cube } from 'erno.js'
+
+const cube = new Cube()
 const saved = cube.getPosition()   // a string; put it in a URL
 cube.scramble()
 cube.setPosition(saved)            // exactly where it was, down to the cubie

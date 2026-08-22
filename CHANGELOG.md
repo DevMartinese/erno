@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.10 (2026-08-22)
+
+- The quick start's own cube takes the algebra. `Erno.move()` now expands
+  brackets and parentheses the way the piece engine always did - the
+  algebra is expansion, nothing more, so the facelet engine needed no
+  pieces to accept `[R, U]` or `(R U)105`, only the two lines that
+  flatten them first. The README stops promising what facelets cannot
+  give: `effectOf` and `getPosition` read cycles and placements off
+  pieces, so their examples now build a `Cube` and say why, instead of
+  borrowing a cube that could not answer.
+
 ## 0.2.9 (2026-08-22)
 
 - The laws of the possible, scoped to the family this library is for.

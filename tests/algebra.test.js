@@ -2,7 +2,7 @@
    The algebra, and what it says a sequence does.
    ───────────────────────────────────────────────────────────────────── */
 
-import { Cube, Cuboid, Fisher, Fused, Twisty, Void, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
+import { Cube, Cuboid, Erno, Fisher, Fused, Twisty, Void, Kilominx, Megaminx, Pyraminx, Siamese, Tetris, Twist, expand, parse, isAlgebra } from "../src/erno.js";
 
 let passed = 0;
 let failed = 0;
@@ -102,6 +102,14 @@ test("move() takes it, on every puzzle", () => {
   assert(!new Megaminx().move("[A, C]2").isSolved(), "a Megaminx takes it");
   assert(!new Siamese().move("[AD, AL]2").isSolved(), "so does a welded puzzle");
   assert(!new Twist().move("[R, U]").isSolved(), "and a shape mod");
+  // The facelet engine has no pieces, but the algebra is only expansion,
+  // so the quick start's own cube takes it like everything else.
+  assert(new Erno({ size: 3 }).move("(R U)105").isSolved(), "the facelet engine takes it");
+  assertEqual(
+    new Erno({ size: 3 }).move("[R, U]").getState(),
+    new Erno({ size: 3 }).move("R U R' U'").getState(),
+    "and expands to the same facelets",
+  );
 });
 
 test("the algebra is state, so both renderers see the same thing", () => {

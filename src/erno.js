@@ -42,6 +42,7 @@ import {
   tokenize,
   inverseSequence,
 } from "./twisty.js";
+import { expand, isAlgebra } from "./algebra.js";
 
 const DEFAULT_COLORS = CUBE_COLORS;
 
@@ -276,11 +277,15 @@ export class Erno {
   }
 
   /**
-   * Apply a sequence of moves in standard notation, e.g. "R U R' U'".
+   * Apply a sequence of moves in standard notation, e.g. "R U R' U'",
+   * or in the algebra: "[R, U]", "[R: U]", "(R U)105".
    * @returns {Erno} this (chainable)
    */
   move(sequence) {
-    for (const token of tokenize(sequence)) {
+    // The algebra is expansion, nothing more: brackets flatten to the same
+    // plain tokens, so the facelet engine takes it without needing pieces.
+    const flat = isAlgebra(sequence) ? expand(sequence) : sequence;
+    for (const token of tokenize(flat)) {
       this._apply(this.parseMove(token));
       this.history.push(token);
     }
