@@ -400,6 +400,7 @@ function renderChallenge(puzzle) {
 function startGame(scramble) {
   game.puzzle = build(game.source, game.kind, game.size);
   game.build = null; // a fresh board is whole; Reset heals a bin left open
+  game.built = false;
   game.scramble = "";
   game.dealt = "";
   locNames.clear();
@@ -475,16 +476,23 @@ function renderGame() {
   // and the same twist ruins the picture, and then this line says why no
   // sequence will ever mend it.
   let verdict = "";
-  if (!won) {
+  if (!won || (game.built && p.history.length === 0)) {
     try {
       const law = p.lawful();
-      if (!law.lawful) verdict = ` Unsolvable: ${law.breaks[0]}. Reset heals it.`;
+      if (!law.lawful) verdict = ` Unlawful: ${law.breaks[0]}. Reset heals it.`;
+      else if (won && game.built) verdict = " Both crowns.";
     } catch {
       /* a puzzle whose laws are not written; nothing to add */
     }
+    if (!won && verdict.startsWith(" Unlawful"))
+      verdict = verdict.replace(" Unlawful:", " Unsolvable:");
   }
+  // Built is not reached: a board assembled straight into the picture wears
+  // its own sentence, and "reached" waits for a walk that earned it.
   $("play-status").textContent = (won
-    ? `Pattern reached in ${p.history.length} moves.`
+    ? game.built && p.history.length === 0
+      ? "The picture stands, built rather than reached."
+      : `Pattern reached in ${p.history.length} moves.`
     : `${distance} stickers out of place, ${p.history.length} moves made.`) + verdict;
   if (won) $("play-panel").setAttribute("data-won", "");
   else $("play-panel").removeAttribute("data-won");
@@ -1032,6 +1040,10 @@ function runScript(source) {
     if (--fuel < 0) throw new Error("out of fuel: 20,000 calls is a runaway loop");
   };
   let before = p.history.length;
+  // The base of the game is a fork: you are handed a whole cube, or you
+  // take it apart and build your own. Which road a script walked decides
+  // how it is judged, and building the picture is never called reaching it.
+  let road = "solve";
   // A board in pieces neither turns nor judges: the nouns that need a whole
   // cube say so instead of moving ghosts.
   const whole = () => {
@@ -1072,6 +1084,7 @@ function runScript(source) {
     turn: (seq) => {
       spend();
       whole();
+      if (road === "build") road = "mixed";
       p.move(desugar(seq));
       renderCode();
     },
@@ -1083,6 +1096,8 @@ function runScript(source) {
       const fresh = build(game.source, game.kind, game.size);
       if (fresh.constructor !== Cube)
         throw new Error("only a plain cube comes apart; weld or carve it and the pieces stop being free");
+      road = "build";
+      game.built = false;
       game.puzzle = fresh;
       game.scramble = "";
       game.dealt = "";
@@ -1133,12 +1148,27 @@ function runScript(source) {
         // The build IS the board, like the scramble is: the move count
         // starts at zero from here, and the judge may now speak.
         game.build = null;
+        game.built = true;
         p.history = [];
         before = 0;
       }
       renderGame();
     },
-    at: (name) => (spend(), whole(), occupant(name)),
+    // Reading what stands is always fair: mid-build, at() answers for the
+    // pieces already placed and refuses only the slots still empty, so a
+    // script can look at its own half-built work and decide.
+    at: (name) => {
+      spend();
+      if (game.build) {
+        const slot = p.nameOf(p.pieceNamed(name));
+        const standing = new Set(
+          [...game.build.placed].map((i) => game.build.locOf(i)),
+        );
+        if (!standing.has(slot))
+          throw new Error(`${slot} stands empty: nothing is placed there yet`);
+      }
+      return occupant(name);
+    },
     // The cube as something to iterate: every slot by its cubers' name,
     // and who is standing in it right now.
     pieces: () => {
@@ -1179,7 +1209,7 @@ function runScript(source) {
 
   const fn = new Function(...Object.keys(api), `"use strict";\n${source}`);
   fn(...Object.values(api));
-  return { moves: p.history.length - before, chars: source.trim().length };
+  return { moves: Math.max(0, p.history.length - before), chars: source.trim().length, road };
 }
 
 function runScriptButton() {
@@ -1205,6 +1235,44 @@ function runScriptButton() {
     return;
   }
   const hit = game.puzzle.matches(game.target);
+  // Which road decides the judgement. A builder is scored in characters
+  // and crowns; a solver in characters and moves; a script that built and
+  // then turned gets the truth and no podium.
+  if (result.road === "build") {
+    let law = null;
+    try {
+      law = game.puzzle.lawful();
+    } catch {
+      /* laws unwritten on this family */
+    }
+    const lawWord = law
+      ? law.lawful
+        ? "a lawful cube"
+        : `unlawful: ${law.breaks[0]}`
+      : "its laws unwritten";
+    out.textContent = hit
+      ? law && law.lawful
+        ? `Built the pattern: ${result.chars} characters, both crowns.`
+        : `Built the picture: ${result.chars} characters, but ${lawWord}.`
+      : `Built: ${result.chars} characters, ${game.puzzle.distanceTo(game.target)} stickers off the picture, ${lawWord}.`;
+    if (hit && law && law.lawful && game.challenge !== null) {
+      const key = `erno-pattern-built-${game.challenge}`;
+      let best = {};
+      try {
+        best = JSON.parse(localStorage.getItem(key)) || {};
+      } catch { /* a hand-edited record; start fresh */ }
+      best.chars = Math.min(best.chars ?? Infinity, result.chars);
+      localStorage.setItem(key, JSON.stringify(best));
+      out.textContent += ` Best build here: ${best.chars} characters.`;
+    }
+    return;
+  }
+  if (result.road === "mixed") {
+    out.textContent =
+      `${result.chars} characters, ${result.moves} moves on a board you built yourself: ` +
+      `practice, and the page keeps no record of it.`;
+    return;
+  }
   out.textContent = hit
     ? `Reached the pattern: ${result.chars} characters, ${result.moves} moves.`
     : `${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers still out of place.`;
