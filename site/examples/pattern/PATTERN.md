@@ -168,7 +168,7 @@ other body wears its own scramble.
   board("2x2x3")                 // a cuboid; quarters on the square axis only
   board("3 + 3 @ 2,2,0")         // the classic Siamese
   board("3 + 2 @ 1.5,1.5,0.5")   // a 2×2 grown on a 3×3's corner
-  board("3 + 3x2x3 @ 2,1,0")     // a cube welded to a cuboid
+  board("3 + 3x2x3 @ 2,0.5,0")   // a cube welded to a cuboid
   board("3 - centers")           // a Void, born carved
   ```
 

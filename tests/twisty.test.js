@@ -36,6 +36,7 @@ import {
   Cube,
   Fused,
   Siamese,
+  boardOf,
   dicePips,
   dominoPips,
   sudokuDigits,
@@ -1740,6 +1741,73 @@ test("getPieces triangulates faces without inventing or losing area", () => {
       faces++;
     }
   assert(faces > 100, `only ${faces} faces triangulated`);
+});
+
+test("a seeded scramble is the same scramble for everyone", () => {
+  const a = new Cube({ size: 3 });
+  const b = new Cube({ size: 3 });
+  assert(a.scramble(15, 42) === b.scramble(15, 42), "same seed, same walk");
+  assert(a.getPosition() === b.getPosition(), "and the same board after it");
+  const s1 = new Siamese();
+  const s2 = new Siamese();
+  assert(s1.scramble(12, 7) === s2.scramble(12, 7), "a blocking weld walks the same walk");
+  assert(
+    new Cube({ size: 3 }).scramble(15, 1) !== new Cube({ size: 3 }).scramble(15, 2),
+    "different seeds part ways",
+  );
+});
+
+test("the board spec builds what the engine already knows", () => {
+  const c = boardOf("3");
+  assert(c instanceof Cube && c.pieces.length === 26, "a number is a cube");
+  assert(boardOf("2x2x3") instanceof Cuboid, "a triple is a box");
+  const s = boardOf("3 + 3 @ 2,2,0");
+  assert(
+    s.pieces.length === new Siamese().pieces.length,
+    "the classic Siamese, spelled as a weld",
+  );
+  assert(
+    boardOf("3 - centers").toSVG() === new Void().toSVG(),
+    "3 - centers IS the Void, byte for byte",
+  );
+});
+
+test("parse and print round-trip, and carves canonicalise", () => {
+  for (const spec of [
+    "3",
+    "2x2x3",
+    "3 + 3 @ 2,2,0",
+    "3 + 2 @ 1.5,1.5,0.5",
+    "3 + 3x2x3 @ 2,0.5,0",
+    "3 - centers",
+    "3 - UF - URF",
+  ]) {
+    const printed = boardOf(spec).spec;
+    assert(boardOf(printed).spec === printed, `round-trips: ${spec} -> ${printed}`);
+  }
+  assert(boardOf("3 - FU").spec === "3 - UF", "a carve name comes back in one spelling");
+});
+
+test("the spec's refusals name the thing", () => {
+  let said = "";
+  try {
+    boardOf("3 + 3 @ 1.3,0,0");
+  } catch (err) {
+    said = err.message;
+  }
+  assert(said.includes("line up cubie to cubie"), "misalignment speaks the constructor's words");
+  try {
+    boardOf("3 + 3 @ 2,2,0 - centers");
+  } catch (err) {
+    said = err.message;
+  }
+  assert(said.includes("laws are not written"), "a welded carve waits, and says so");
+  try {
+    boardOf("3 @ 1,0,0");
+  } catch (err) {
+    said = err.message;
+  }
+  assert(said.includes("origin"), "the first body anchors the lattice");
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

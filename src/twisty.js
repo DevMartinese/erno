@@ -567,6 +567,23 @@ function normalizeRemove(remove) {
  * @property {Object} [style] - stroke and fill overrides
  */
 
+/**
+ * A deterministic random stream from a seed: same seed, same walk, on
+ * every machine. mulberry32, small and unserious, which is all a
+ * scramble needs.
+ * @param {number} seed
+ * @returns {() => number}
+ */
+export function seededRandom(seed) {
+  let a = Math.round(Number(seed)) | 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export class Twisty {
   /**
    * @param {Object} def - Puzzle definition:
@@ -1990,26 +2007,30 @@ export class Twisty {
   /**
    * Scramble with the puzzle's standard random-move scramble.
    * @param {number} [length] - how many moves; the puzzle's own default if omitted
+   * @param {number} [seed] - deterministic when given: same seed, same walk
    * @returns {string} the scramble sequence applied
    */
-  scramble(length) {
+  scramble(length, seed) {
     // A blocking puzzle cannot be handed a sequence written in advance: what
     // is legal depends on where the pieces are, so the scramble has to be
     // walked one move at a time, picking from whatever is open. A puzzle
-    // that never wrote a scrambler gets the same walk for free.
+    // that never wrote a scrambler gets the same walk for free. A seed
+    // makes the walk deterministic: same seed, same board, same scramble,
+    // which is what lets a challenge be the same challenge for everyone.
+    const rnd = seed === undefined ? Math.random : seededRandom(seed);
     if (this._blocking || !this.def.scramble) {
       const n = length || this.def.scrambleLength || 25;
       const tokens = [];
       for (let k = 0; k < n; k++) {
         const open = this.legalMoves();
         if (!open.length) break;
-        const token = open[Math.floor(Math.random() * open.length)];
+        const token = open[Math.floor(rnd() * open.length)];
         this.move(token);
         tokens.push(token);
       }
       return tokens.join(" ");
     }
-    const seq = this.def.scramble(Math.random, length);
+    const seq = this.def.scramble(rnd, length);
     this.move(seq);
     return seq;
   }

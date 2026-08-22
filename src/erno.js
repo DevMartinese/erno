@@ -41,6 +41,7 @@ import {
   parseCubeMove,
   tokenize,
   inverseSequence,
+  seededRandom,
 } from "./twisty.js";
 import { expand, isAlgebra } from "./algebra.js";
 
@@ -333,9 +334,11 @@ export class Erno {
   /**
    * Scramble with random moves (avoiding trivially redundant successors).
    * @param {number} [length] - Move count; defaults per cube size
+   * @param {number} [seed] - deterministic when given: same seed, same walk
    * @returns {string} the scramble sequence applied
    */
-  scramble(length) {
+  scramble(length, seed) {
+    const rnd = seed === undefined ? Math.random : seededRandom(seed);
     const N = this.size;
     const count =
       length || (N === 2 ? 11 : N === 3 ? 25 : Math.min(120, N * 12));
@@ -347,7 +350,7 @@ export class Erno {
     let lastAxis = -1;
     let axisRun = 0;
     while (tokens.length < count) {
-      const f = Math.floor(Math.random() * 6);
+      const f = Math.floor(rnd() * 6);
       const axis = FACE_AXIS[faces[f]][0];
       if (f === lastFace) continue;
       if (axis === lastAxis && axisRun >= 2) continue;
@@ -355,12 +358,12 @@ export class Erno {
       lastAxis = axis;
       lastFace = f;
       const wideN =
-        N > 3 && Math.random() < 0.4
-          ? 2 + Math.floor(Math.random() * (maxWide - 1))
+        N > 3 && rnd() < 0.4
+          ? 2 + Math.floor(rnd() * (maxWide - 1))
           : 1;
       const prefix = wideN > 2 ? String(wideN) : "";
       const wide = wideN > 1 ? "w" : "";
-      const suffix = suffixes[Math.floor(Math.random() * 3)];
+      const suffix = suffixes[Math.floor(rnd() * 3)];
       tokens.push(prefix + faces[f] + wide + suffix);
     }
     const seq = tokens.join(" ");
@@ -664,6 +667,8 @@ export {
   DOMINO_PRINT,
   buildPuzzle,
   Puzzle,
+  boardOf,
+  parseBoardSpec,
   SCHEMES,
 } from "./puzzles.js";
 export { generateScheme, schemeFrom, generateRamp, nameScheme, oklchToHex, hexToOklch } from "./palettes.js";

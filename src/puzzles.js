@@ -2108,3 +2108,100 @@ export class Puzzle extends Twisty {
     this.spec = spec;
   }
 }
+
+
+// ── The board spec ───────────────────────────────────────────────────────────
+//
+// One notation over what the engine already knows how to build: a number is
+// a cube, a triple is a box, `+ size @ x,y,z` welds bodies on one lattice,
+// and `- name` bakes a carve in. No new mechanism lives here; the string is
+// a serialization, which is why parse and print must round-trip exactly.
+// Challenges and shares carry this string as the board's name.
+
+/**
+ * Parse a board spec into its parts, without building anything.
+ * @param {string} spec - e.g. "3", "2x2x3", "3 + 3 @ 2,2,0", "3 - centers"
+ * @returns {{bodies: {size: number[], at: number[]}[], carves: string[]}}
+ */
+export function parseBoardSpec(spec) {
+  const text = String(spec).trim();
+  if (!text) throw new Error("erno: an empty spec names no board");
+  const parts = text.split(/\s+-\s+/);
+  const carves = parts.slice(1).map((s) => s.trim()).filter(Boolean);
+  const bodies = parts[0].split(/\s+\+\s+/).map((raw, i) => {
+    const m = /^(\d+(?:x\d+x\d+)?)(?:\s*@\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+))?$/.exec(
+      raw.trim(),
+    );
+    if (!m)
+      throw new Error(
+        `erno: cannot read body '${raw.trim()}' in spec '${text}': a body is a size like 3 or 3x2x3, welded ones with @ x,y,z`,
+      );
+    const size = m[1].includes("x")
+      ? m[1].split("x").map(Number)
+      : [Number(m[1]), Number(m[1]), Number(m[1])];
+    const at = m[2] !== undefined ? [Number(m[2]), Number(m[3]), Number(m[4])] : [0, 0, 0];
+    if (i === 0 && at.some((v) => v !== 0))
+      throw new Error("erno: the first body anchors the lattice at the origin");
+    return { size, at };
+  });
+  return { bodies, carves };
+}
+
+/**
+ * Build a board from a spec string. The instance carries `spec`, the
+ * canonical printing of what was parsed, and parse ∘ print round-trips.
+ * @param {string} spec
+ * @param {Object} [options] - the usual Twisty options (paint, style, ...)
+ * @returns {import('./twisty.js').Twisty}
+ */
+export function boardOf(spec, options = {}) {
+  const { bodies, carves } = parseBoardSpec(spec);
+  const make = (extra = {}) => {
+    if (bodies.length > 1) return new Fused({ ...options, ...extra, bodies });
+    const s = bodies[0].size;
+    return s[0] === s[1] && s[1] === s[2]
+      ? new Cube({ ...options, ...extra, size: s[0] })
+      : new Cuboid({ ...options, ...extra, size: s });
+  };
+  let remove = null;
+  const canonicalCarves = [];
+  if (carves.length) {
+    if (bodies.length > 1)
+      throw new Error("erno: a welded spec does not carve yet; its laws are not written");
+    const keyOf = (sl) => sl.map((v) => Math.round(v * 1e4)).join(",");
+    const keys = new Set();
+    let centersToo = false;
+    let coreToo = false;
+    const named = carves.filter((c) => c !== "centers" && c !== "core");
+    const ref = named.length ? make() : null;
+    for (const c of carves) {
+      if (c === "centers") {
+        centersToo = true;
+        canonicalCarves.push("centers");
+        continue;
+      }
+      if (c === "core") {
+        coreToo = true;
+        canonicalCarves.push("core");
+        continue;
+      }
+      const idx = ref.pieceNamed(c);
+      keys.add(keyOf(ref.getPieces().find((x) => x.index === idx).slot));
+      canonicalCarves.push(ref.nameOf(idx));
+    }
+    remove =
+      !keys.size && centersToo && !coreToo
+        ? "centers" // the plain word keeps the Void byte for byte
+        : ({ slot, stickers }) =>
+            (centersToo && slot.filter((v) => Math.abs(v) < 1e-6).length >= 2) ||
+            (coreToo && stickers === 0) ||
+            keys.has(keyOf(slot));
+  }
+  const board = make(remove ? { remove } : {});
+  const sizeStr = (s) => (s[0] === s[1] && s[1] === s[2] ? String(s[0]) : s.join("x"));
+  board.spec =
+    bodies
+      .map((b, i) => (i === 0 ? sizeStr(b.size) : `${sizeStr(b.size)} @ ${b.at.join(",")}`))
+      .join(" + ") + canonicalCarves.map((c) => ` - ${c}`).join("");
+  return board;
+}

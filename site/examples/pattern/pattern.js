@@ -16,6 +16,7 @@
 import {
   Cube, Cuboid, Void, Siamese, Fused,
   SCHEMES, Twisty, expand, parse, isAlgebra,
+  boardOf, parseBoardSpec,
 } from "../../../src/erno.js";
 import { enhanceRange } from "../../controls.js";
 
@@ -489,7 +490,10 @@ function renderGame() {
   // and the same twist ruins the picture, and then this line says why no
   // sequence will ever mend it.
   let verdict = "";
-  if (!won || (game.built && p.history.length === 0)) {
+  const carveScoped =
+    !game.carve ||
+    (game.carve.names.length === 1 && game.carve.names[0] === "centers");
+  if (carveScoped && (!won || (game.built && p.history.length === 0))) {
     try {
       const law = p.lawful();
       if (!law.lawful) verdict = ` Unlawful: ${law.breaks[0]}. Reset heals it.`;
@@ -1040,16 +1044,6 @@ function renderBodies() {
 // is insight about the WRITING, the fewest moves is insight about the
 // CUBE, and a long script can turn very little.
 
-// Deterministic chance for seeded scrambles: same seed, same walk,
-// on every machine.
-const mulberry32 = (a) => () => {
-  a |= 0;
-  a = (a + 0x6d2b79f5) | 0;
-  let t = Math.imul(a ^ (a >>> 15), 1 | a);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
 function runScript(source) {
   // let, not const: deal() replaces the board, and every noun must follow
   // it to the new one.
@@ -1412,18 +1406,14 @@ function runScript(source) {
         throw new Error("a challenge owns its scramble; Reset brings it back");
       acted = true;
       if (road === "build") road = "mixed";
-      const rnd = seed === undefined ? Math.random : mulberry32(Math.round(Number(seed)) || 0);
-      const walk = [];
-      for (let k2 = 0; k2 < 18; k2++) {
-        const open = p.legalMoves();
-        if (!open.length) break;
-        const tok = open[Math.floor(rnd() * open.length)];
-        walk.push(tok);
-        p.move(tok);
-      }
+      // The engine owns the walk (honesty rule #1): its scramble already
+      // knows how to stay legal on a blocking weld, and its seed is the
+      // same seed everywhere.
+      const seq2 = p.scramble(18, seed === undefined ? undefined : Math.round(Number(seed)) || 0);
+      const walk = seq2.split(/\s+/).filter(Boolean);
       // The scramble is the board, not the player's doing.
-      game.scramble = walk.join(" ");
-      game.dealt = game.scramble;
+      game.scramble = seq2;
+      game.dealt = seq2;
       p.history = [];
       before = 0;
       recon.push({ t: "scramble", tokens: walk });
@@ -1487,6 +1477,57 @@ function runScript(source) {
       recon.push({ t: "carve", names: game.carve.names });
       renderGame();
       return [...game.carve.names];
+    },
+    // ── Shape: the workshop's own factory ───────────────────────────────
+    // board(spec) makes the board from the mini-notation of mechanisms: a
+    // number is a cube, a triple is a box, + welds bodies on one lattice,
+    // and - bakes a carve in. The same string is the board's name
+    // everywhere. The new board arrives whole and at rest, and the run
+    // begins again.
+    board: (spec) => {
+      spend();
+      if (game.challenge !== null)
+        throw new Error("a challenge owns its board; board() speaks in free play");
+      const made = boardOf(String(spec)); // parse and refusals in the engine's words
+      const { bodies, carves } = parseBoardSpec(String(spec));
+      game.kind = "compose";
+      $("write-kind").value = "compose";
+      $("write-size-row").hidden = true;
+      $("compose-row").hidden = false;
+      game.bodies = bodies;
+      renderBodies();
+      game.carve = null;
+      if (carves.length) {
+        const bare = boardOf(String(spec).split(/\s+-\s+/)[0]);
+        const skey2 = (sl) => sl.map((v) => Math.round(v * 1e4)).join(",");
+        const keys = new Set();
+        const names2 = [];
+        for (const c of carves) {
+          if (c === "centers") {
+            for (const pc of bare.getPieces())
+              if (pc.slot.filter((v) => Math.abs(v) < 1e-6).length >= 2)
+                keys.add(skey2(pc.slot));
+            names2.push("centers");
+            continue;
+          }
+          const idx = bare.pieceNamed(c);
+          keys.add(skey2(bare.getPieces().find((x) => x.index === idx).slot));
+          names2.push(bare.nameOf(idx));
+        }
+        game.carve = { keys, names: names2, shape: `compose|${game.size}` };
+      }
+      road = "solve";
+      acted = false;
+      locNames.clear();
+      recon.push({ t: "board", spec: made.spec });
+      refreshWrite();
+      startGame(false); // whole and at rest: the workshop hands you the bench
+      p = game.puzzle;
+      before = 0;
+      twin = build(game.source, game.kind, game.size, game.carve);
+      ranges = rangesOf(twin);
+      renderGame();
+      return made.spec;
     },
     // ── Read: the mechanism's own answers ───────────────────────────────
     // legal() is the move list derived from the one law, read off a twin
@@ -1692,11 +1733,12 @@ async function watchBack(recon, startPos) {
   // board that has already arrived. A run that carved does too: a carve
   // reshapes the shadow's very piece count, so it replays as its result,
   // for now.
-  if (still.matches || recon.some((ev) => ev.t === "carve")) {
+  if (still.matches || recon.some((ev) => ev.t === "carve" || ev.t === "board")) {
     for (const ev of recon) {
       if (ev.t === "turn" || ev.t === "scramble") for (const tok of ev.tokens) reconTick(line, tok);
       else if (ev.t === "place") reconTick(line, ev.piece);
       else if (ev.t === "carve") for (const n of ev.names) reconTick(line, n, "is-struck");
+      else if (ev.t === "board") reconTick(line, ev.spec);
     }
     renderGame();
     return;
@@ -1879,9 +1921,25 @@ function runScriptButton() {
     return;
   }
   if (result.road === "carve") {
-    out.textContent = hit
-      ? `Carved and reached: ${result.chars} characters, ${result.moves} moves.`
-      : `Carved: ${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers off the picture.`;
+    // The three laws never mention a centre, so a centers-only carve is
+    // the Void and keeps both crowns; any other carve changes the laws
+    // and the page will not consult a judge outside its scope.
+    const centersOnly =
+      game.carve && game.carve.names.length === 1 && game.carve.names[0] === "centers";
+    let law = null;
+    if (centersOnly) {
+      try {
+        law = game.puzzle.lawful();
+      } catch { /* then the crowns stay unclaimed */ }
+    }
+    if (hit) {
+      out.textContent =
+        centersOnly && law && law.lawful
+          ? `Carved and reached: ${result.chars} characters, ${result.moves} moves, both crowns.`
+          : `Carved and reached: ${result.chars} characters, ${result.moves} moves.`;
+    } else {
+      out.textContent = `Carved: ${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers off the picture.`;
+    }
     return;
   }
   out.textContent = hit

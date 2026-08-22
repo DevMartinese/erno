@@ -28,7 +28,7 @@ and a carved board is judged over what exists.
 | **Read** (pure, leave the board as found) | `at` `face` `pieces` `cycles` `off` `distance` `solved` `moves` `bin` `legal` `can` | see per-word rules below |
 | **Act** (mutates) | `turn` `scramble` | whole only |
 | **Build** (shifts phase) | `deal` `place` | `deal` any, `place` in pieces only |
-| **Shape** (edits the mechanism) | `carve` | whole, on the bench |
+| **Shape** (makes or edits the mechanism) | `board` `carve` | per word |
 | **Declare** (pure, board never touched) | `alg` | any phase, always |
 
 Control flow is JavaScript's own: `if`, `for`, `while`, `const`. The
@@ -95,6 +95,14 @@ never be confused.
 
 ### Shape
 
+- **`board(spec)`**. Makes the board from the mini-notation of
+  mechanisms: a number is a cube, a triple is a box, `+ size @ x,y,z`
+  welds bodies on one lattice, `- name` bakes a carve in. The engine
+  parses it, refuses misaligned lattices in the constructor's words,
+  and the instance's canonical printing round-trips exactly, so the
+  same string is the board's name everywhere. The new board arrives
+  whole and at rest and the run begins again. Speaks in free play; a
+  challenge owns its board and refuses the word.
 - **`carve(...names | "centers")`**. Removes pieces: real holes, the
   mechanism's own remove, so what is left turns, scrambles and is judged
   exactly, and every twin the run studies wears the same holes. Bench
@@ -319,6 +327,20 @@ Mid-build the reads speak the same dialect: `at("ADLB")` answers once it
 stands, `pieces()` walks the placed, and `place("DLB")` is turned away
 with the spelling lesson: a welded board spells pieces body-first.
 
+### The workshop (make, shake, work)
+
+```js
+board("3 + 3 @ 2,2,0")   // the classic Siamese, spelled out
+scramble(42)             // the same walk for everyone
+turn("[AD, AL]")
+```
+
+```js
+board("3 - centers")             // a Void, born carved
+board("3 + 3x2x3 @ 2,0.5,0")     // a cube welded to a cuboid
+board("3 + 3 @ 1.3,0,0")         // refused: off the shared lattice ...
+```
+
 ### A carver's run (holes on the bench)
 
 ```js
@@ -344,6 +366,7 @@ carve("centers")     // the Void, written as a sentence
 | `exchange` / `swap` | refused by name | refused by name | wait for published symmetries |
 | Exotic placements (any slot, spins) | yes | yes | not yet: home and unspun |
 | `off()` | yes | yes | not yet |
+| `board()` spells it | `"3"` | `"3x3x2"` | `"3 + 3 @ 2,2,0"` |
 | The law's crown | yes | corner twist law | laws unwritten; the verdict says so |
 
 The one board that never comes apart is the carved one (Void): it is

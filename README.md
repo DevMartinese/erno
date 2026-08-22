@@ -638,6 +638,43 @@ Notation prefixes each face with its body's letter: `AU`, `BR'`, `AF2`.
 Bodies must line up cubie to cubie on one lattice; anything else would slice
 its neighbour in half, and the constructor says so instead.
 
+## The board spec
+
+One string names any board the engine can build: a number is a cube, a
+triple is a box, `+ size @ x,y,z` welds bodies on one lattice, and
+`- name` bakes a carve in. `boardOf` builds it, the instance carries
+`spec`, the canonical printing, and parse and print round-trip exactly,
+which is what makes the string a serialization worth sharing.
+
+```js
+import { boardOf, Void } from 'erno.js'
+
+boardOf("3")                          // a 3×3 cube
+boardOf("2x2x3")                      // a cuboid
+boardOf("3 + 3 @ 2,2,0")              // the classic siamese pair, spelled out
+boardOf("3 + 3x2x3 @ 2,0.5,0")        // a cube welded to a cuboid
+boardOf("3 - centers")                // renders byte for byte as new Void()
+boardOf("3 - FU").spec                // "3 - UF": carve names come back canonical
+```
+
+Misaligned lattices are refused in the constructor's words, and a welded
+spec does not carve yet: its laws are not written.
+
+## Seeded scrambles
+
+`scramble(length)` walks random legal moves. Give it a seed and the walk
+is deterministic, the same for everyone on every machine, which is what
+lets a scramble be part of a challenge's identity:
+
+```js
+import { Cube } from 'erno.js'
+
+const a = new Cube({ size: 3 })
+const b = new Cube({ size: 3 })
+a.scramble(15, 42)      // same seed,
+b.scramble(15, 42)      // same walk, same board after it
+```
+
 ## Blocking
 
 Fusion supplies the shape. What makes a Siamese cube a *puzzle* is which turns

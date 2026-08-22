@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.11 (2026-08-22)
+
+- The board spec: one string names any board the engine can build. A
+  number is a cube, a triple is a box, `+ size @ x,y,z` welds bodies on
+  one lattice, `- name` bakes a carve in. `boardOf(spec)` builds it and
+  the instance carries `spec`, the canonical printing; parse and print
+  round-trip exactly, carve names come back in one spelling, and
+  `boardOf("3 - centers")` renders byte for byte as `new Void()`.
+  Misaligned lattices are refused in the constructor's words; a welded
+  spec does not carve yet, and says why. `parseBoardSpec` is exported
+  beside it for anyone who wants the parts without the board.
+- Seeded scrambles: `scramble(length, seed)` on both engines walks the
+  same walk on every machine under the same seed - a blocking weld
+  included, since the walk picks from what is legal as it goes. The
+  seed is what lets a scramble be part of a challenge's identity.
+
 ## 0.2.10 (2026-08-22)
 
 - The quick start's own cube takes the algebra. `Erno.move()` now expands
