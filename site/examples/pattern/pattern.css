@@ -390,3 +390,38 @@ body.example {
 [hidden] {
   display: none !important;
 }
+
+
+/* ── The script plate ──────────────────────────────────────────────────────
+   Its demo half is prose, not a canvas: the script plays the board the
+   Solve plate already shows, and drawing the same board twice would invite
+   the reader to think they were different. */
+#script-panel .example-demo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+}
+.script-note {
+  max-width: 26rem;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-quiet-xs);
+}
+#script-code {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+[data-script] {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--text-quiet);
+  cursor: pointer;
+}
+[data-script]:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}

@@ -118,9 +118,13 @@ const CHALLENGES = [
   { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? R : U" },
   { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? R : U" },
   { name: "Long caps", kind: "cuboid", size: 5, solution: "return abs(z) > 1.5 ? D : U" },
+  // The two that need the sticker: neither is a function of the cubie.
+  { name: "Almost solved", kind: "cube", size: 3, solution: "return kind == 3 ? 0 : face" },
+  { name: "Face checker", kind: "cube", size: 3, solution: "return (row + col) % 2 ? face : 0" },
 ];
 
 const PRESETS = {
+  Solved: "return face",
   Bands: "return y > 0 ? U : D",
   Checker: "return (x + y + z) % 2 ? F : B",
   Corners: "return abs(x) + abs(y) + abs(z) > n - 1.5 ? R : U",
@@ -142,9 +146,15 @@ function compile(source, n) {
     const {abs, floor, ceil, round, min, max, hypot, sign, sqrt, sin, cos, atan2, PI} = Math;
     const {U, R, F, D, L, B} = FACES;
     ${source}`;
-  const fn = new Function("x", "y", "z", "n", "FACES", body);
-  fn(0, 0, 0, n, FACES); // fail here rather than once per cubie
-  return (x, y, z, m) => fn(x, y, z, m, FACES);
+  // The function sees the STICKER, not just the cubie. The engine always
+  // painted per facelet - a corner gets three calls - and this page used to
+  // throw that away, which made the solved cube itself inexpressible: no
+  // function of the cubie alone can give one cubie three colours. The new
+  // arguments are appended, so every old link and every old par still
+  // evaluates exactly as it did.
+  const fn = new Function("x", "y", "z", "n", "face", "row", "col", "kind", "FACES", body);
+  fn(0, 0, 0, n, "U", 0, 0, 1, FACES); // fail here rather than once per cubie
+  return (x, y, z, m, face, row, col, kind) => fn(x, y, z, m, face, row, col, kind, FACES);
 }
 
 // How far the lattice reaches, measured rather than assumed. On a cube it is
@@ -171,12 +181,16 @@ function build(source, kind, size) {
   game.usesPalette = false;
   const f = compile(source, n);
   const options = {
-    paint: ({ slot: [x, y, z] }) => {
-      const v = f(x, y, z, n);
+    paint: ({ slot: [x, y, z], letter, row, col, piece }) => {
+      const kind = piece.faces.filter((q) => q.letter).length;
+      const v = f(x, y, z, n, letter, row, col, kind);
+      // Returning a face letter is returning its colour: `return face` is
+      // the solved cube, eleven characters, and was inexpressible before
+      // the function could see the sticker.
+      if (typeof v === "string") return (v.length === 1 && FACES[v]) || v;
       // Remembered so the generated code can carry the palette only when the
       // function actually reaches for it. An import of something unused is
       // the first sign an example was never run.
-      if (typeof v === "string") return v;
       game.usesPalette = true;
       const i = Math.floor(Number(v)) || 0;
       return PALETTE[((i % PALETTE.length) + PALETTE.length) % PALETTE.length];
@@ -378,6 +392,7 @@ function startGame(scramble) {
   game.puzzle = build(game.source, game.kind, game.size);
   game.scramble = "";
   game.dealt = "";
+  locNames.clear();
   if (scramble) {
     // Walk the scramble one move at a time out of what is legal from here.
     // On a plain cube every move always is; the moment this example is
@@ -556,6 +571,115 @@ function renderBodies() {
   });
 }
 
+// ── Turning by code ─────────────────────────────────────────────────────────
+//
+// The third verb. You could paint by function and turn by hand or by
+// sentence; this is turning by FUNCTION: a script that reads the cube,
+// decides, and calls turn(), against the same board and target the keypad
+// plays. The nouns are the cube's own - turn takes the whole algebra,
+// at() answers in cubers' letters - and the control flow is JavaScript's,
+// because inventing loops would be inventing a worse JavaScript.
+//
+// Scored twice, because they are different virtues: the fewest characters
+// is insight about the WRITING, the fewest moves is insight about the
+// CUBE, and a long script can turn very little.
+
+function runScript(source) {
+  const p = game.puzzle;
+  // Fuel bounds every injected call, so a runaway loop that keeps asking
+  // dies with a clear message instead of hanging the page. A loop that
+  // never asks anything cannot be stopped from here; the page says so in
+  // the docs rather than pretending.
+  let fuel = 20000;
+  const spend = () => {
+    if (--fuel < 0) throw new Error("out of fuel: 20,000 calls is a runaway loop");
+  };
+  const before = p.history.length;
+
+  // per-face ranges of the state string, measured off a solved twin
+  const twin = build(game.source, game.kind, game.size);
+  const rested = twin.getState();
+  const ranges = {};
+  {
+    let i = 0;
+    for (const L of twin.def.faceOrder || []) {
+      let j = i;
+      while (j < rested.length && rested[j] === L) j++;
+      if (j > i) ranges[L] = [i, j];
+      i = j;
+    }
+  }
+
+  const occupant = (name) => {
+    const home = twin.pieceNamed(name);
+    const restKey = twin
+      .getPieces()
+      .find((x) => x.index === home)
+      .slot.map((v) => Math.round(v * 1e4))
+      .join(",");
+    const there = p
+      .getPieces()
+      .find((x) => x.slot.map((v) => Math.round(v * 1e4)).join(",") === restKey);
+    return there ? p.nameOf(there.index) : "?";
+  };
+
+  const api = {
+    turn: (seq) => {
+      spend();
+      p.move(desugar(seq));
+      renderCode();
+    },
+    at: (name) => (spend(), occupant(name)),
+    face: (L) => {
+      spend();
+      const r = ranges[L];
+      if (!r) throw new Error(`no face '${L}' on this puzzle`);
+      return p.getState().slice(r[0], r[1]);
+    },
+    solved: () => (spend(), p.matches(game.target)),
+    distance: () => (spend(), p.distanceTo(game.target)),
+    moves: () => p.history.length - before,
+  };
+
+  const fn = new Function(...Object.keys(api), `"use strict";\n${source}`);
+  fn(...Object.values(api));
+  return { moves: p.history.length - before, chars: source.trim().length };
+}
+
+function runScriptButton() {
+  const src = $("script-code").value;
+  const out = $("script-status");
+  if (!src.trim()) {
+    out.textContent = "";
+    return;
+  }
+  let result;
+  try {
+    result = runScript(src);
+  } catch (err) {
+    renderGame();
+    out.textContent = err.message;
+    return;
+  }
+  renderGame();
+  const hit = game.puzzle.matches(game.target);
+  out.textContent = hit
+    ? `Reached the pattern: ${result.chars} characters, ${result.moves} moves.`
+    : `${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers still out of place.`;
+  // Two boards, because they are two different virtues.
+  if (hit && game.challenge !== null) {
+    const key = `erno-pattern-best-${game.challenge}`;
+    let best = {};
+    try {
+      best = JSON.parse(localStorage.getItem(key)) || {};
+    } catch { /* a hand-edited record; start fresh */ }
+    best.chars = Math.min(best.chars ?? Infinity, result.chars);
+    best.moves = Math.min(best.moves ?? Infinity, result.moves);
+    localStorage.setItem(key, JSON.stringify(best));
+    out.textContent += ` Best here: ${best.chars} characters, ${best.moves} moves.`;
+  }
+}
+
 // ── The code for what you are looking at ────────────────────────────────────
 //
 // Not an example written once and left to rot beside the thing it claims to
@@ -574,10 +698,19 @@ const lit = (v) =>
 /** How this puzzle is built, in the words you would use to build it. */
 function constructorFor() {
   const kind = game.kind;
-  const body = game.source.trim().replace(/\n/g, "\n    ");
-  const paint = game.usesPalette
-    ? `  paint: ({ slot: [x, y, z] }) => colour((() => {\n    ${body}\n  })()),`
-    : `  paint: ({ slot: [x, y, z] }) => {\n    ${body}\n  },`;
+  const body = game.source.trim().replace(/\n/g, "\n      ");
+  // The exact wrapper the page runs, sticker arguments and all, because
+  // the snippet's claim is that it reproduces the screen, and it is checked
+  // against the screen polygon by polygon.
+  const paint = [
+    "  paint: ({ slot: [x, y, z], letter: face, row, col, piece }) => {",
+    "    const kind = piece.faces.filter((q) => q.letter).length;",
+    "    const v = (() => {",
+    `      ${body}`,
+    "    })();",
+    "    return colour(v);",
+    "  },",
+  ].join("\n");
   // Everything the page passes, including the one it would rather not think
   // about: the snippet left stickerInset out and drew a puzzle that was the
   // right puzzle and not the right picture. An example is not honest at
@@ -653,13 +786,15 @@ function renderCode() {
   const used = MATHS.filter((m) => new RegExp(`\\b${m}\\b`).test(game.source));
   if (used.length) lines.push(`const { ${used.join(", ")} } = Math;`);
   lines.push(`const n = ${halfWidth(game.kind, game.size)};   // how far the lattice reaches`);
-  if (game.usesPalette) {
-    lines.push("");
-    lines.push("// and numbers reach a wider palette than six faces can make");
-    lines.push(`const PALETTE = ${JSON.stringify(PALETTE)};`);
-    lines.push("const colour = (v) =>");
-    lines.push('  typeof v === "string" ? v : PALETTE[((Math.floor(v) % 8) + 8) % 8];');
-  }
+  lines.push("");
+  lines.push("// a returned face letter is that face's colour; numbers reach the palette");
+  if (game.usesPalette) lines.push(`const PALETTE = ${JSON.stringify(PALETTE)};`);
+  lines.push("const colour = (v) =>");
+  lines.push(
+    game.usesPalette
+      ? '  typeof v === "string" ? (v.length === 1 && SCHEMES.classic[v]) || v : PALETTE[((Math.floor(v) % 8) + 8) % 8];'
+      : '  (v.length === 1 && SCHEMES.classic[v]) || v;',
+  );
   lines.push("");
   lines.push(`const puzzle = new ${ctor.name}({`);
   for (const a of ctor.args) lines.push(a);
@@ -730,9 +865,52 @@ function renderCode() {
 // `[R, U]` and watch it move three pieces and nothing else. That is the
 // whole argument for commutators, and it is one line rather than a lecture.
 
+/**
+ * Macros: `let sexy = R U R' U'; (sexy)3`.
+ *
+ * Cubers name their algorithms, and naming is the one thing the algebra
+ * lacked against how they actually write. A line is self-contained - the
+ * definitions travel with the expression, so a shared line still means
+ * what it meant - and the engine never sees a name: substitution happens
+ * here, textually, before expand.
+ */
+function desugar(text) {
+  const parts = String(text).split(";");
+  const defs = [];
+  let body = "";
+  for (const part of parts) {
+    const m = /^\s*let\s+([A-Za-z_]\w*)\s*=\s*(\S[\s\S]*?)\s*$/.exec(part);
+    if (m) defs.push([m[1], m[2]]);
+    else body += " " + part;
+  }
+  body = body.trim();
+  // Earlier names may appear inside later definitions, so substitute in
+  // order of definition, into everything that follows.
+  for (let i = 0; i < defs.length; i++) {
+    const [name, seq] = defs[i];
+    const re = new RegExp(`\\b${name}\\b`, "g");
+    for (let j = i + 1; j < defs.length; j++) defs[j][1] = defs[j][1].replace(re, seq);
+    body = body.replace(re, seq);
+  }
+  return body;
+}
+
+/** A location's name, cubers' spelling, from the piece that rests there. */
+const locNames = new Map();
+function nameSlot(slot) {
+  const key = slot.map((v) => Math.round(v * 1e4)).join(",");
+  if (!locNames.has(key)) {
+    // built once per board: where every piece RESTS, named by its stickers
+    const twin = build(game.source, game.kind, game.size);
+    for (const pc of twin.getPieces())
+      locNames.set(pc.slot.map((v) => Math.round(v * 1e4)).join(","), twin.nameOf(pc.index));
+  }
+  return locNames.get(key) || "?";
+}
+
 /** Read a sequence without running it. Returns what to show. */
 function readSequence(text) {
-  const source = text.trim();
+  const source = desugar(text);
   if (!source) return { empty: true };
   let flat;
   try {
@@ -780,10 +958,16 @@ function renderSequence() {
     return;
   }
   const e = read.effect;
+  // Named, because this is how a cuber reads a permutation: UFR to URB to
+  // ULB says which pieces travel together; a list of coordinate triples
+  // says only that something does.
+  const named = e.cycles
+    .map((c) => c.map(nameSlot).join(" \u2192 "))
+    .slice(0, 3);
   const shape = e.cycles.map((c) => c.length).sort((a, b) => b - a);
   // A commutator's whole point is the shape of this line.
-  const permutation = shape.length
-    ? shape.map((n) => `${n}-cycle`).join(" + ")
+  const permutation = e.cycles.length
+    ? named.join("   ") + (e.cycles.length > 3 ? ` (+${e.cycles.length - 3} more)` : "")
     : "nothing moves";
   const spun = e.turnedInPlace.length
     ? `, ${e.turnedInPlace.length} turned in place`
@@ -924,6 +1108,11 @@ function init() {
     }
   });
   $("seq-run").addEventListener("click", runSequence);
+  $("script-run").addEventListener("click", runScriptButton);
+  for (const b of document.querySelectorAll("[data-script]"))
+    b.addEventListener("click", () => {
+      $("script-code").value = b.dataset.script;
+    });
   for (const b of document.querySelectorAll("[data-seq]"))
     b.addEventListener("click", () => {
       seq.value = b.dataset.seq;

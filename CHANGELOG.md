@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.8 (2026-08-22)
+
+- Pieces answer to the names cubers call them: `nameOf(index)` and
+  `pieceNamed("RUF")`, Singmaster spelling read off the piece's own
+  stickers, any order in, one spelling out. Generic across every lettered
+  puzzle.
+- The Pattern page speaks the whole language now. Write sees the STICKER:
+  `f(x, y, z, n, face, row, col, kind)`, and returning a face letter
+  returns its colour, so `return face` is the solved cube - which was
+  inexpressible before, since no function of the cubie alone can give one
+  cubie three colours. The console names its cycles (`UB → RF → UR`) and
+  takes macros (`let sexy = R U R' U'; (sexy)6`), because cubers name
+  their algorithms. And a third section turns by CODE: a script that reads
+  the cube (`at("UFR")`, `face("U")`), decides, and calls `turn()`, scored
+  twice - fewest characters and fewest moves, two different virtues - with
+  a fuel budget so runaway loops die with a message. All additive: every
+  old link and old par evaluates exactly as it did.
+
 ## 0.2.7 (2026-08-21)
 
 - The Megaminx reads WCA scramble notation: `R++ R-- D++ D-- U U'`. R and

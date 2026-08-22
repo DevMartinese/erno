@@ -69,7 +69,7 @@ f.onload = () => setTimeout(async () => {
   paso("2 presets");
   // ── 2. los presets ─────────────────────────────────────────────────────
   const presets = [...$("write-presets").children];
-  check("hay seis presets", presets.length === 6);
+  check("hay siete presets (Solved entro)", presets.length === 7);
   for (const p of presets) {
     p.click(); await wait(320);
     check(`preset ${p.textContent}: valido`, !$("write-code").hasAttribute("data-bad"));
@@ -95,7 +95,7 @@ f.onload = () => setTimeout(async () => {
   // ── 5. los retos ───────────────────────────────────────────────────────
   const goal = $("write-goal");
   const retos = [...goal.options].slice(1);
-  check("hay seis retos", retos.length === 6);
+  check("hay ocho retos (dos piden el sticker)", retos.length === 8);
   for (const o of retos) {
     goal.value = o.value; fire(goal); await wait(400);
     check(`reto ${o.textContent}: muestra la meta`, $("goal-art").innerHTML.startsWith("<svg"));
@@ -118,7 +118,8 @@ f.onload = () => setTimeout(async () => {
   // un lugar fijo. Desde el patron.
   $("play-reset").click(); await wait(60);
   const casos = [
-    ["[R, U]", /3-cycle/, "conmutador mueve tres"],
+    ["[R, U]", /touching 7 pieces/, "conmutador toca 7"],
+    ["[R, U]", /[A-Z]{2,3} \u2192 [A-Z]{2,3}/, "y sus ciclos llevan nombre"],
     ["[R, U]", /order 6/, "y tiene orden 6"],
     // El tablero esta PINTADO, y una pintura viaja con la pieza: es un cubo
     // de fotos, y su dibujo vuelve antes que su mecanismo. 35, no 105.
@@ -195,6 +196,36 @@ f.onload = () => setTimeout(async () => {
   d.dispatchEvent(new w.KeyboardEvent("keydown", { key: "u", bubbles: true })); await wait(60);
   const n2 = /(\d+) moves made/.exec($("play-status").textContent);
   check("el teclado mueve", n1 && n2 && +n2[1] === +n1[1] + 1, `${n1 && n1[1]} -> ${n2 && n2[1]}`);
+
+  paso("11 lenguaje");
+  // Write ve el sticker
+  $("write-kind").value = "cube"; fire($("write-kind"));
+  $("write-size").value = "3"; fire($("write-size")); await wait(400);
+  await setCode("return face");
+  check("return face es jugable", /6 colours/.test($("write-status").textContent), $("write-status").textContent.slice(0,50));
+  await setCode("return kind == 3 ? 0 : face");
+  check("kind distingue esquinas", /playable/.test($("write-depth").textContent));
+  await setCode("return (row + col) % 2 ? face : 0");
+  check("row/col pintan por cara", /playable/.test($("write-depth").textContent));
+  await setCode("return y > 0 ? U : D");
+  // macros y nombres en la consola
+  const seqEl = $("seq-input");
+  seqEl.value = "let sexy = R U R' U'; (sexy)3"; fire(seqEl); await wait(50);
+  check("macro expande", /12 moves/.test($("seq-read").textContent), $("seq-read").textContent.slice(0,40));
+  seqEl.value = "[R, U]"; fire(seqEl); await wait(50);
+  check("ciclos con nombres de cubero", /[A-Z]{2,3} \u2192 [A-Z]{2,3}/.test($("seq-read").textContent), $("seq-read").textContent.slice(0,80));
+  // el script
+  $("play-start").click(); await wait(120);
+  $("script-code").value = 'while (!solved() && moves() < 300) turn("[R, U]")';
+  $("script-run").click(); await wait(400);
+  check("el script corre y reporta doble puntaje", /characters, \d+ moves/.test($("script-status").textContent), $("script-status").textContent.slice(0,60));
+  $("script-code").value = 'while (true) turn("R")';
+  $("script-run").click(); await wait(500);
+  check("el combustible frena el loop desbocado", /out of fuel/.test($("script-status").textContent), $("script-status").textContent.slice(0,50));
+  $("script-code").value = 'turn("R"); if (at("UFR") == "?") turn("R\'")';
+  $("script-run").click(); await wait(200);
+  check("at() contesta sin romper", /characters/.test($("script-status").textContent), $("script-status").textContent.slice(0,50));
+  $("play-reset").click(); await wait(100);
 
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────

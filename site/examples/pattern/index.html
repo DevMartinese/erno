@@ -38,17 +38,24 @@
       <div class="example-text">
         <h2>Write</h2>
         <p>
-          Your function runs once per cubie, with <code>x</code>,
-          <code>y</code> and <code>z</code> at its place on the lattice and
-          <code>n</code> at how far that lattice reaches. Return a colour.
+          Your function runs once per <em>sticker</em>, not per cubie: a
+          corner hears it three times, once for each face it shows on.
+          <code>x</code>, <code>y</code>, <code>z</code> are the cubie's
+          place on the lattice and <code>n</code> how far that lattice
+          reaches; <code>face</code> is the letter of the face this sticker
+          shows on, <code>row</code> and <code>col</code> its place in that
+          face's grid, and <code>kind</code> how many stickers its cubie
+          wears: 1 centre, 2 edge, 3 corner.
         </p>
         <p>
-          A cube already names six of them, and not red and blue:
+          A cube already names six colours, and not red and blue:
           <code>U</code>, <code>R</code>, <code>F</code>, <code>D</code>,
           <code>L</code>, <code>B</code>, the same alphabet its moves are
-          written in. So <code>return y &gt; 0 ? U : D</code> reads like a
-          cube. Numbers 0 to 7 reach a wider palette for the pictures six
-          face colours cannot make.
+          written in. Returning a face letter returns its colour, so
+          <code>return face</code> is the solved cube, eleven characters,
+          and <code>return kind == 3 ? 0 : face</code> is the solved cube
+          with its corners inked out. Numbers 0 to 7 reach a wider palette
+          for the pictures six face colours cannot make.
         </p>
         <p>
           Nothing here is a special mode. <code>paint</code> is an ordinary
@@ -58,7 +65,7 @@
 
         <div class="example-editor">
           <label class="example-label" for="write-code">
-            f(x, y, z, n)
+            f(x, y, z, n, face, row, col, kind)
             <span class="example-verdict" id="write-depth"></span>
           </label>
           <textarea
@@ -143,12 +150,15 @@
         <p>
           The buttons turn one face; the box below turns a sentence, in the
           notation cubers already write. <code>[R, U]</code> is a commutator,
-          <code>[R: U]</code> a conjugate, <code>(R U)3</code> a repeat. What
-          it prints back is not the move list but what the sequence
-          <em>does</em>: which pieces travel together, how many are touched,
-          and how many repeats bring it home. A commutator moving three
-          pieces and nothing else is the whole reason they are taught, and
-          it is one line here rather than a lecture.
+          <code>[R: U]</code> a conjugate, <code>(R U)3</code> a repeat, and
+          you can name things, because cubers name their algorithms:
+          <code>let sexy = R U R' U'; (sexy)6</code>. What it prints back is
+          not the move list but what the sequence <em>does</em>, in the
+          names cubers use: <code>UB &#8594; RF &#8594; UR</code> says which
+          pieces travel together, and the order says how many repeats bring
+          it home. A commutator moving three pieces and nothing else is the
+          whole reason they are taught, and it is one line here rather than
+          a lecture.
         </p>
 
         <div class="example-goal">
@@ -191,6 +201,58 @@
       </div>
       <div class="example-demo">
         <div class="example-canvas" id="play-canvas"></div>
+      </div>
+    </section>
+
+    <section class="example-plate example-plate--flip" id="script-panel">
+      <div class="example-text">
+        <h2>Script</h2>
+        <p>
+          The third verb. You could paint by function and turn by hand or by
+          sentence; this turns by <em>function</em>: your code reads the cube,
+          decides, and calls <code>turn()</code>, against the same board and
+          target the keypad plays. The control flow is JavaScript's, because
+          inventing loops would be inventing a worse JavaScript.
+        </p>
+        <p>
+          The nouns are the cube's own. <code>turn(seq)</code> takes the whole
+          algebra, macros included. <code>at("UFR")</code> answers which piece
+          stands where the UFR corner rests, in its home letters.
+          <code>face("U")</code> reads the nine letters showing on a face.
+          <code>solved()</code> and <code>distance()</code> judge against the
+          target, and <code>moves()</code> counts what you have spent. Every
+          call burns fuel, so a runaway loop that keeps asking dies with a
+          message; one that never asks cannot be stopped from here, so save
+          before you gamble.
+        </p>
+        <p>
+          Scored twice, because they are two different virtues: fewest
+          characters is insight about the writing, fewest moves is insight
+          about the cube.
+        </p>
+
+        <div class="example-editor">
+          <label class="example-label" for="script-code">
+            solve()
+            <span class="seq-hint">
+              <button type="button" data-script='while (!solved() &amp;&amp; moves() &lt; 60) turn("[R, U]")'>brute [R, U]</button>
+              <button type="button" data-script='if (at("UFR") != "URF") turn("R U R&#39; U&#39;")'>peek then turn</button>
+            </span>
+          </label>
+          <textarea id="script-code" spellcheck="false" rows="6"
+            placeholder="while (!solved() && moves() < 100) turn(&quot;[R, U]&quot;)"></textarea>
+        </div>
+        <div class="demo-controls">
+          <button id="script-run">Run script</button>
+        </div>
+        <p class="demo-readout" id="script-status"></p>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="script-canvas" hidden></div>
+        <p class="script-note">
+          The script plays the board above: scramble it, run, and watch the
+          Solve panel. Undo takes back its moves like anything else.
+        </p>
       </div>
     </section>
 

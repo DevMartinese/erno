@@ -70,6 +70,26 @@ function assertEqual(a, b, msg) {
 
 // ── Generated geometry ──────────────────────────────────────────────────────
 
+test("pieces answer to the names cubers call them", () => {
+  // Singmaster spelling, read off the piece's own stickers rather than
+  // invented: the corner wearing U, R and F is URF whichever order you ask
+  // for it in, because a cuber writing RUF means the piece, not a spelling.
+  const p = new Cube({ size: 3 });
+  assertEqual(p.nameOf(p.pieceNamed("RUF")), "URF", "any order in, one spelling out");
+  assertEqual(p.nameOf(p.pieceNamed("FU")), "UF");
+  const names = p.pieces.map((_, i) => p.nameOf(i)).filter(Boolean);
+  assertEqual(new Set(names).size, 26, "every piece of a 3×3 has its own name");
+  // and it is generic: anything with lettered faces answers
+  assert(/^[A-L]{2}$/.test(new Megaminx().nameOf(12)), "a megaminx edge names itself");
+  let said = "";
+  try {
+    p.pieceNamed("XQ");
+  } catch (e) {
+    said = e.message;
+  }
+  assert(/no piece named/.test(said), "a wrong name is refused by name");
+});
+
 test("a welded body's middle slices turn, where the weld allows", () => {
   // Issue #2. The welded defs only registered face turns, so the middle
   // layers of each body could never move: 12 legal moves at rest, and a

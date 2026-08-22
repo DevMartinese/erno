@@ -1857,6 +1857,44 @@ export class Twisty {
   }
 
   /**
+   * A piece's name, in the letters cubers use: "URF" for the corner wearing
+   * the U, R and F stickers, "UF" for that edge, "U" for the centre.
+   *
+   * Read off the piece's own stickers rather than invented, so it works on
+   * any puzzle whose faces are lettered, and ordered by the puzzle's own
+   * faceOrder so every caller spells the same piece the same way.
+   *
+   * @param {number} index - the piece, by its stable index
+   * @returns {string} the letters, "" for an unstickered piece
+   */
+  nameOf(index) {
+    const piece = this.pieces[index];
+    if (!piece) throw new Error(`erno: no piece ${index}, ${this.def.name} has ${this.pieces.length}`);
+    const letters = [...new Set(piece.faces.filter((f) => f.letter).map((f) => f.letter))];
+    const order = this.def.faceOrder || [];
+    return letters.sort((a, b) => order.indexOf(a) - order.indexOf(b)).join("");
+  }
+
+  /**
+   * The piece wearing exactly these letters, in any order: "RUF" and "URF"
+   * are the same corner, because a cuber writing either means the piece,
+   * not a spelling.
+   *
+   * @param {string} name - face letters, any order
+   * @returns {number} the piece's index
+   */
+  pieceNamed(name) {
+    const want = [...new Set(String(name).split(""))].sort().join("");
+    for (let i = 0; i < this.pieces.length; i++) {
+      const mine = [...new Set(this.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter))]
+        .sort()
+        .join("");
+      if (mine === want && mine.length) return i;
+    }
+    throw new Error(`erno: ${this.def.name} has no piece named '${name}'`);
+  }
+
+  /**
    * The geometry and the pose, for a renderer that is not this one.
    *
    * Each piece arrives in its own space plus a column-major matrix saying
