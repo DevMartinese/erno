@@ -1116,6 +1116,162 @@ function runScript(source) {
 
   // An alg may stand anywhere a sequence string does.
   const seqOf = (s) => (s && s.alg ? s.alg : s);
+
+  // An unpainted twin, every sticker wearing its own face letter: where
+  // the cubers' theorems are read, whatever picture the board wears.
+  const plainBoard = () => {
+    const keepPal = game.usesPalette;
+    const b2 = PUZZLES[game.kind].make(
+      {
+        stickerInset: 0.1,
+        remove: game.carve && game.carve.keys.size
+          ? ({ slot }) => game.carve.keys.has(slot.map((v) => Math.round(v * 1e4)).join(","))
+          : undefined,
+      },
+      game.size,
+    );
+    game.usesPalette = keepPal;
+    return b2;
+  };
+
+  // ── The mirror tables ───────────────────────────────────────────────────
+  // No thumb performs a reflection, so there is no mirror token; these are
+  // methods. One rule makes every table, and the slice rides its pair's
+  // double flip, which is why M maps to M under RL: Rw = R M' must reflect
+  // to Lw' = L' M', and it does.
+  const REFLECT = {
+    RL: { swap: "RL", keep: "Mx" },
+    UD: { swap: "UD", keep: "Ey" },
+    FB: { swap: "FB", keep: "Sz" },
+  };
+  const reflectSeq = (plane, text) => {
+    const P = REFLECT[plane];
+    return text.replace(/(\d*)([A-Za-z])(w?)(2'|2|')?/g, (m0, pre, base, w, suf = "") => {
+      const upper = base.toUpperCase();
+      const isMove = "RLUDFBMES".includes(upper) || "xyz".includes(base);
+      if (!isMove) return m0;
+      let out = base;
+      let toggle = true;
+      if (P.keep.includes(base) || P.keep.includes(upper)) toggle = false;
+      else if (P.swap.includes(upper)) {
+        const other = P.swap[1 - P.swap.indexOf(upper)];
+        out = base === upper ? other : other.toLowerCase();
+      }
+      if (suf.startsWith("2")) toggle = false; // half turns only map the letter
+      const suffix = toggle ? (suf === "'" ? "" : suf === "" ? "'" : suf) : suf;
+      return pre + out + w + suffix;
+    });
+  };
+
+  // ── The alg value ───────────────────────────────────────────────────────
+  // A frozen value with the notation's own constructors. Every method
+  // returns a new frozen alg; nothing is ever simplified; the writing is
+  // the identity, and emission preserves compression: times(6) prints
+  // (A)6, never twenty four tokens.
+  const makeAlg = (seq) => {
+    const src = String(seqOf(seq)).trim();
+    const flat = desugar(src);
+    const tokens = (isAlgebra(flat) ? expand(flat) : flat).split(/\s+/).filter(Boolean);
+    const twin2 = shadowBoard();
+    for (const t of tokens) twin2.parseMove(t);
+    const dialect = twin2 instanceof Fused ? "weld" : "box";
+    let looksHome = 1;
+    let cyc2 = [];
+    let order = 1;
+    if (tokens.length) {
+      const e = twin2.effectOf(flat);
+      looksHome = e.order;
+      cyc2 = e.cycles.map((c) => c.map(nameSlot));
+      order = null;
+      try {
+        order = plainBoard().effectOf(flat).order;
+      } catch {
+        /* a blocking weld refused the orbit; null already says so */
+      }
+    }
+    const kin = (b) => {
+      const o = b && b.alg !== undefined && b.dialect ? b : makeAlg(b);
+      if (o.dialect !== dialect)
+        throw new Error("two dialects never share a sentence: box and weld part ways");
+      return o;
+    };
+    const oneGroup = /^\([\s\S]*\)\d*'?$/.test(src) || /^\[[\s\S]*\]\d*'?$/.test(src);
+    return Object.freeze({
+      alg: src,
+      moves: tokens.length,
+      order,
+      looksHome,
+      cycles: cyc2,
+      dialect,
+      toString: () => src,
+      then: (b) => {
+        const o = kin(b);
+        return makeAlg(src && o.alg ? `${src} ${o.alg}` : src || o.alg);
+      },
+      times: (n2) => {
+        const k3 = Math.round(Number(n2));
+        if (!(k3 >= 0)) throw new Error("times() takes zero or more");
+        if (k3 === 0 || !src) return makeAlg("");
+        if (k3 === 1) return makeAlg(src);
+        return makeAlg(oneGroup ? `${src === flat && !isAlgebra(src) ? `(${src})` : `(${src})`}${k3}` : `(${src})${k3}`);
+      },
+      inverse: () => {
+        if (!src) return makeAlg("");
+        if (!isAlgebra(flat) && src === flat) {
+          // a bare sequence reverses in the open, the way Erno.inverse does
+          const back = tokens
+            .slice()
+            .reverse()
+            .map((t) => {
+              // matching Erno.inverse to the letter: U2 comes back U2'
+              if (t.endsWith("2'")) return t.slice(0, -1);
+              if (t.endsWith("'")) return t.slice(0, -1);
+              return t + "'";
+            });
+          return makeAlg(back.join(" "));
+        }
+        // a wrapped group keeps its wrapper; anything else gains one
+        return makeAlg(oneGroup ? `${src}'` : `(${src})'`);
+      },
+      commutator: (b) => makeAlg(`[${src}, ${kin(b).alg}]`),
+      conjugate: (b) => makeAlg(`[${src}: ${kin(b).alg}]`),
+      reflect: (plane) => {
+        if (dialect !== "box")
+          throw new Error("this weld's mirrors wait for the engine to publish them");
+        if (!REFLECT[plane])
+          throw new Error(`no plane named ${plane}: a box publishes RL, UD, FB`);
+        return makeAlg(reflectSeq(plane, flat));
+      },
+      exchange: () => {
+        throw new Error(
+          dialect === "weld"
+            ? "exchange waits for the engine to publish this weld's symmetries"
+            : "exchange belongs to welds of twin bodies",
+        );
+      },
+      swap: () => {
+        throw new Error(
+          dialect === "weld"
+            ? "swap waits for the engine to publish this weld's symmetries"
+            : "swap belongs to welds of twin bodies",
+        );
+      },
+      equals: (b) => {
+        const o = b && b.alg !== undefined && b.dialect ? b : makeAlg(b);
+        return o.alg === src && o.dialect === dialect;
+      },
+      sameEffect: (b) => {
+        const o = b && b.alg !== undefined && b.dialect ? b : makeAlg(b);
+        if (o.dialect !== dialect) return false;
+        const t1 = plainBoard();
+        const t2 = plainBoard();
+        if (src) t1.move(desugar(src));
+        if (o.alg) t2.move(desugar(o.alg));
+        return t1.getPattern() === t2.getPattern();
+      },
+    });
+  };
+
   const api = {
     turn: (seq) => {
       spend();
@@ -1132,51 +1288,7 @@ function runScript(source) {
     // refused on the spot if it is not real notation, its order and its
     // cycles already readable. It studies a twin rather than the board,
     // so an alg can be written and read even while the cube is in pieces.
-    alg: (seq) => {
-      spend();
-      const src = String(seqOf(seq));
-      const flat = desugar(src);
-      const tokens = (isAlgebra(flat) ? expand(flat) : flat)
-        .split(/\s+/)
-        .filter(Boolean);
-      const twin2 = shadowBoard();
-      for (const t of tokens) twin2.parseMove(t);
-      const e = twin2.effectOf(flat);
-      // Two numbers, names kept apart. order is the cubers' theorem, read
-      // on an unpainted twin where every sticker wears its own face
-      // letter: (R U) is 105 there whatever picture the board wears.
-      // looksHome is the same reading against the written picture,
-      // shortened by its symmetries. (Walking positions instead would
-      // measure the supercube, centre spins included: a different
-      // theorem.) On a weld whose blocking refuses the orbit, order is
-      // honestly null rather than a guess.
-      let order = null;
-      try {
-        const keepPal = game.usesPalette;
-        const plain = PUZZLES[game.kind].make(
-          {
-            stickerInset: 0.1,
-            remove: game.carve && game.carve.keys.size
-              ? ({ slot }) => game.carve.keys.has(slot.map((v) => Math.round(v * 1e4)).join(","))
-              : undefined,
-          },
-          game.size,
-        );
-        game.usesPalette = keepPal;
-        order = plain.effectOf(flat).order;
-      } catch {
-        /* the mechanism refused the orbit; null already says so */
-      }
-      return Object.freeze({
-        alg: src,
-        moves: tokens.length,
-        order,
-        looksHome: e.order,
-        cycles: e.cycles.map((c) => c.map(nameSlot)),
-        inverse: `(${src})'`,
-        toString: () => src,
-      });
-    },
+    alg: (seq) => (spend(), makeAlg(seq)),
     // ── Construction: the cube itself is code ──────────────────────────
     // deal() takes the board apart the way Assemble does: a fresh cube at
     // rest, six centres bolted to the core, everything else in the bin.
@@ -1442,12 +1554,9 @@ function runScript(source) {
     },
     // A sequence read as the permutation it drives, in cycle notation over
     // slot names: [["UB","UR","RF"]] is the whole story of a commutator.
-    cycles: (seq) => {
-      spend();
-      whole();
-      const e = p.effectOf(desugar(seqOf(seq)));
-      return e.cycles.map((c) => c.map(nameSlot));
-    },
+    // Sugar for alg(x).cycles: read on the twin, so it speaks in any
+    // phase, the cube in pieces included.
+    cycles: (seq) => (spend(), makeAlg(seq).cycles),
     face: (L) => {
       spend();
       whole();

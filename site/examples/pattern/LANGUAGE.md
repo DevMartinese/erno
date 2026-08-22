@@ -54,15 +54,32 @@ never be confused.
 
 - **`alg(seq)`**. The blindfold half of the sport: declares a sequence
   without turning it. Parsed on the spot; refused on the spot, in the
-  parser's words, if it is not real notation. Returns a frozen value:
-  `{ alg, moves, order, looksHome, cycles, inverse }`, with `cycles`
-  already in slot names. Two numbers, names kept apart: `order` is the
-  cubers' theorem, read on an unpainted twin ((R U) is 105 there whatever
-  the board wears), and `looksHome` is the same reading against the
-  written picture, shortened by its symmetries. It studies a twin rather
+  parser's words, if it is not real notation. It studies a twin rather
   than the board, so an alg can be written and read in any phase, the
-  cube in pieces included. `turn()` and `cycles()` accept an alg wherever
-  they accept a string.
+  cube in pieces included, and it carries its dialect (box or weld) for
+  life. `turn()` and `cycles()` accept an alg wherever they accept a
+  string. It returns a **frozen value**:
+
+  - **Readings**: `alg`, `moves`, `cycles` (slot names), and two numbers
+    with their names kept apart: `order` is the cubers' theorem, read on
+    an unpainted twin ((R U) is 105 there whatever the board wears);
+    `looksHome` is the same reading against the written picture,
+    shortened by its symmetries.
+  - **Constructors**, every one returning a new frozen alg, nothing ever
+    simplified, emission preserving compression: `then(b)`, `times(n)`
+    (prints `(A)n`; zero is the empty alg; negatives refused),
+    `inverse()` (a bare sequence reverses in the open exactly as
+    `Erno.inverse` writes it; a wrapped group keeps its wrapper:
+    `(R U)6` comes back `(R U)6'`), `commutator(b)`, `conjugate(b)`.
+  - **Transforms**: `reflect(plane)` stands on the box family, planes
+    `RL`, `UD`, `FB`, total by theorem; the slice rides its pair's
+    double flip, which is why M maps to M under RL and `Rw` comes back
+    `Lw'`. `exchange()` and `swap()` wait for the engine to publish each
+    weld's symmetries, and say so.
+  - **Questions**: `equals(b)` is the writing plus the dialect, so
+    `R R'` honestly differs from the empty alg; `sameEffect(b)` is the
+    other question, answered on unpainted twins. Cross-dialect
+    composition refuses: box and weld part ways.
 
 ### Act
 
@@ -118,8 +135,9 @@ never be confused.
 - **`face(L)`**. The letters showing on a face. Whole board only.
 - **`pieces()`**. Walks every slot: `{ at, is }` per entry, centres
   excluded since they never travel. Mid-build it walks only what stands.
-- **`cycles(seq | alg)`**. A sequence read as the permutation it drives,
-  in cycle notation over slot names. Whole board only.
+- **`cycles(seq | alg)`**. Sugar for `alg(x).cycles`: the permutation a
+  sequence drives, in cycle notation over slot names, read on the twin,
+  so it speaks in any phase.
 - **`off()`**. The slots still wrong against the target, counted exactly
   the way the judge counts: the pattern string against the target string,
   facelet by facelet, in the frame the board is held in. A reading noun
@@ -197,6 +215,13 @@ The board arrives dealt and scrambled. A solver only turns:
 ```js
 const sexy = alg("[R, U]")
 while (!solved() && moves() < 60) turn(sexy)
+```
+
+Both hands from one declaration, never memorised twice:
+
+```js
+const right = alg("R U R'")
+turn(right.then(right.reflect("RL")))   // R U R' L' U' L
 ```
 
 Or reads before it acts, the shape of every smarter script:
@@ -315,6 +340,8 @@ carve("centers")     // the Void, written as a sentence
 | The algebra and algs | yes | yes | yes, in weld tokens |
 | Built piece by piece | yes | yes | yes, home placements, body-first names |
 | Carved with holes | yes | yes | waits for its laws |
+| `reflect` | yes | yes | waits for published symmetries |
+| `exchange` / `swap` | refused by name | refused by name | wait for published symmetries |
 | Exotic placements (any slot, spins) | yes | yes | not yet: home and unspun |
 | `off()` | yes | yes | not yet |
 | The law's crown | yes | corner twist law | laws unwritten; the verdict says so |
