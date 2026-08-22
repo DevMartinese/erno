@@ -242,6 +242,21 @@ f.onload = () => setTimeout(async () => {
   $("play-reset").click(); await wait(120);
   await setCode("return y > 0 ? U : D");
 
+  paso("13 estampar");
+  check("stamp arranca con el album", /of 54 stickers/.test($("stamp-status").textContent), $("stamp-status").textContent.slice(0,50));
+  d.querySelectorAll(".stamp-swatch")[1].click();
+  const st = d.querySelector('#stamp-canvas polygon[data-part="sticker"][data-face="U"]');
+  st.dispatchEvent(new w.MouseEvent("click", { bubbles: true })); await wait(150);
+  check("una pincelada cuenta", /1 strokes/.test($("stamp-status").textContent), $("stamp-status").textContent.slice(0,60));
+  $("stamp-flip").click(); await wait(150);
+  const panza = [...new Set([...d.querySelectorAll('#stamp-canvas polygon[data-face]')].map(x=>x.dataset.face))].sort().join('');
+  check("la panza muestra B D L", panza === "BDL", panza);
+  $("stamp-flip").click(); await wait(100);
+  $("stamp-new").click(); await wait(200);
+  check("crecer una con semilla", /seed \d+/.test($("stamp-seed").textContent), $("stamp-seed").textContent);
+  $("stamp-clear").click(); await wait(100);
+  check("clear vuelve a cero", /0 strokes/.test($("stamp-status").textContent));
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

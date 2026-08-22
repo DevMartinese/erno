@@ -439,3 +439,30 @@ body.example {
 .tamper-row button {
   border-style: dashed;
 }
+
+
+/* ── Stamp ─────────────────────────────────────────────────────────────────
+   The brush is a swatch; the canvas is a cube that wants to be clicked,
+   and the cursor says so. */
+.stamp-swatch {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--rule);
+  background: var(--swatch);
+  cursor: pointer;
+  padding: 0;
+}
+.stamp-swatch[data-on] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.example-canvas--stamp polygon[data-part="sticker"] {
+  cursor: crosshair;
+}
+#stamp-panel[data-state="hit"] .example-canvas--stamp {
+  outline: 2px solid #009b48;
+  outline-offset: 4px;
+}
+#stamp-panel .example-goal-art svg {
+  pointer-events: none;
+}

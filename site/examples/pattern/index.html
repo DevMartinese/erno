@@ -132,6 +132,50 @@
       </div>
     </section>
 
+    <section class="example-plate example-plate--flip" id="stamp-panel" data-state="miss">
+      <div class="example-text">
+        <h2>Stamp</h2>
+        <p>
+          The first mode where the pattern is <em>handed</em> to you. Write
+          lets you invent a picture; here one arrives - from the album, or
+          grown from a seed anyone can share - your cube is solid blank, and
+          you recreate it sticker by sticker: pick a colour, click a
+          sticker. The polygons were always clickable; every one carries its
+          face and index.
+        </p>
+        <p>
+          A cube has six faces and a picture shows three, so there are two
+          views: the top reads U R F, the belly reads D L B, and the target
+          flips with your canvas, so what you are copying is always what
+          you are looking at. Scored in brushstrokes against the pattern's
+          own minimum: every stroke beyond it was a stroke taken back.
+        </p>
+
+        <div class="demo-controls">
+          <label class="control-label">
+            <span>Album</span>
+            <select id="stamp-album"></select>
+          </label>
+          <button id="stamp-new">Grow one</button>
+          <button id="stamp-flip">See D L B</button>
+          <button id="stamp-clear">Clear</button>
+        </div>
+        <div class="example-presets" id="stamp-palette"></div>
+        <p class="demo-readout" id="stamp-status"></p>
+        <p class="demo-readout" id="stamp-seed"></p>
+
+        <div class="example-goal">
+          <div class="example-goal-art" id="stamp-target"></div>
+          <div class="example-goal-text">
+            <span class="example-label">Stamp this</span>
+          </div>
+        </div>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas example-canvas--stamp" id="stamp-canvas"></div>
+      </div>
+    </section>
+
     <section class="example-plate example-plate--flip" id="play-panel">
       <div class="example-text">
         <h2>Solve</h2>

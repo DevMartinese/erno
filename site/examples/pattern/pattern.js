@@ -517,6 +517,223 @@ function undo() {
   renderGame();
 }
 
+// ── Stamp: a pattern arrives, your cube is blank ────────────────────────────
+//
+// The first mode where the target is HANDED to you. Write lets you invent a
+// picture; here one arrives - curated, or grown from a seed anyone can
+// share - your cube is solid blank, and you recreate the picture sticker
+// by sticker. The stickers were always clickable: every polygon the SVG
+// draws carries data-face and data-index, put there for styling long
+// before a game needed them.
+//
+// Two views, because a cube has six faces and a picture shows three: the
+// top view reads U R F, the belly view reads D L B, and the target and
+// your canvas always show the same side, so what you are copying is always
+// what you are looking at.
+//
+// Scored in brushstrokes against the pattern's own minimum - the stickers
+// that differ from blank - so painting well is seeing well: every stroke
+// beyond the minimum was a stroke taken back.
+
+const BLANK = "#f4efe7";
+const stamp = {
+  size: 3,
+  paint: new Map(), // "F:4" -> colour
+  strokes: 0,
+  brush: null, // selected colour, null until picked
+  view: 0, // 0 = top (U R F), 1 = belly (D L B)
+  targetSource: null,
+  targetTints: null,
+  seed: null,
+  curated: -1,
+};
+
+// The curated album, easy to hard: each is a hidden function, never shown.
+const STAMP_ALBUM = [
+  { name: "Half and half", source: "return y > 0 ? R : B" },
+  { name: "The cap", source: "return face == 'U' ? F : 0" },
+  { name: "Solved", source: "return face" },
+  { name: "Corners out", source: "return kind == 3 ? 0 : face" },
+  { name: "Checkerboard", source: "return (x + y + z) % 2 ? U : R" },
+  { name: "Pinstripes", source: "return (row + col) % 2 ? face : 0" },
+  { name: "The wrap", source: "return abs(x) > 0.5 ? L : (y > 0 ? U : D)" },
+];
+
+// A seed grows a pattern: templates with drawn parameters, so the same
+// seed is the same picture on any machine, and the link can carry it.
+function mulberry(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function grownPattern(seed) {
+  const r = mulberry(seed);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  const C = () => pick(["U", "R", "F", "D", "L", "B", "0", "7"]);
+  const axis = () => pick(["x", "y", "z"]);
+  const rules = [
+    () => `return ${axis()} > 0 ? ${C()} : ${C()}`,
+    () => `return (x + y + z) % 2 ? ${C()} : ${C()}`,
+    () => `return abs(${axis()}) > 0.5 ? ${C()} : ${C()}`,
+    () => `return (row + col) % 2 ? ${C()} : ${C()}`,
+    () => `return kind == 3 ? ${C()} : ${C()}`,
+    () => `return face == '${pick(["U", "R", "F", "D", "L", "B"])}' ? ${C()} : ${C()}`,
+    () => `return (${axis()} > 0) == (${axis()} > 0) ? ${C()} : ${C()}`,
+  ];
+  // one rule, or two nested: enough variety to surprise, small enough to see
+  const a = pick(rules)();
+  if (r() < 0.45) {
+    const b = pick(rules)().replace("return ", "");
+    return a.replace(/return (.*)$/, (m, tail) => {
+      const [cond, rest] = tail.split(" ? ");
+      return `return ${cond} ? ${rest.split(" : ")[0]} : (${b})`;
+    });
+  }
+  return a;
+}
+
+function stampTargetTints(source) {
+  return build(source, "cube", stamp.size).getTints().join("|");
+}
+
+function stampCanvas() {
+  return new Cube({
+    size: stamp.size,
+    paint: ({ letter, index }) => stamp.paint.get(`${letter}:${index}`) || BLANK,
+    stickerInset: 0.1,
+  });
+}
+
+const STAMP_VIEWS = [
+  { type: "isometric", angle: 30 },
+  { type: "orthographic", angle: 210, pitch: -35 },
+];
+
+function drawStamp() {
+  const cam = STAMP_VIEWS[stamp.view];
+  const target = build(stamp.targetSource, "cube", stamp.size);
+  target.setCamera(cam);
+  $("stamp-target").innerHTML = target.toSVG({ fitSphere: true, padding: 8 });
+  const canvas = stampCanvas();
+  canvas.setCamera(cam);
+  $("stamp-canvas").innerHTML = canvas.toSVG({ fitSphere: true, padding: 8 });
+
+  const mine = canvas.getTints().join("|");
+  const want = stamp.targetTints.split("|");
+  const have = mine.split("|");
+  let right = 0;
+  for (let i = 0; i < want.length; i++) if (want[i] === have[i]) right++;
+  const total = want.length;
+  // the pattern's own minimum: what a perfect painter would spend
+  const min = want.filter((t, i) => t !== BLANK).length;
+  const done = right === total;
+  $("stamp-status").textContent = done
+    ? `Pattern stamped: ${stamp.strokes} strokes, the pattern's minimum is ${min}.` +
+      (stamp.strokes <= min ? " Not one wasted." : "")
+    : `${right} of ${total} stickers right. ${stamp.strokes} strokes; the minimum is ${min}.`;
+  $("stamp-panel").dataset.state = done ? "hit" : "miss";
+}
+
+function newStamp({ curated, seed } = {}) {
+  stamp.paint.clear();
+  stamp.strokes = 0;
+  if (curated !== undefined && curated >= 0) {
+    stamp.curated = curated;
+    stamp.seed = null;
+    stamp.targetSource = STAMP_ALBUM[curated].source;
+  } else {
+    stamp.curated = -1;
+    stamp.seed = seed ?? Math.floor(Math.random() * 1e9);
+    stamp.targetSource = grownPattern(stamp.seed);
+    $("stamp-seed").textContent = `seed ${stamp.seed}`;
+  }
+  if (stamp.curated >= 0) $("stamp-seed").textContent = "";
+  stamp.targetTints = stampTargetTints(stamp.targetSource);
+  drawStamp();
+}
+
+function wireStamp() {
+  // the palette: the six face colours, ink, and back to blank
+  const palette = $("stamp-palette");
+  const swatches = [
+    ["U", FACES.U], ["R", FACES.R], ["F", FACES.F],
+    ["D", FACES.D], ["L", FACES.L], ["B", FACES.B],
+    ["ink", PALETTE[0]], ["blank", BLANK],
+  ];
+  for (const [label, colour] of swatches) {
+    const b = document.createElement("button");
+    b.className = "stamp-swatch";
+    b.style.setProperty("--swatch", colour);
+    b.title = label;
+    b.addEventListener("click", () => {
+      stamp.brush = colour;
+      [...palette.children].forEach((x) => x.removeAttribute("data-on"));
+      b.setAttribute("data-on", "");
+    });
+    palette.append(b);
+  }
+  palette.children[0].click();
+
+  // paint by click: the polygon under the pointer names its own facelet.
+  // The SVG's data-index runs over the WHOLE state string - U is 0 to 8, R
+  // is 9 to 17 - while paint's index restarts per face, and the first cut
+  // of this handler keyed one against the other: fifty-four clicks, and
+  // exactly the nine on U landed, because U is the face where the two
+  // numberings happen to agree.
+  const faceStart = {};
+  {
+    let at = 0;
+    for (const L of ["U", "R", "F", "D", "L", "B"]) {
+      faceStart[L] = at;
+      at += stamp.size * stamp.size;
+    }
+  }
+  $("stamp-canvas").addEventListener("click", (e) => {
+    const poly = e.target.closest("polygon[data-face]");
+    if (!poly || stamp.brush === null) return;
+    const face = poly.dataset.face;
+    const key = `${face}:${+poly.dataset.index - faceStart[face]}`;
+    const now = stamp.paint.get(key) || BLANK;
+    if (now === stamp.brush) return; // painting a sticker its own colour is free
+    if (stamp.brush === BLANK) stamp.paint.delete(key);
+    else stamp.paint.set(key, stamp.brush);
+    stamp.strokes++;
+    drawStamp();
+  });
+
+  $("stamp-flip").addEventListener("click", () => {
+    stamp.view = 1 - stamp.view;
+    $("stamp-flip").textContent = stamp.view ? "See U R F" : "See D L B";
+    drawStamp();
+  });
+  $("stamp-new").addEventListener("click", () => newStamp({}));
+  $("stamp-clear").addEventListener("click", () => {
+    stamp.paint.clear();
+    stamp.strokes = 0;
+    drawStamp();
+  });
+  const album = $("stamp-album");
+  STAMP_ALBUM.forEach((c, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = c.name;
+    album.append(o);
+  });
+  album.addEventListener("input", () => {
+    if (album.value !== "") newStamp({ curated: +album.value });
+  });
+
+  // a link can carry a seeded pattern
+  const saved = new URLSearchParams(location.hash.slice(1));
+  if (saved.get("stamp")) newStamp({ seed: +saved.get("stamp") || 1 });
+  else newStamp({ curated: 0 });
+}
+
 // ── Composing a puzzle out of bodies ────────────────────────────────────────
 //
 // One body is a cube and every turn is open. Add a second and the two are
@@ -1132,6 +1349,7 @@ function init() {
   });
   $("seq-run").addEventListener("click", runSequence);
   $("script-run").addEventListener("click", runScriptButton);
+  wireStamp();
   for (const b of document.querySelectorAll("[data-script]"))
     b.addEventListener("click", () => {
       $("script-code").value = b.dataset.script;
