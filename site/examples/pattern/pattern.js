@@ -423,6 +423,9 @@ function startGame(scramble) {
 function renderGame() {
   const p = game.puzzle;
   draw($("play-canvas"), p);
+  // The Script plate shows the same board, not a copy: one game object,
+  // drawn twice, so the console's result is visible where it is typed.
+  draw($("script-canvas"), p);
   renderMoves();
   renderProgress();
   const distance = p.distanceTo(game.target);

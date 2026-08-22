@@ -136,7 +136,8 @@ body.example {
   text-transform: uppercase;
   margin-bottom: var(--space-1);
 }
-#write-code {
+#write-code,
+#script-code {
   width: 100%;
   box-sizing: border-box;
   font-family: var(--mono);
@@ -149,7 +150,8 @@ body.example {
   padding: var(--space-1-5);
   resize: vertical;
 }
-#write-code:focus {
+#write-code:focus,
+#script-code:focus {
   outline: 3px solid var(--red);
   outline-offset: 4px;
 }
@@ -393,13 +395,17 @@ body.example {
 
 
 /* ── The script plate ──────────────────────────────────────────────────────
-   Its demo half is prose, not a canvas: the script plays the board the
-   Solve plate already shows, and drawing the same board twice would invite
-   the reader to think they were different. */
+   Its demo half shows the SAME board the Solve plate plays: one game
+   object drawn twice. The first cut left this half empty for fear the
+   reader would take two drawings for two boards, and an empty half read
+   as an unfinished page instead; the caption now carries that burden in
+   words ("not a copy"), and the result is visible where it is typed. */
 #script-panel .example-demo {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-3);
   padding: var(--space-5) var(--space-4);
 }
 .script-note {

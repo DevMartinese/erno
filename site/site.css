@@ -1093,7 +1093,10 @@ p code {
   font-size: 0.85em;
 }
 
-nav {
+/* Scoped to the guide's index: a bare `nav` here once leaked this margin
+   onto every other page's nav, which is how the Pattern page grew a 320px
+   hole above its mode bar. */
+.intro nav {
   margin: calc(var(--space-unit) * 40) 0 var(--space-6) var(--space-8);
   font-size: var(--size-sm);
   line-height: var(--lh);
