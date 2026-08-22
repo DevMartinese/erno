@@ -2,16 +2,23 @@
 
 ## 0.2.9 (2026-08-22)
 
-- The laws of the possible. `lawful()` judges a position against the
-  fundamental theorem of the cube - corner twists sum to a multiple of
-  three, edges flip in pairs, corner and edge permutation parities agree -
-  and names the broken law in a cuber's words. Three tamper verbs do what
-  a thumb does to a borrowed cube: `twistCorner("URF")`, `flipEdge("UF")`,
-  `swapPieces("UF", "UB")`, each riding a real cube symmetry so stickers
-  stay on faces, each breaking exactly its own law, each cancelling in
-  pairs exactly as the theorem says. Unlawfulness is an invariant: no
-  amount of scrambling launders a twisted corner. 3×3 family (Cube, Void)
-  for now; anything else is refused by name rather than misjudged.
+- The laws of the possible, scoped to the family this library is for.
+  `lawful()` judges a position and names the broken law in a cuber's
+  words; three tamper verbs do what a thumb does to a borrowed cube:
+  `twistCorner("URF")`, `flipEdge("UF")`, `swapPieces("UF", "UB")`, each
+  riding a real cube symmetry so stickers stay on faces, each breaking
+  exactly its own law, each cancelling in pairs exactly as the theorem
+  says. On the 3×3 census the three laws are the fundamental theorem and
+  `complete: true` says the verdict is the whole truth; on every other
+  cube and cuboid the corner twist law alone is checked - sound wherever
+  a face can turn, so "unlawful" is always final - and `complete: false`
+  says which kind of answer you got. Welded assemblies get the verbs but
+  not yet the judge; everything outside the box family is refused by
+  name. Unlawfulness is an invariant: no scrambling launders a twisted
+  corner. The Pattern page grew the prankster's row, and its status line
+  names the law - only when the picture is broken, because a twist under
+  a one-colour-per-cubie paint changes nothing a player can see, which
+  is itself a small lesson.
 
 ## 0.2.8 (2026-08-22)
 

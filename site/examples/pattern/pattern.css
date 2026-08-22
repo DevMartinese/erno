@@ -425,3 +425,17 @@ body.example {
   color: var(--ink);
   border-color: var(--ink);
 }
+
+
+/* ── The prankster's row ───────────────────────────────────────────────────
+   Set apart from the honest controls: these are not moves, and the border
+   says so before the status line has to. */
+.tamper-lede {
+  margin: var(--gap) 0 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-quiet-xs);
+}
+.tamper-row button {
+  border-style: dashed;
+}

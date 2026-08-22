@@ -229,6 +229,19 @@ f.onload = () => setTimeout(async () => {
   check("at() contesta sin romper", /characters/.test($("script-status").textContent), $("script-status").textContent.slice(0,50));
   $("play-reset").click(); await wait(100);
 
+  paso("12 leyes");
+  // con `return face` un twist arruina la imagen, y el juez lo dice
+  await setCode("return face");
+  $("play-reset").click(); await wait(120);
+  $("tamper-twist").click(); await wait(200);
+  check("el twist rompe la imagen y nombra la ley", /Unsolvable.*twist/.test($("play-status").textContent), $("play-status").textContent.slice(0,90));
+  $("play-reset").click(); await wait(120);
+  check("reset cura", !/Unsolvable/.test($("play-status").textContent));
+  $("tamper-flip").click(); await wait(200);
+  check("el flip nombra la suya", /Unsolvable.*flip/.test($("play-status").textContent), $("play-status").textContent.slice(0,90));
+  $("play-reset").click(); await wait(120);
+  await setCode("return y > 0 ? U : D");
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

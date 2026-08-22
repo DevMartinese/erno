@@ -1723,34 +1723,52 @@ export class Twisty {
 
   // ── Tampering, and the laws it breaks ────────────────────────────────────
   //
-  // Every position a sequence can reach obeys three laws, and every cuber
-  // has met them the hard way: a cube that came back from a borrower with
-  // one corner turned is not scrambled, it is UNSOLVABLE, and no amount of
-  // turning will ever fix it. The laws are the fundamental theorem of the
-  // cube wearing street clothes: corner twists sum to a multiple of three,
-  // edges flip in pairs, and the corner and edge permutations agree in
-  // parity, so two pieces alone can never swap.
+  // Every position a sequence can reach obeys laws, and every cuber has met
+  // them the hard way: a cube that came back from a borrower with one
+  // corner turned is not scrambled, it is UNSOLVABLE. On a 3×3 the laws are
+  // exactly three — corner twists sum to a multiple of three, edges flip in
+  // pairs, corner and edge permutations agree in parity — and that is the
+  // fundamental theorem of the cube.
   //
-  // move() cannot break them, by theorem. These three verbs are the
-  // prankster's: they do to the model what a thumb does to the real thing,
-  // and lawful() is the judge that says whether a position is reachable
-  // and, when it is not, which law it broke.
+  // move() cannot break them, by theorem. These verbs are the prankster's:
+  // they do to the model what a thumb does to the real thing, and lawful()
+  // is the judge. Scope is the family this library is for — cubes, cuboids,
+  // and their welded relatives get the VERBS; the judge rules the 3×3
+  // census in full, rules other cubes and cuboids on the twist law alone
+  // (sound everywhere, complete only on the 3×3), and refuses what it
+  // cannot judge by name rather than misjudging it.
 
-  /** The 3×3-family gate: eight corners, twelve edges, slots on the lattice. */
-  _cubeParts() {
-    const kinds = { 1: [], 2: [], 3: [] };
-    this.pieces.forEach((piece, i) => {
-      const k = new Set(piece.faces.filter((f) => f.letter).map((f) => f.letter)).size;
-      if (kinds[k]) kinds[k].push(i);
-    });
-    const onLattice = this.pieces.every((piece) =>
-      piece.slotPoint.every((v) => Math.abs(Math.abs(v) - 1) < 1e-9 || Math.abs(v) < 1e-9),
+  /** The family gate: every slot on the box lattice, halves included,
+   *  because an even cube's cubies live at (±0.5, ±0.5, ±0.5). */
+  _boxFamily() {
+    const ok = this.pieces.every((piece) =>
+      piece.slotPoint.every((v) => Math.abs(v * 2 - Math.round(v * 2)) < 1e-9),
     );
-    if (kinds[3].length !== 8 || kinds[2].length !== 12 || !onLattice)
+    if (!ok)
       throw new Error(
-        `erno: the laws of ${this.def.name} are not written here yet, only the 3×3 family's`,
+        `erno: the laws of ${this.def.name} are not written here yet; cubes, cuboids and their welds only`,
       );
-    return { corners: kinds[3], edges: kinds[2] };
+  }
+
+  /** How many stickers the piece standing at `name` wears: 3 corner, 2 edge. */
+  _stickerCount(i) {
+    return new Set(this.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+  }
+
+  /** Where the piece's stickers point right now: its own outward frame. */
+  _outwardDirs(i) {
+    const seen = new Set();
+    const dirs = [];
+    for (const f of this.pieces[i].faces) {
+      if (!f.letter || !f.normal) continue;
+      const d = matVec(this._rot[i], f.normal).map((v) => Math.round(v));
+      const key = d.join(",");
+      if (!seen.has(key)) {
+        seen.add(key);
+        dirs.push(d);
+      }
+    }
+    return dirs;
   }
 
   /**
@@ -1786,7 +1804,7 @@ export class Twisty {
     return best;
   }
 
-  /** rotationMatrix takes a UNIT axis; slot diagonals arrive raw. */
+  /** rotationMatrix takes a UNIT axis; diagonals arrive raw. */
   _unitAxis(c) {
     const len = Math.hypot(c[0], c[1], c[2]) || 1;
     return [c[0] / len, c[1] / len, c[2] / len];
@@ -1803,59 +1821,61 @@ export class Twisty {
   /** The piece currently standing where `name` rests, and that slot. */
   _atRestSlotOf(name) {
     const home = this.pieceNamed(name);
-    const c = this.pieces[home].slotPoint.map((v) => Math.round(v));
-    const key = c.join(",");
+    const c = this.pieces[home].slotPoint;
+    const key = c.map((v) => Math.round(v * 2)).join(",");
     for (let i = 0; i < this.pieces.length; i++)
-      if (this._slotOf(i).map((v) => Math.round(v)).join(",") === key) return { i, c };
+      if (this._slotOf(i).map((v) => Math.round(v * 2)).join(",") === key) return { i, c };
     throw new Error(`erno: nothing stands at ${name}`);
   }
 
   /**
    * Twist the corner standing at `name`, the way a thumb does: 120° about
-   * the corner's own axis, clockwise as seen from outside unless told
-   * "counterclockwise". Not a move, and lawful() will say so.
+   * the corner's own outward diagonal, clockwise as seen from outside
+   * unless told "counterclockwise". Not a move, and lawful() will say so.
    */
   twistCorner(name, sense = "clockwise") {
-    this._cubeParts();
+    this._boxFamily();
     const { i, c } = this._atRestSlotOf(name);
-    if (c.filter((v) => v !== 0).length !== 3)
-      throw new Error(`erno: ${name} is not a corner`);
+    if (this._stickerCount(i) !== 3)
+      throw new Error(`erno: what stands at ${name} is not a corner`);
+    // The axis is the piece's own outward diagonal — the sum of where its
+    // stickers point — not the raw slot coordinates: on a 3×3×5 the corner
+    // sits at (1, 1, 2), and (1, 1, 2) is no threefold axis of anything.
+    const dirs = this._outwardDirs(i);
+    const axis = dirs.reduce((a, d) => [a[0] + d[0], a[1] + d[1], a[2] + d[2]], [0, 0, 0]);
     const angle = ((sense === "counterclockwise" ? 2 : -2) * Math.PI) / 3;
-    this._tamper(i, snapMatrix(rotationMatrix(this._unitAxis(c), angle)), c);
+    this._tamper(i, snapMatrix(rotationMatrix(this._unitAxis(axis), angle)), c);
     return this;
   }
 
   /** Flip the edge standing at `name`: 180° about its own outward axis. */
   flipEdge(name) {
-    this._cubeParts();
+    this._boxFamily();
     const { i, c } = this._atRestSlotOf(name);
-    if (c.filter((v) => v !== 0).length !== 2)
-      throw new Error(`erno: ${name} is not an edge`);
-    this._tamper(i, snapMatrix(rotationMatrix(this._unitAxis(c), Math.PI)), c);
+    if (this._stickerCount(i) !== 2)
+      throw new Error(`erno: what stands at ${name} is not an edge`);
+    const dirs = this._outwardDirs(i);
+    const axis = [dirs[0][0] + dirs[1][0], dirs[0][1] + dirs[1][1], dirs[0][2] + dirs[1][2]];
+    this._tamper(i, snapMatrix(rotationMatrix(this._unitAxis(axis), Math.PI)), c);
     return this;
   }
 
   /**
    * Pull the two pieces standing at `a` and `b` out and exchange them, each
-   * taking over the other's pose whole. Same kind only: a corner fits a
-   * corner's hole.
+   * riding a proper cube symmetry to the other's slot, so every sticker
+   * still faces out. Same kind only: a corner fits a corner's hole.
    */
   swapPieces(a, b) {
-    this._cubeParts();
+    this._boxFamily();
     const A = this._atRestSlotOf(a);
     const B = this._atRestSlotOf(b);
-    if (A.c.filter((v) => v !== 0).length !== B.c.filter((v) => v !== 0).length)
+    if (this._stickerCount(A.i) !== this._stickerCount(B.i))
       throw new Error(`erno: ${a} and ${b} are not the same kind of piece`);
     if (A.i === B.i) return this;
-    // Each piece rides a symmetry OF THE CUBE to the other's slot. Not any
-    // rotation that maps the one diagonal to the other: the shortest such
-    // is 70.5° about an odd axis, which is no symmetry at all, and under it
-    // the stickers leave the faces. Of the twenty-four proper symmetries,
-    // take one carrying slot A to slot B — it exists for any two slots of a
-    // kind — and its inverse carries B back. A symmetry maps outward faces
-    // to outward faces, so every sticker still faces out, and the only law
-    // the swap breaks is the one a swap should: parity.
-    const Q = this._symmetryTaking(A.c, B.c);
+    const Q = this._symmetryTaking(
+      A.c.map((v) => Math.round(v * 2)),
+      B.c.map((v) => Math.round(v * 2)),
+    );
     const Qi = [0, 1, 2].map((r) => [Q[0][r], Q[1][r], Q[2][r]]); // transpose
     this._tamper(A.i, Q, ORIGIN);
     this._tamper(B.i, Qi, ORIGIN);
@@ -1863,52 +1883,48 @@ export class Twisty {
   }
 
   /**
-   * Judge the current position against the laws of the cube group.
+   * Judge the current position against the laws of the possible.
    *
-   * @returns {{lawful: boolean, breaks: string[]}} reachable or not, and
-   *   which law each violation broke, in the words a cuber would use
+   * On the 3×3 census — eight corners, twelve edges — the three laws are
+   * the whole truth: lawful means reachable. On other cubes and cuboids
+   * only the corner twist law is checked; it is sound everywhere a face
+   * can turn, so "unlawful" is always final, but "lawful" there is not a
+   * promise. A welded assembly is refused: its laws are not written yet.
+   *
+   * @returns {{lawful: boolean, breaks: string[], complete: boolean}}
    */
   lawful() {
-    const { corners, edges } = this._cubeParts();
+    this._boxFamily();
+    if ((this.def.name || "").startsWith("fused"))
+      throw new Error(
+        "erno: the laws of a welded assembly are not written here yet",
+      );
+
+    const corners = [];
+    const edges = [];
+    this.pieces.forEach((_, i) => {
+      const k = this._stickerCount(i);
+      if (k === 3) corners.push(i);
+      else if (k === 2) edges.push(i);
+    });
     const breaks = [];
 
-    // where everyone stands: rest-slot key → piece resting there
-    const restKey = (i) => this.pieces[i].slotPoint.map((v) => Math.round(v)).join(",");
-    const nowKey = (i) => this._slotOf(i).map((v) => Math.round(v)).join(",");
-    const parityOf = (group) => {
-      const home = new Map(group.map((i) => [restKey(i), i]));
-      const next = new Map(group.map((i) => [i, home.get(nowKey(i))]));
-      for (const [i, to] of next)
-        if (to === undefined)
-          throw new Error(
-            `erno: ${this.nameOf(i)} is standing off the lattice; that is damage, not a position`,
-          );
-      const seen = new Set();
-      let parity = 0;
-      for (const start of group) {
-        if (seen.has(start)) continue;
-        let j = start;
-        let len = 0;
-        while (!seen.has(j)) {
-          seen.add(j);
-          j = next.get(j);
-          len++;
-        }
-        parity ^= (len - 1) & 1;
-      }
-      return parity;
-    };
-
-    // corner twist: how many 120° turns about its slot's axis bring the
-    // U/D sticker back to the U/D face; the sum must be a multiple of 3
+    // The corner twist law, sound on every box: how many 120° turns about
+    // its own outward diagonal bring the piece's reference sticker home.
+    // The reference is its U/D sticker, or its F/B one on a box so flat it
+    // has corners without one.
     let twistSum = 0;
     for (const i of corners) {
-      const axis = this._slotOf(i).map((v) => Math.round(v));
-      const ud = this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[1]) > 0.5);
-      let dir = matVec(this._rot[i], ud.normal);
+      const dirs = this._outwardDirs(i);
+      const axis = dirs.reduce((a, d) => [a[0] + d[0], a[1] + d[1], a[2] + d[2]], [0, 0, 0]);
+      const pick =
+        this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[1]) > 0.5) ||
+        this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[2]) > 0.5);
+      let dir = matVec(this._rot[i], pick.normal);
+      const wantAxis = Math.abs(pick.normal[1]) > 0.5 ? 1 : 2;
       const step = snapMatrix(rotationMatrix(this._unitAxis(axis), (2 * Math.PI) / 3));
       let k = 0;
-      while (Math.abs(dir[1]) < 0.5 && k < 3) {
+      while (Math.abs(dir[wantAxis]) < 0.5 && k < 3) {
         dir = matVec(step, dir);
         k++;
       }
@@ -1919,36 +1935,56 @@ export class Twisty {
         `the corner twists add up to ${twistSum % 3} mod 3: somebody turned a corner, and no sequence will undo it`,
       );
 
-    // edge flip: the U/D sticker (F/B on the equator) must show on the
-    // U/D (F/B) face; flips come in pairs
-    let flips = 0;
-    for (const i of edges) {
-      const slot = this._slotOf(i).map((v) => Math.round(v));
-      const canonicalAxis = slot[1] !== 0 ? 1 : 2;
-      const home = this.pieces[i].faces.find(
-        (f) => f.letter && Math.abs(f.normal[slot[1] !== 0 ? 1 : 2]) < 2 // placeholder, replaced below
-      );
-      // the sticker that should face the canonical axis: the piece's own
-      // U/D sticker if it has one, else its F/B sticker
-      const pick =
-        this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[1]) > 0.5) ||
-        this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[2]) > 0.5);
-      const dir = matVec(this._rot[i], pick.normal);
-      if (Math.abs(dir[canonicalAxis]) < 0.5) flips++;
+    // The flip and parity laws are the 3×3's own; on that census the three
+    // together are the fundamental theorem, and lawful means reachable.
+    const complete = corners.length === 8 && edges.length === 12 &&
+      this.pieces.every((piece) => piece.slotPoint.every((v) => Math.abs(v) <= 1 + 1e-9));
+    if (complete) {
+      let flips = 0;
+      for (const i of edges) {
+        const slot = this._slotOf(i).map((v) => Math.round(v));
+        const canonicalAxis = slot[1] !== 0 ? 1 : 2;
+        const pick =
+          this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[1]) > 0.5) ||
+          this.pieces[i].faces.find((f) => f.letter && Math.abs(f.normal[2]) > 0.5);
+        const dir = matVec(this._rot[i], pick.normal);
+        if (Math.abs(dir[canonicalAxis]) < 0.5) flips++;
+      }
+      if (flips % 2 !== 0)
+        breaks.push("an odd number of edges are flipped: flips come in pairs, and this one is alone");
+
+      const restKey = (i) => this.pieces[i].slotPoint.map((v) => Math.round(v * 2)).join(",");
+      const nowKey = (i) => this._slotOf(i).map((v) => Math.round(v * 2)).join(",");
+      const parityOf = (group) => {
+        const home = new Map(group.map((i) => [restKey(i), i]));
+        const next = new Map(group.map((i) => [i, home.get(nowKey(i))]));
+        for (const [i, to] of next)
+          if (to === undefined)
+            throw new Error(
+              `erno: ${this.nameOf(i)} is standing off the lattice; that is damage, not a position`,
+            );
+        const seen = new Set();
+        let parity = 0;
+        for (const start of group) {
+          if (seen.has(start)) continue;
+          let j = start;
+          let len = 0;
+          while (!seen.has(j)) {
+            seen.add(j);
+            j = next.get(j);
+            len++;
+          }
+          parity ^= (len - 1) & 1;
+        }
+        return parity;
+      };
+      if (parityOf(corners) !== parityOf(edges))
+        breaks.push(
+          "the corner and edge permutations disagree in parity: two pieces alone can never swap",
+        );
     }
-    if (flips % 2 !== 0)
-      breaks.push(
-        `${flips % 2 === 1 ? "an odd number of" : ""} edges are flipped: flips come in pairs, and this one is alone`,
-      );
 
-    const cp = parityOf(corners);
-    const ep = parityOf(edges);
-    if (cp !== ep)
-      breaks.push(
-        "the corner and edge permutations disagree in parity: two pieces alone can never swap",
-      );
-
-    return { lawful: breaks.length === 0, breaks };
+    return { lawful: breaks.length === 0, breaks, complete };
   }
 
   /**

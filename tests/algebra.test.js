@@ -482,6 +482,30 @@ test("the laws of the possible, and the verbs that break them", () => {
   const chaos = new Cube({ size: 3 }).twistCorner("URF").flipEdge("UF").swapPieces("UL", "UB");
   assertEqual(chaos.lawful().breaks.length, 3, "three laws, three charges");
 
+  // the whole priority family answers: any cube, any cuboid. The twist
+  // law is sound everywhere a face can turn, so "unlawful" is final; the
+  // full three-law verdict is the 3×3 census's own, and `complete` says
+  // which kind of answer you were given.
+  assert(new Cube({ size: 3 }).lawful().complete, "the 3×3's verdict is the whole theorem");
+  assert(!new Cube({ size: 2 }).lawful().complete, "a 2×2's is the twist law only, and says so");
+  assert(!new Cube({ size: 2 }).twistCorner("URF").lawful().lawful, "a 2×2 twist is final");
+  assert(!new Cube({ size: 4 }).twistCorner("URF").lawful().lawful, "a 4×4 twist is final");
+  assert(!new Cuboid({ size: [3, 3, 5] }).twistCorner("URF").lawful().lawful, "a 3×3×5 twist is final");
+  for (const make of [() => new Cube({ size: 2 }), () => new Cube({ size: 5 }), () => new Cuboid({ size: [3, 3, 5] })]) {
+    const p = make();
+    p.scramble();
+    assert(p.lawful().lawful, `${p.name}: every reachable position stays lawful`);
+  }
+  // welded assemblies get the verbs but not yet the judge, honestly
+  new Siamese().twistCorner("DLB"); // does not throw
+  let welded = "";
+  try {
+    new Siamese().lawful();
+  } catch (e) {
+    welded = e.message;
+  }
+  assert(/welded/.test(welded), "a weld's laws are not written, and it says so");
+
   // the Void is under the law; the Megaminx says its laws are not written
   assert(!new Void().flipEdge("UF").lawful().lawful, "the Void answers to it");
   let said = "";

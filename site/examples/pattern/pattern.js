@@ -427,9 +427,28 @@ function renderGame() {
   renderProgress();
   const distance = p.distanceTo(game.target);
   const won = p.matches(game.target);
-  $("play-status").textContent = won
+  // The judge speaks here, because this is where the borrowed-cube tragedy
+  // is felt: tamper with the board and no sequence will ever reach the
+  // pattern again, and the page says WHICH law was broken instead of
+  // letting you turn forever. A welded board has no written laws yet, and
+  // the try respects that silence.
+  // Only when the picture is NOT reached: this game judges patterns, and a
+  // twisted corner under a one-colour-per-cubie paint changes nothing a
+  // player can see - all three of its stickers match. Paint `return face`
+  // and the same twist ruins the picture, and then this line says why no
+  // sequence will ever mend it.
+  let verdict = "";
+  if (!won) {
+    try {
+      const law = p.lawful();
+      if (!law.lawful) verdict = ` Unsolvable: ${law.breaks[0]}. Reset heals it.`;
+    } catch {
+      /* a puzzle whose laws are not written; nothing to add */
+    }
+  }
+  $("play-status").textContent = (won
     ? `Pattern reached in ${p.history.length} moves.`
-    : `${distance} stickers out of place, ${p.history.length} moves made.`;
+    : `${distance} stickers out of place, ${p.history.length} moves made.`) + verdict;
   if (won) $("play-panel").setAttribute("data-won", "");
   else $("play-panel").removeAttribute("data-won");
   // What a sequence does depends on where the puzzle is standing, which on
@@ -1123,6 +1142,40 @@ function init() {
       renderSequence();
       seq.focus();
     });
+
+  // The prankster's row: what a thumb does to a borrowed cube. Each verb
+  // picks a random piece of the right kind, by name, and the status line
+  // then names the broken law. move() cannot break the laws, by theorem;
+  // these can, which is the whole lesson.
+  const randomPiece = (kind) => {
+    const p = game.puzzle;
+    const names = p.pieces
+      .map((_, i) => i)
+      .filter((i) => new Set(p.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size === kind)
+      .map((i) => p.nameOf(i));
+    return names[Math.floor(Math.random() * names.length)];
+  };
+  const tamper = (fn) => {
+    try {
+      fn();
+    } catch (err) {
+      $("play-status").textContent = err.message;
+      return;
+    }
+    renderGame();
+  };
+  $("tamper-twist").addEventListener("click", () =>
+    tamper(() => game.puzzle.twistCorner(randomPiece(3))));
+  $("tamper-flip").addEventListener("click", () =>
+    tamper(() => game.puzzle.flipEdge(randomPiece(2))));
+  $("tamper-swap").addEventListener("click", () =>
+    tamper(() => {
+      const kind = Math.random() < 0.5 ? 3 : 2;
+      let a = randomPiece(kind);
+      let b = randomPiece(kind);
+      for (let tries = 0; a === b && tries < 8; tries++) b = randomPiece(kind);
+      game.puzzle.swapPieces(a, b);
+    }));
 
   $("play-start").addEventListener("click", () => startGame(true));
   $("play-reset").addEventListener("click", () => startGame(false));
