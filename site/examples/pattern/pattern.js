@@ -1086,15 +1086,41 @@ function runScript(source) {
     return there ? p.nameOf(there.index) : "?";
   };
 
+  // An alg may stand anywhere a sequence string does.
+  const seqOf = (s) => (s && s.alg ? s.alg : s);
   const api = {
     turn: (seq) => {
       spend();
       whole();
       if (road === "build") road = "mixed";
       const h0 = p.history.length;
-      p.move(desugar(seq));
+      p.move(desugar(seqOf(seq)));
       recon.push({ t: "turn", tokens: p.history.slice(h0) });
       renderCode();
+    },
+    // ── The blindfold half ──────────────────────────────────────────────
+    // alg() declares a sequence without turning it: parsed on the spot,
+    // refused on the spot if it is not real notation, its order and its
+    // cycles already readable. It studies a twin rather than the board,
+    // so an alg can be written and read even while the cube is in pieces.
+    alg: (seq) => {
+      spend();
+      const src = String(seqOf(seq));
+      const flat = desugar(src);
+      const tokens = (isAlgebra(flat) ? expand(flat) : flat)
+        .split(/\s+/)
+        .filter(Boolean);
+      const twin2 = shadowBoard();
+      for (const t of tokens) twin2.parseMove(t);
+      const e = twin2.effectOf(flat);
+      return Object.freeze({
+        alg: src,
+        moves: tokens.length,
+        order: e.order,
+        cycles: e.cycles.map((c) => c.map(nameSlot)),
+        inverse: `(${src})'`,
+        toString: () => src,
+      });
     },
     // ── Construction: the cube itself is code ──────────────────────────
     // deal() takes the board apart the way Assemble does: a fresh cube at
@@ -1202,7 +1228,7 @@ function runScript(source) {
     cycles: (seq) => {
       spend();
       whole();
-      const e = p.effectOf(desugar(seq));
+      const e = p.effectOf(desugar(seqOf(seq)));
       return e.cycles.map((c) => c.map(nameSlot));
     },
     face: (L) => {
@@ -2026,20 +2052,28 @@ async function ovRun(gen) {
   }
   await ovSleep(gen, 800);
 
-  // IV. The nouns, one by one, in the console's own language.
+  // IV. The nouns, one by one, in the console's own language. An alg is
+  // declared first: its notation lands on the ticker unlit, and only the
+  // turn that takes it lights the tokens as they play.
   $("watch-sig").textContent = "solve()";
-  ovSay("turn() speaks the whole algebra: one commutator, and the line below is its four turns.");
-  await ovType(gen, 'turn("[R, U]")', { reset: true });
+  ovSay("alg() declares a sequence without turning it: parsed now, played only when a turn takes it. This one is the commutator of R and U, four turns, order six.");
+  await ovType(gen, 'const sexy = alg("[R, U]")', { reset: true });
   ticker.textContent = "";
-  for (const tok of expand("[R, U]").split(" ")) {
-    const el = ovTick(tok, "is-live");
-    await ovTurn(gen, tok);
-    el.className = "";
+  const sexyTokens = expand("[R, U]").split(" ");
+  const sexyEls = sexyTokens.map((tok) => ovTick(tok));
+  await ovSleep(gen, 1200);
+
+  ovSay("turn() takes the alg whole, and the declared line lights up as each of its turns lands.");
+  await ovType(gen, "\nturn(sexy)");
+  for (let i = 0; i < sexyTokens.length; i++) {
+    sexyEls[i].className = "is-live";
+    await ovTurn(gen, sexyTokens[i]);
+    sexyEls[i].className = "";
   }
   await ovSleep(gen, 600);
 
-  ovSay("cycles() reads a sequence as the permutation it drives: the commutator moves exactly one cycle of three pieces, and six repeats bring them home.");
-  await ovType(gen, '\ncycles("[R, U]")');
+  ovSay("cycles() reads the alg as the permutation it drives: exactly one cycle of three pieces, and six repeats bring them home.");
+  await ovType(gen, "\ncycles(sexy)");
   {
     const eff = ov.board.effectOf("[R, U]");
     for (const c of eff.cycles.slice(0, 3))

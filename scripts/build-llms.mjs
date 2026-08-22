@@ -201,6 +201,7 @@ Plus \`Twisty\`, the generic engine every one of them runs on, and
 
 - Full API: /llms-full.txt
 - Interactive guide: /
+- A game built on the engine: /examples/pattern/
 - Source: ${pkg.repository ? pkg.repository.url.replace(/^git\+/, "").replace(/\.git$/, "") : ""}
 `;
 

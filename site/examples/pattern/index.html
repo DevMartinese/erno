@@ -371,6 +371,17 @@
           before you gamble.
         </p>
         <p>
+          One word belongs to the blindfold half of the sport.
+          <code>alg("([R, U])3")</code> declares a sequence without turning
+          it: parsed on the spot, refused on the spot if it is not real
+          notation, its <code>order</code>, <code>moves</code>,
+          <code>cycles</code> and <code>inverse</code> already readable.
+          <code>turn()</code> takes an alg whole and <code>cycles()</code>
+          reads one, and because an alg studies a twin rather than the
+          board, you can write and study one while the cube is still in
+          pieces.
+        </p>
+        <p>
           Two roads, and the choice is the base of the game: you are handed
           a whole cube, or you take it apart and build your own.
           <code>deal()</code> chooses the second, six centres staying on
@@ -408,7 +419,7 @@
           <label class="example-label" for="script-code">
             solve()
             <span class="seq-hint">
-              <button type="button" data-script='while (!solved() &amp;&amp; moves() &lt; 60) turn("[R, U]")'>brute [R, U]</button>
+              <button type="button" data-script='const sexy = alg("[R, U]"); while (!solved() &amp;&amp; moves() &lt; 60) turn(sexy)'>brute [R, U]</button>
               <button type="button" data-script='if (at("UFR") != "URF") turn("R U R&#39; U&#39;")'>peek then turn</button>
               <button type="button" data-script='deal(); for (const p of bin()) place(p)'>build it solved</button>
               <button type="button" data-script='deal(); for (const p of bin()) place(p, p, p == "URF" ? 1 : 0)'>build it broken</button>
