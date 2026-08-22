@@ -535,6 +535,9 @@ function normalizeRemove(remove) {
  * @property {number} moves - how many of them
  * @property {number[][][]} cycles - each cycle as the slots it walks
  * @property {number[]} turnedInPlace - pieces home again but turned
+ * @property {{piece: number, name: string, spin: string}[]} turns - the same
+ *   pieces in cubers' words: "URF" "twisted clockwise", "UF" "flipped", a
+ *   centre "rotated 90°"
  * @property {number} moved - pieces touched at all
  * @property {number|null} order - repeats until it LOOKS like it did; null
  *   only when a blocking puzzle refuses some later repeat
@@ -1352,6 +1355,58 @@ export class Twisty {
       .map((_, i) => i)
       .filter((i) => before[i] === after[i] && spin[i] !== spun[i]);
 
+    // And HOW each one is turned, in the words a cuber already has: a
+    // corner is twisted clockwise or counterclockwise, an edge is flipped,
+    // a centre is rotated by so many degrees. "2 turned in place" names a
+    // count; "URF twisted clockwise, UF flipped" names the fact, and it is
+    // the orientation component of the puzzle's group wearing its street
+    // clothes.
+    const unpack = (t) => {
+      const v = t.split(",").map((x) => Number(x) / 1e6);
+      return [v.slice(0, 3), v.slice(3, 6), v.slice(6, 9)];
+    };
+    const turns = turnedInPlace.map((i) => {
+      const A = unpack(spun[i]);
+      const B = unpack(spin[i]);
+      // the net rotation the piece picked up: new times old-undone
+      const G = [0, 1, 2].map((r) =>
+        [0, 1, 2].map((c) => A[r][0] * B[c][0] + A[r][1] * B[c][1] + A[r][2] * B[c][2]),
+      );
+      const gv = (v) => [
+        G[0][0] * v[0] + G[0][1] * v[1] + G[0][2] * v[2],
+        G[1][0] * v[0] + G[1][1] * v[1] + G[1][2] * v[2],
+        G[2][0] * v[0] + G[2][1] * v[1] + G[2][2] * v[2],
+      ];
+      const normals = this.pieces[i].faces
+        .filter((f) => f.letter && f.normal)
+        .map((f) => f.normal);
+      const name = this.nameOf(i);
+      const kind = normals.length;
+      const deg = Math.round(
+        (Math.acos(Math.max(-1, Math.min(1, (G[0][0] + G[1][1] + G[2][2] - 1) / 2))) * 180) /
+          Math.PI,
+      );
+      if (kind === 1) return { piece: i, name, spin: `rotated ${deg}\u00b0` };
+      if (kind === 2) return { piece: i, name, spin: "flipped" };
+      // a corner: which way, as seen from OUTSIDE the corner. The outward
+      // axis is the sum of its sticker normals; a positive rotation about
+      // it reads counterclockwise to someone at the axis tip looking back.
+      const axis = normals.reduce((a, v) => [a[0] + v[0], a[1] + v[1], a[2] + v[2]], [0, 0, 0]);
+      const v0 = normals[0];
+      const w = gv(v0);
+      const cx = [
+        v0[1] * w[2] - v0[2] * w[1],
+        v0[2] * w[0] - v0[0] * w[2],
+        v0[0] * w[1] - v0[1] * w[0],
+      ];
+      const sign = axis[0] * cx[0] + axis[1] * cx[1] + axis[2] * cx[2];
+      return {
+        piece: i,
+        name,
+        spin: sign > 1e-9 ? "twisted counterclockwise" : sign < -1e-9 ? "twisted clockwise" : `rotated ${deg}\u00b0`,
+      };
+    });
+
     // How many repeats bring it home, FROM HERE.
     //
     // From here is not a hedge. On a puzzle whose pieces are all distinct it
@@ -1416,6 +1471,7 @@ export class Twisty {
       cycles,
       turnedInPlace,
       moved: cycles.reduce((n, c) => n + c.length, 0),
+      turns,
       order,
     };
     } finally {

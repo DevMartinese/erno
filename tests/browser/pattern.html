@@ -212,6 +212,8 @@ f.onload = () => setTimeout(async () => {
   const seqEl = $("seq-input");
   seqEl.value = "let sexy = R U R' U'; (sexy)3"; fire(seqEl); await wait(50);
   check("macro expande", /12 moves/.test($("seq-read").textContent), $("seq-read").textContent.slice(0,40));
+  seqEl.value = "(R' D' R D)2"; fire(seqEl); await wait(60);
+  check("twist con nombre y direccion", /(cw|ccw|flipped)/.test($("seq-read").textContent), $("seq-read").textContent.slice(0,80));
   seqEl.value = "[R, U]"; fire(seqEl); await wait(50);
   check("ciclos con nombres de cubero", /[A-Z]{2,3} \u2192 [A-Z]{2,3}/.test($("seq-read").textContent), $("seq-read").textContent.slice(0,80));
   // el script

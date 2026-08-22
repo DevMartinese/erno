@@ -385,6 +385,56 @@ test("the megaminx speaks WCA scramble notation", () => {
   assert(!kilo.vocabulary().includes("R++"), "kilominx has no WCA tokens");
 });
 
+test("an in-place turn is named the way a cuber names it", () => {
+  // "2 turned in place" names a count; "URF twisted clockwise, UF flipped"
+  // names the fact. The classification is verified against the stickers
+  // themselves: paint every facelet its own tint, apply the sequence, and
+  // read where each tint went.
+  const homes = [];
+  const paint = ({ letter, pieceIndex }) => {
+    const tint = "#" + (100000 + homes.length).toString(16).padStart(6, "0");
+    homes.push({ letter, pieceIndex, tint });
+    return tint;
+  };
+  const p = new Cube({ size: 3, paint });
+  const before = p.getTints().slice();
+  const e = p.effectOf("(R' D' R D)2");
+  p.move("(R' D' R D)2");
+  const after = p.getTints();
+  const wears = (piece, at) => {
+    const h = homes.find((q) => q.pieceIndex === piece && q.letter === at);
+    return homes.find((q) => q.tint === after[before.indexOf(h.tint)]).letter;
+  };
+
+  // four corners, two each way: the twist law (sum ≡ 0 mod 3) in the open
+  const cw = e.turns.filter((t) => t.spin === "twisted clockwise");
+  const ccw = e.turns.filter((t) => t.spin === "twisted counterclockwise");
+  assertEqual(cw.length, 2);
+  assertEqual(ccw.length, 2);
+
+  // and the DIRECTIONS are physical, not nominal: counterclockwise about
+  // the corner's outward axis carries the R sticker to the U spot on URF,
+  // clockwise carries L to D on DLB. Read off the tints, not believed.
+  const urf = e.turns.find((t) => t.name === "URF");
+  assertEqual(urf.spin, "twisted counterclockwise");
+  assertEqual(wears(urf.piece, "U"), "R", "ccw: the U spot wears the R sticker");
+  const dlb = e.turns.find((t) => t.name === "DLB");
+  assertEqual(dlb.spin, "twisted clockwise");
+  assertEqual(wears(dlb.piece, "D"), "L", "cw: the D spot wears the L sticker");
+
+  // edges flip, centres rotate, and both say so
+  const q = new Cube({ size: 3 });
+  const flips = q.effectOf("M' U M' U M' U2 M U M U M U2").turns;
+  assert(
+    flips.some((t) => t.name === "UF" && t.spin === "flipped"),
+    "UF reports flipped",
+  );
+  assert(
+    flips.some((t) => t.name.length === 1 && /rotated 180/.test(t.spin)),
+    "a centre reports its rotation",
+  );
+});
+
 test("parse hands back a tree, not just a string", () => {
   const tree = parse("[R, U]2");
   assertEqual(tree.type, "seq");

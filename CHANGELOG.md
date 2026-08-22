@@ -2,6 +2,13 @@
 
 ## 0.2.8 (2026-08-22)
 
+- An in-place turn is named the way a cuber names it. effectOf's `turns`
+  says "URF twisted clockwise", "UF flipped", "U rotated 90°" - the
+  orientation component of the puzzle's group in its street clothes - and
+  the directions are physical, verified against the stickers themselves:
+  counterclockwise about a corner's outward axis really does carry the R
+  sticker to the U spot. The console speaks it.
+
 - Pieces answer to the names cubers call them: `nameOf(index)` and
   `pieceNamed("RUF")`, Singmaster spelling read off the piece's own
   stickers, any order in, one spelling out. Generic across every lettered

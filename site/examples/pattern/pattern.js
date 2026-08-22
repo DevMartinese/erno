@@ -969,8 +969,12 @@ function renderSequence() {
   const permutation = e.cycles.length
     ? named.join("   ") + (e.cycles.length > 3 ? ` (+${e.cycles.length - 3} more)` : "")
     : "nothing moves";
-  const spun = e.turnedInPlace.length
-    ? `, ${e.turnedInPlace.length} turned in place`
+  // In cubers' words, because that is who is reading: "URF twisted cw" and
+  // "UF flipped" are facts they already have names for.
+  const spun = e.turns && e.turns.length
+    ? ", " + e.turns.slice(0, 4).map((t) =>
+        `${t.name} ${t.spin.replace("twisted counterclockwise", "ccw").replace("twisted clockwise", "cw")}`,
+      ).join(", ") + (e.turns.length > 4 ? ` (+${e.turns.length - 4})` : "")
     : "";
   out.textContent =
     `${read.tokens.length} moves: ${read.flat}\n` +
