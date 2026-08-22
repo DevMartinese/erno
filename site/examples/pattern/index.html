@@ -372,6 +372,16 @@
           before you gamble.
         </p>
         <p>
+          The cube itself is code too. <code>deal()</code> takes the board
+          apart, six centres staying on the spider and everything else in
+          the bin; <code>bin()</code> is what remains, and
+          <code>place(piece, slot, spin)</code> sets any piece in any free
+          slot of its kind, spun on the spot, so a script can build the
+          perfect cube or an impossible one. While the board is in pieces
+          the turns and the judges wait; when the last piece lands the move
+          count starts at zero and the status line says what you built.
+        </p>
+        <p>
           Scored twice, because they are two different virtues: fewest
           characters is insight about the writing, fewest moves is insight
           about the cube.
@@ -383,6 +393,8 @@
             <span class="seq-hint">
               <button type="button" data-script='while (!solved() &amp;&amp; moves() &lt; 60) turn("[R, U]")'>brute [R, U]</button>
               <button type="button" data-script='if (at("UFR") != "URF") turn("R U R&#39; U&#39;")'>peek then turn</button>
+              <button type="button" data-script='deal(); for (const p of bin()) place(p)'>build it solved</button>
+              <button type="button" data-script='deal(); for (const p of bin()) place(p, p, p == "URF" ? 1 : 0); turn("R U")'>build it broken</button>
             </span>
           </label>
           <textarea id="script-code" spellcheck="false" rows="6">

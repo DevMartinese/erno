@@ -399,6 +399,7 @@ function renderChallenge(puzzle) {
 
 function startGame(scramble) {
   game.puzzle = build(game.source, game.kind, game.size);
+  game.build = null; // a fresh board is whole; Reset heals a bin left open
   game.scramble = "";
   game.dealt = "";
   locNames.clear();
@@ -431,6 +432,30 @@ function startGame(scramble) {
 
 function renderGame() {
   const p = game.puzzle;
+  if (game.build) {
+    // The board is in pieces: both canvases show only what is standing,
+    // every control that turns or judges waits for the last piece, and
+    // Reset stays alive as the healer.
+    const veil = {
+      fitSphere: true,
+      padding: 8,
+      pieces: (i) => game.build.placed.has(i),
+    };
+    $("play-canvas").innerHTML = p.toSVG(veil);
+    $("script-canvas").innerHTML = p.toSVG(veil);
+    renderMoves();
+    for (const id of ["play-start", "play-undo", "play-share"])
+      $(id).disabled = true;
+    $("play-status").textContent =
+      `In pieces: ${game.build.tray.length} in the bin. ` +
+      `The turns wait for the last place(); Reset heals it.`;
+    $("play-panel").removeAttribute("data-won");
+    if ($("seq-input")) renderSequence();
+    renderCode();
+    return;
+  }
+  for (const id of ["play-start", "play-undo", "play-share"])
+    $(id).disabled = false;
   draw($("play-canvas"), p);
   // The Script plate shows the same board, not a copy: one game object,
   // drawn twice, so the console's result is visible where it is typed.
@@ -488,7 +513,7 @@ function renderMoves() {
   // Ask the puzzle, every time. A move being in the vocabulary is not the
   // same as a move being available, and only the puzzle knows which.
   [...host.children].forEach((b, i) => {
-    b.disabled = game.busy || !game.puzzle.canMove(vocabulary[i]);
+    b.disabled = game.busy || !!game.build || !game.puzzle.canMove(vocabulary[i]);
   });
 }
 
@@ -995,7 +1020,9 @@ function renderBodies() {
 // CUBE, and a long script can turn very little.
 
 function runScript(source) {
-  const p = game.puzzle;
+  // let, not const: deal() replaces the board, and every noun must follow
+  // it to the new one.
+  let p = game.puzzle;
   // Fuel bounds every injected call, so a runaway loop that keeps asking
   // dies with a clear message instead of hanging the page. A loop that
   // never asks anything cannot be stopped from here; the page says so in
@@ -1004,7 +1031,15 @@ function runScript(source) {
   const spend = () => {
     if (--fuel < 0) throw new Error("out of fuel: 20,000 calls is a runaway loop");
   };
-  const before = p.history.length;
+  let before = p.history.length;
+  // A board in pieces neither turns nor judges: the nouns that need a whole
+  // cube say so instead of moving ghosts.
+  const whole = () => {
+    if (game.build)
+      throw new Error(
+        `the cube is in pieces: ${game.build.tray.length} still in the bin`,
+      );
+  };
 
   // per-face ranges of the state string, measured off a solved twin
   const twin = build(game.source, game.kind, game.size);
@@ -1036,38 +1071,110 @@ function runScript(source) {
   const api = {
     turn: (seq) => {
       spend();
+      whole();
       p.move(desugar(seq));
       renderCode();
     },
-    at: (name) => (spend(), occupant(name)),
+    // ── Construction: the cube itself is code ──────────────────────────
+    // deal() takes the board apart the way Assemble does: a fresh cube at
+    // rest, six centres bolted to the core, everything else in the bin.
+    deal: () => {
+      spend();
+      const fresh = build(game.source, game.kind, game.size);
+      if (fresh.constructor !== Cube)
+        throw new Error("only a plain cube comes apart; weld or carve it and the pieces stop being free");
+      game.puzzle = fresh;
+      game.scramble = "";
+      game.dealt = "";
+      p = fresh;
+      const placed = new Set();
+      const tray = [];
+      fresh.pieces.forEach((_, i) => {
+        const k = new Set(fresh.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+        if (k === 1) placed.add(i); // centres ride the spider
+        else tray.push(i);
+      });
+      for (let i = tray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tray[i], tray[j]] = [tray[j], tray[i]];
+      }
+      const locOf = (i) =>
+        nameSlot(p.getPieces().find((x) => x.index === i).slot);
+      game.build = { placed, tray, locOf };
+      renderGame();
+      return tray.map((i) => p.nameOf(i));
+    },
+    bin: () => (spend(), game.build ? game.build.tray.map((i) => p.nameOf(i)) : []),
+    // place(piece) sets it in its home slot, solved. place(piece, slot,
+    // spin) is the whole of Assemble's power in one call: any free slot of
+    // the right kind, spun on the spot, so a script can build the perfect
+    // cube or an impossible one and let lawful() say which.
+    place: (pieceName, slotName, spin = 0) => {
+      spend();
+      if (!game.build) throw new Error("nothing is in pieces: deal() first");
+      const idx = p.pieceNamed(pieceName);
+      if (!game.build.tray.includes(idx))
+        throw new Error(`${pieceName} is not in the bin`);
+      const home = p.nameOf(idx);
+      const slot = slotName || home;
+      if (String(slot).length !== home.length)
+        throw new Error(`${home} cannot stand in ${slot}: wrong kind of slot`);
+      const standing = new Set([...game.build.placed].map((i) => game.build.locOf(i)));
+      if (standing.has(slot)) throw new Error(`${slot} is already taken`);
+      const from = game.build.locOf(idx);
+      if (from !== slot) p.swapPieces(from, slot);
+      const spins = ((Math.round(spin) % 3) + 3) % 3;
+      for (let k = 0; k < spins; k++)
+        if (home.length === 3) p.twistCorner(slot);
+        else p.flipEdge(slot);
+      game.build.tray.splice(game.build.tray.indexOf(idx), 1);
+      game.build.placed.add(idx);
+      if (!game.build.tray.length) {
+        // The build IS the board, like the scramble is: the move count
+        // starts at zero from here, and the judge may now speak.
+        game.build = null;
+        p.history = [];
+        before = 0;
+      }
+      renderGame();
+    },
+    at: (name) => (spend(), whole(), occupant(name)),
     // The cube as something to iterate: every slot by its cubers' name,
     // and who is standing in it right now.
     pieces: () => {
       spend();
+      // Mid-build it walks only what is standing; ghosts in the bin have
+      // no address worth reporting.
+      const standing = game.build
+        ? new Set([...game.build.placed].map((i) => game.build.locOf(i)))
+        : null;
       return twin
         .getPieces()
         .map((pc) => {
           const slot = twin.nameOf(pc.index);
           return { at: slot, is: occupant(slot) };
         })
-        .filter((e) => e.at.length > 1); // centres never travel
+        .filter((e) => e.at.length > 1) // centres never travel
+        .filter((e) => !standing || standing.has(e.at));
     },
     // A sequence read as the permutation it drives, in cycle notation over
     // slot names: [["UB","UR","RF"]] is the whole story of a commutator.
     cycles: (seq) => {
       spend();
+      whole();
       const e = p.effectOf(desugar(seq));
       return e.cycles.map((c) => c.map(nameSlot));
     },
     face: (L) => {
       spend();
+      whole();
       const r = ranges[L];
       if (!r) throw new Error(`no face '${L}' on this puzzle`);
       return p.getState().slice(r[0], r[1]);
     },
-    solved: () => (spend(), p.matches(game.target)),
-    distance: () => (spend(), p.distanceTo(game.target)),
-    moves: () => p.history.length - before,
+    solved: () => (spend(), whole(), p.matches(game.target)),
+    distance: () => (spend(), whole(), p.distanceTo(game.target)),
+    moves: () => Math.max(0, p.history.length - before),
   };
 
   const fn = new Function(...Object.keys(api), `"use strict";\n${source}`);
@@ -1091,6 +1198,12 @@ function runScriptButton() {
     return;
   }
   renderGame();
+  // A script may end with the board still in pieces; saying "reached the
+  // pattern" about a hidden whole state would be a lie about a veil.
+  if (game.build) {
+    out.textContent = `${result.chars} characters; the board is in pieces, ${game.build.tray.length} in the bin.`;
+    return;
+  }
   const hit = game.puzzle.matches(game.target);
   out.textContent = hit
     ? `Reached the pattern: ${result.chars} characters, ${result.moves} moves.`
@@ -1379,7 +1492,7 @@ function renderSequence() {
   renderCode();
   const run = $("seq-run");
   $("seq-input").toggleAttribute("data-bad", !!read.error);
-  run.disabled = game.busy || !!read.error || !!read.empty;
+  run.disabled = game.busy || !!game.build || !!read.error || !!read.empty;
   if (read.empty) {
     out.textContent = "";
     return;
