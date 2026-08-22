@@ -176,6 +176,53 @@
       </div>
     </section>
 
+    <section class="example-plate" id="asm-panel" data-state="building">
+      <div class="example-text">
+        <h2>Assemble</h2>
+        <p>
+          The cube piece by piece. The pattern arrives, the pieces are dealt
+          from a shuffled bin, and for each you choose a slot and a spin.
+          Centres come pre-placed, because on the real thing they are bolted
+          to the core: take a 3&times;3 apart and the six centres stay on
+          the spider.
+        </p>
+        <p>
+          Two crowns wait at the end. Matching the picture is one. The other
+          is the law: a blind reassembly of a 3&times;3 is solvable one time
+          in twelve &mdash; a factor three for corner twist, a two for edge
+          flip, a two for parity &mdash; so you can build the <em>perfect
+          picture</em> and an impossible cube, and the judge will tell you
+          which you built, and why.
+        </p>
+
+        <div class="demo-controls">
+          <span class="example-label">In hand:</span>
+          <span id="asm-dealt"></span>
+        </div>
+        <div class="demo-controls">
+          <label class="control-label">
+            <span>Into</span>
+            <select id="asm-slot"></select>
+          </label>
+          <button id="asm-place">Place</button>
+          <button id="asm-spin">Spin it</button>
+          <button id="asm-flip">See D L B</button>
+          <button id="asm-new">Deal again</button>
+        </div>
+        <p class="demo-readout" id="asm-status"></p>
+
+        <div class="example-goal">
+          <div class="example-goal-art" id="asm-target"></div>
+          <div class="example-goal-text">
+            <span class="example-label">Build this</span>
+          </div>
+        </div>
+      </div>
+      <div class="example-demo">
+        <div class="example-canvas" id="asm-canvas"></div>
+      </div>
+    </section>
+
     <section class="example-plate example-plate--flip" id="play-panel">
       <div class="example-text">
         <h2>Solve</h2>

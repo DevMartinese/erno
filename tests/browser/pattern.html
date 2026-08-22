@@ -257,6 +257,29 @@ f.onload = () => setTimeout(async () => {
   $("stamp-clear").click(); await wait(100);
   check("clear vuelve a cero", /0 strokes/.test($("stamp-status").textContent));
 
+  paso("14 armar");
+  // el armado perfecto: cada pieza a su casa, girada hasta coincidir en
+  // AMBAS vistas, y al final las dos coronas
+  {
+    const fills = (sel) => { const m = {}; for (const pol of d.querySelectorAll(sel + ' polygon[data-part="sticker"]')) m[pol.dataset.face + ':' + pol.dataset.index] = pol.getAttribute('fill'); return m; };
+    const vistaBien = () => { const t = fills('#asm-target'), c = fills('#asm-canvas'); for (const k of Object.keys(c)) if (t[k] && c[k] !== t[k]) return false; return true; };
+    const ambasBien = async () => { if (!vistaBien()) return false; $("asm-flip").click(); await wait(60); const ok2 = vistaBien(); $("asm-flip").click(); await wait(60); return ok2; };
+    $("asm-new").click(); await wait(250);
+    let colocadas = 0;
+    while (!$("asm-place").disabled && colocadas < 25) {
+      const home = $("asm-dealt").dataset.home;
+      if ([...$("asm-slot").options].some(o => o.value === home)) $("asm-slot").value = home;
+      $("asm-place").click(); await wait(50); colocadas++;
+      for (let k = 0; k < 4 && !(await ambasBien()); k++) { $("asm-spin").click(); await wait(50); }
+    }
+    check("armar: 20 piezas colocadas", colocadas === 20, String(colocadas));
+    check("armar: ambas coronas", /picture is exact.*lawful/.test($("asm-status").textContent), $("asm-status").textContent.slice(0, 90));
+  }
+  // y un armado a ciegas termina con veredicto, sea cual sea
+  $("asm-new").click(); await wait(250);
+  { let v = 0; while (!$("asm-place").disabled && v++ < 25) { $("asm-place").click(); await wait(40); } }
+  check("armar a ciegas: hay veredicto doble", /picture.*(lawful|unlawful)/.test($("asm-status").textContent), $("asm-status").textContent.slice(0, 90));
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

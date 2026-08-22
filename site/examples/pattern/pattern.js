@@ -734,6 +734,168 @@ function wireStamp() {
   else newStamp({ curated: 0 });
 }
 
+// ── Assemble: the cube piece by piece, under two crowns ─────────────────────
+//
+// The Replicube move, made mechanical: the pattern arrives, the pieces are
+// dealt one at a time, and for each you choose a slot and a spin. Centres
+// come pre-placed, because on the real thing they are bolted to the core -
+// disassemble a 3×3 and the six centres stay on the spider.
+//
+// The reason this mode exists is what happens at the end. Matching the
+// picture is one crown; the second is lawful(), and it is the crown a
+// blind assembler loses eleven times out of twelve: a random reassembly of
+// a 3×3 is solvable with probability 1/12, one factor 3 for corner twist,
+// one factor 2 for edge flip, one factor 2 for parity. You can build the
+// PERFECT PICTURE and an impossible cube, and no other builder game can
+// even ask the question.
+//
+// Everything here is the public API: swapPieces carries the dealt piece to
+// its slot, twistCorner and flipEdge are the spin, the pieces option draws
+// the half-built cube, and lawful() crowns or convicts.
+
+const asm = {
+  puzzle: null,
+  targetSource: null,
+  placed: new Set(), // piece indices already standing
+  tray: [], // piece indices still to deal, corners and edges only
+  dealt: null, // the piece in hand
+  spins: 0,
+  view: 0,
+  locOf: null, // piece index -> its current LOCATION name
+};
+
+function asmLocNames() {
+  // location names, from a resting twin: where each piece of THIS build rests
+  const twin = build(asm.targetSource, "cube", 3);
+  const names = new Map();
+  for (const pc of twin.getPieces())
+    names.set(pc.slot.map((v) => Math.round(v * 2)).join(","), twin.nameOf(pc.index));
+  return (puzzle, i) => {
+    const at = puzzle.getPieces().find((x) => x.index === i);
+    return names.get(at.slot.map((v) => Math.round(v * 2)).join(","));
+  };
+}
+
+function newAssembly({ source } = {}) {
+  asm.targetSource = source || stamp.targetSource || STAMP_ALBUM[0].source;
+  asm.puzzle = build(asm.targetSource, "cube", 3);
+  asm.locOf = asmLocNames();
+  asm.placed = new Set();
+  asm.tray = [];
+  asm.spins = 0;
+  const kinds = new Map();
+  asm.puzzle.pieces.forEach((_, i) => {
+    const k = new Set(asm.puzzle.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter)).size;
+    kinds.set(i, k);
+    if (k === 1) asm.placed.add(i); // centres ride the spider
+    else asm.tray.push(i);
+  });
+  asm.kinds = kinds;
+  // dealt in a shuffled order, like a parts bin
+  for (let i = asm.tray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [asm.tray[i], asm.tray[j]] = [asm.tray[j], asm.tray[i]];
+  }
+  asm.dealt = asm.tray.shift();
+  drawAssembly();
+}
+
+function openSlotsFor(kind) {
+  // the LOCATIONS not yet holding a placed piece, of the right kind
+  const standing = new Set(
+    [...asm.placed].map((i) => asm.locOf(asm.puzzle, i)),
+  );
+  return asm.puzzle.pieces
+    .map((_, i) => i)
+    .filter((i) => asm.kinds.get(i) === kind)
+    .map((i) => asm.puzzle.nameOf(i))
+    .filter((name) => !standing.has(name));
+}
+
+function drawAssembly() {
+  const cam = STAMP_VIEWS[asm.view];
+  const target = build(asm.targetSource, "cube", 3);
+  target.setCamera(cam);
+  $("asm-target").innerHTML = target.toSVG({ fitSphere: true, padding: 8 });
+  asm.puzzle.setCamera(cam);
+  $("asm-canvas").innerHTML = asm.puzzle.toSVG({
+    fitSphere: true,
+    padding: 8,
+    pieces: (i) => asm.placed.has(i),
+  });
+
+  const slots = $("asm-slot");
+  slots.innerHTML = "";
+  const done = asm.dealt === null;
+  if (!done) {
+    const kind = asm.kinds.get(asm.dealt);
+    for (const name of openSlotsFor(kind)) {
+      const o = document.createElement("option");
+      o.value = name;
+      o.textContent = name;
+      slots.append(o);
+    }
+    const tints = asm.puzzle.pieces[asm.dealt].faces
+      .filter((f) => f.letter)
+      .map((f) => f.tint || FACES[f.letter]);
+    $("asm-dealt").innerHTML =
+      (kind === 3 ? "a corner: " : "an edge: ") +
+      tints.map((t) => `<i class="asm-chip" style="--chip:${t}"></i>`).join("");
+    // DOM transparency, in the data-face tradition: the hand names its
+    // piece for anything reading the page, without printing a spoiler.
+    $("asm-dealt").dataset.home = asm.puzzle.nameOf(asm.dealt);
+    $("asm-status").textContent = `${asm.placed.size - 6} of 20 placed.`;
+  } else {
+    $("asm-dealt").textContent = "all placed";
+    delete $("asm-dealt").dataset.home;
+    // The verdicts. Both crowns or neither, and each in its own words.
+    const picture = asm.puzzle.matches(build(asm.targetSource, "cube", 3).getPattern());
+    const law = asm.puzzle.lawful();
+    const crowns = [];
+    crowns.push(picture ? "\u{1F3AF} the picture is exact" : "the picture is off");
+    crowns.push(
+      law.lawful
+        ? "\u2696\uFE0F lawful: a solver could reach this"
+        : `unlawful: ${law.breaks[0]}`,
+    );
+    $("asm-status").textContent = crowns.join(" \u00b7 ") +
+      (picture && law.lawful ? " \u00b7 both crowns." : "");
+  }
+  $("asm-place").disabled = done;
+  $("asm-spin").disabled = done;
+  $("asm-panel").dataset.state = done ? "done" : "building";
+}
+
+function wireAssembly() {
+  $("asm-place").addEventListener("click", () => {
+    if (asm.dealt === null) return;
+    const slot = $("asm-slot").value;
+    if (!slot) return;
+    const from = asm.locOf(asm.puzzle, asm.dealt);
+    if (from !== slot) asm.puzzle.swapPieces(from, slot);
+    asm.placed.add(asm.dealt);
+    asm.lastSlot = slot;
+    asm.dealt = asm.tray.length ? asm.tray.shift() : null;
+    drawAssembly();
+  });
+  $("asm-spin").addEventListener("click", () => {
+    // spin what you LAST placed, in place, and watch it
+    if (!asm.lastSlot) return;
+    const standing = [...asm.placed].find((i) => asm.locOf(asm.puzzle, i) === asm.lastSlot);
+    if (standing === undefined) return;
+    if (asm.kinds.get(standing) === 3) asm.puzzle.twistCorner(asm.lastSlot);
+    else asm.puzzle.flipEdge(asm.lastSlot);
+    drawAssembly();
+  });
+  $("asm-flip").addEventListener("click", () => {
+    asm.view = 1 - asm.view;
+    $("asm-flip").textContent = asm.view ? "See U R F" : "See D L B";
+    drawAssembly();
+  });
+  $("asm-new").addEventListener("click", () => newAssembly({}));
+  newAssembly({ source: STAMP_ALBUM[2].source }); // "Solved": the honest first build
+}
+
 // ── Composing a puzzle out of bodies ────────────────────────────────────────
 //
 // One body is a cube and every turn is open. Add a second and the two are
@@ -1350,6 +1512,7 @@ function init() {
   $("seq-run").addEventListener("click", runSequence);
   $("script-run").addEventListener("click", runScriptButton);
   wireStamp();
+  wireAssembly();
   for (const b of document.querySelectorAll("[data-script]"))
     b.addEventListener("click", () => {
       $("script-code").value = b.dataset.script;
