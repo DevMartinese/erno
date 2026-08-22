@@ -473,6 +473,15 @@ body.example {
 #stamp-panel .example-goal-art svg {
   pointer-events: none;
 }
+/* The seed line only exists after Grow one. The two-line reserve on
+   .demo-readout guards against jumps under passive updates; this one only
+   ever fills on a click, so while empty it holds no height and the goal
+   box sits close to the status instead of floating below a ghost. */
+#stamp-seed:empty {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
 
 
 /* ── Assemble ──────────────────────────────────────────────────────────────
