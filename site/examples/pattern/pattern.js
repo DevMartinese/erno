@@ -125,6 +125,11 @@ const CHALLENGES = [
   // The two that need the sticker: neither is a function of the cubie.
   { name: "Almost solved", kind: "cube", size: 3, seed: 71, solution: "return kind == 3 ? 0 : face" },
   { name: "Face checker", kind: "cube", size: 3, seed: 83, solution: "return (row + col) % 2 ? face : 0" },
+  // Levels made for the other roads. `road` is a hint on the card, never a
+  // gate: any level takes any road, and the records stay separate.
+  { name: "Home", kind: "cube", size: 3, seed: 97, road: "build", solution: "return face" },
+  { name: "Solid checker", kind: "cube", size: 3, seed: 103, road: "build", solution: "return (x + y + z) % 2 ? F : B" },
+  { name: "Inked centers", kind: "cube", size: 3, seed: 109, road: "carve", solution: "return kind == 1 ? 0 : face" },
 ];
 
 const PRESETS = {
@@ -450,12 +455,13 @@ function renderAlbum() {
   for (const [i, c] of CHALLENGES.entries()) {
     const reached = bestOf(`erno-pattern-best-${i}`);
     const built = bestOf(`erno-pattern-built-${i}`);
+    const carved = bestOf(`erno-pattern-carved-${i}`);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "album-card";
     if (game.challenge === i) card.setAttribute("aria-current", "true");
-    card.dataset.state =
-      reached && built ? "both" : reached || built ? "some" : "none";
+    const roads = [reached, built, carved].filter(Boolean).length;
+    card.dataset.state = roads === 3 ? "all" : roads ? "some" : "none";
     const board =
       c.kind === "cube"
         ? `${c.size}×${c.size}×${c.size}`
@@ -463,10 +469,18 @@ function renderAlbum() {
     const lines = [];
     if (reached) lines.push(`Reached: ${reached.chars}c · ${reached.moves}m`);
     if (built) lines.push(`Built: ${built.chars}c`);
+    if (carved) lines.push(`Carved: ${carved.chars}c · ${carved.moves}m`);
     if (!lines.length) lines.push("No record yet");
+    const hint =
+      c.road === "build"
+        ? `<span class="album-road">a builder's level</span>`
+        : c.road === "carve"
+          ? `<span class="album-road">a carver's level</span>`
+          : "";
     card.innerHTML =
       `<span class="album-art">${artOf(i)}</span>` +
       `<span class="album-name">${c.name}</span>` +
+      hint +
       `<span class="album-board">${board} · par ${c.solution.length}</span>` +
       `<span class="album-best">${lines.join("<br>")}</span>`;
     card.addEventListener("click", () => {
@@ -2022,6 +2036,18 @@ function runScriptButton() {
         centersOnly && law && law.lawful
           ? `Carved and reached: ${result.chars} characters, ${result.moves} moves, both crowns.`
           : `Carved and reached: ${result.chars} characters, ${result.moves} moves.`;
+      if (game.challenge !== null) {
+        const key = `erno-pattern-carved-${game.challenge}`;
+        let best = {};
+        try {
+          best = JSON.parse(localStorage.getItem(key)) || {};
+        } catch { /* a hand-edited record; start fresh */ }
+        best.chars = Math.min(best.chars ?? Infinity, result.chars);
+        best.moves = Math.min(best.moves ?? Infinity, result.moves);
+        localStorage.setItem(key, JSON.stringify(best));
+        renderAlbum();
+        out.textContent += ` Best carve here: ${best.chars} characters, ${best.moves} moves.`;
+      }
     } else {
       out.textContent = `Carved: ${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers off the picture.`;
     }

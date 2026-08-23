@@ -281,6 +281,14 @@ body.example {
 .album-name {
   font-weight: 700;
 }
+.album-road {
+  padding: 0.05em 0.4em;
+  background: var(--chip);
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+  font-weight: 400;
+  white-space: nowrap;
+}
 .album-board,
 .album-best {
   font-family: var(--mono);

@@ -95,7 +95,7 @@ f.onload = () => setTimeout(async () => {
   // ── 5. los retos ───────────────────────────────────────────────────────
   const goal = $("write-goal");
   const retos = [...goal.options].slice(1);
-  check("hay ocho retos (dos piden el sticker)", retos.length === 8);
+  check("hay once retos (dos piden el sticker, tres nombran su camino)", retos.length === 11);
   for (const o of retos) {
     goal.value = o.value; fire(goal); await wait(400);
     check(`reto ${o.textContent}: muestra la meta`, $("goal-art").innerHTML.startsWith("<svg"));
@@ -298,7 +298,8 @@ f.onload = () => setTimeout(async () => {
   // ── 16. el album ───────────────────────────────────────────────────────
   {
     const cards = [...d.querySelectorAll(".album-card")];
-    check("el album tiene los ocho niveles", cards.length === 8, String(cards.length));
+    check("el album tiene los once niveles", cards.length === 11, String(cards.length));
+    check("los niveles nuevos dicen su camino", d.querySelectorAll(".album-road").length === 3, String(d.querySelectorAll(".album-road").length));
     check("cada tarjeta trae su dibujo", cards.every(c => c.querySelector("svg")));
     check("cada tarjeta trae tablero y par", cards.every(c => /par \d/.test(c.textContent)));
     cards[0].click(); await wait(320);
@@ -311,6 +312,12 @@ f.onload = () => setTimeout(async () => {
     check("el reto posee su scramble: dos arranques, una posicion", $("play-canvas").innerHTML === una);
     d.querySelectorAll(".album-card")[0].click(); await wait(320);
     check("otro click en la actual vuelve a free play", $("write-goal").value === "", $("write-goal").value);
+    // el camino del tallador guarda marca: plantada a mano, leida del estante
+    w.localStorage.setItem("erno-pattern-carved-0", JSON.stringify({ chars: 9, moves: 4 }));
+    d.querySelectorAll(".album-card")[1].click(); await wait(320);
+    check("la marca del tallador aparece en la tarjeta", /Carved: 9c · 4m/.test(d.querySelectorAll(".album-card")[0].textContent), d.querySelectorAll(".album-card")[0].textContent.slice(0, 80));
+    w.localStorage.removeItem("erno-pattern-carved-0");
+    d.querySelectorAll(".album-card")[1].click(); await wait(320);
   }
 
   paso("10 enlace");
