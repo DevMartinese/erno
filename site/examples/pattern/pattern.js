@@ -111,17 +111,20 @@ const PUZZLES = {
 // keeps the function to itself, and scores you on how few characters you
 // needed, which is the game Replicube is actually playing, and the reason
 // insight beats brute force there. `par` is the length of the solution this
-// page knows; shorter than par is a real win over the author.
+// page knows; shorter than par is a real win over the author. `seed` fixes
+// the scramble: a challenge owns its position the way it owns its board,
+// so the same level is the same level on every machine, and a best in
+// moves is a best against the same start as everybody else's.
 const CHALLENGES = [
-  { name: "Sky and ground", kind: "cube", size: 3, solution: "return y > 0 ? B : F" },
-  { name: "Quadrants", kind: "cube", size: 3, solution: "return (x > 0) == (z > 0) ? L : B" },
-  { name: "Cage", kind: "cube", size: 3, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : D" },
-  { name: "Onion", kind: "cube", size: 5, solution: "return round(hypot(x, y, z)) % 2 ? R : U" },
-  { name: "Barber pole", kind: "cube", size: 4, solution: "return (x + y) % 2 ? R : U" },
-  { name: "Long caps", kind: "cuboid", size: 5, solution: "return abs(z) > 1.5 ? D : U" },
+  { name: "Sky and ground", kind: "cube", size: 3, seed: 11, solution: "return y > 0 ? B : F" },
+  { name: "Quadrants", kind: "cube", size: 3, seed: 23, solution: "return (x > 0) == (z > 0) ? L : B" },
+  { name: "Cage", kind: "cube", size: 3, seed: 37, solution: "return abs(x) > 0.9 && abs(z) > 0.9 ? 0 : D" },
+  { name: "Onion", kind: "cube", size: 5, seed: 41, solution: "return round(hypot(x, y, z)) % 2 ? R : U" },
+  { name: "Barber pole", kind: "cube", size: 4, seed: 53, solution: "return (x + y) % 2 ? R : U" },
+  { name: "Long caps", kind: "cuboid", size: 5, seed: 67, solution: "return abs(z) > 1.5 ? D : U" },
   // The two that need the sticker: neither is a function of the cubie.
-  { name: "Almost solved", kind: "cube", size: 3, solution: "return kind == 3 ? 0 : face" },
-  { name: "Face checker", kind: "cube", size: 3, solution: "return (row + col) % 2 ? face : 0" },
+  { name: "Almost solved", kind: "cube", size: 3, seed: 71, solution: "return kind == 3 ? 0 : face" },
+  { name: "Face checker", kind: "cube", size: 3, seed: 83, solution: "return (row + col) % 2 ? face : 0" },
 ];
 
 const PRESETS = {
@@ -293,6 +296,7 @@ const game = {
   targetPos: null, // and the position that wears it
   puzzle: null,
   worst: 1, // the distance a scramble reaches, so progress has a scale
+  flat: false, // a pattern turning cannot change; Scramble stays off for it
   busy: false,
 };
 
@@ -342,7 +346,8 @@ function refreshWrite() {
     (depth === 0
       ? "This pattern is the same however you turn it, so there is nothing to solve. It asks only what kind of piece a cubie is, and turning never changes that."
       : `Scrambles to ${depth} stickers out of place.`);
-  $("play-start").disabled = depth === 0;
+  game.flat = depth === 0;
+  $("play-start").disabled = game.flat;
   $("write-depth").textContent = depth === 0 ? "not a puzzle" : "playable";
   $("write-depth").dataset.state = depth === 0 ? "flat" : "ok";
 
@@ -409,6 +414,70 @@ function renderChallenge(puzzle) {
     : `Not it yet. Par is ${par} characters; you are at ${mine}.`;
 }
 
+// ── The album ───────────────────────────────────────────────────────────────
+//
+// The challenge list as a shelf rather than a dropdown: every level wears
+// its picture, its board, its par, and the records this browser holds.
+// Reached and built are different virtues, so they are different lines,
+// and a level can wear both. The pictures are built once and kept; the
+// records are re-read on every render, because runScriptButton writes
+// them and asks for a redraw the moment a best is earned.
+const albumArt = new Map();
+
+function artOf(i) {
+  if (!albumArt.has(i)) {
+    const c = CHALLENGES[i];
+    albumArt.set(
+      i,
+      build(c.solution, c.kind, c.size).toSVG({ fitSphere: true, padding: 8 }),
+    );
+  }
+  return albumArt.get(i);
+}
+
+function bestOf(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || null;
+  } catch {
+    return null; // a hand-edited record reads as no record
+  }
+}
+
+function renderAlbum() {
+  const grid = $("album-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  for (const [i, c] of CHALLENGES.entries()) {
+    const reached = bestOf(`erno-pattern-best-${i}`);
+    const built = bestOf(`erno-pattern-built-${i}`);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "album-card";
+    if (game.challenge === i) card.setAttribute("aria-current", "true");
+    card.dataset.state =
+      reached && built ? "both" : reached || built ? "some" : "none";
+    const board =
+      c.kind === "cube"
+        ? `${c.size}×${c.size}×${c.size}`
+        : `3×3×${c.size}`;
+    const lines = [];
+    if (reached) lines.push(`Reached: ${reached.chars}c · ${reached.moves}m`);
+    if (built) lines.push(`Built: ${built.chars}c`);
+    if (!lines.length) lines.push("No record yet");
+    card.innerHTML =
+      `<span class="album-art">${artOf(i)}</span>` +
+      `<span class="album-name">${c.name}</span>` +
+      `<span class="album-board">${board} · par ${c.solution.length}</span>` +
+      `<span class="album-best">${lines.join("<br>")}</span>`;
+    card.addEventListener("click", () => {
+      const goal = $("write-goal");
+      goal.value = game.challenge === i ? "" : String(i);
+      goal.dispatchEvent(new Event("input"));
+    });
+    grid.append(card);
+  }
+}
+
 // ── Solve ───────────────────────────────────────────────────────────────────
 
 function startGame(scramble) {
@@ -419,25 +488,23 @@ function startGame(scramble) {
   game.dealt = "";
   locNames.clear();
   if (scramble) {
-    // Walk the scramble one move at a time out of what is legal from here.
-    // On a plain cube every move always is; the moment this example is
-    // pointed at a bandaged or welded puzzle it stops being true, and asking
-    // is the only thing that keeps working.
-    const walk = [];
-    for (let k = 0; k < 18; k++) {
-      const open = game.puzzle.legalMoves();
-      if (!open.length) break;
-      const token = open[Math.floor(Math.random() * open.length)];
-      game.puzzle.move(token);
-      walk.push(token);
+    // The engine owns the walk (honesty rule #1): its scramble asks what
+    // is legal one move at a time, which is what keeps working the moment
+    // this is pointed at a welded puzzle. A challenge owns a SEED as well
+    // as a board, so a challenge is the same position for everyone and
+    // Reset really does bring it back; free play keeps the dice.
+    const c = game.challenge === null ? null : CHALLENGES[game.challenge];
+    for (let seed = c ? c.seed : undefined; ; seed = c ? seed + 1 : undefined) {
+      // Kept, because the generated code claims to hand you the board you
+      // are looking at and could not: the scramble is deliberately absent
+      // from history, being the board rather than anything the player did,
+      // so without this the snippet reproduced a solved cube as yours.
+      game.scramble = game.puzzle.scramble(18, seed);
+      // A scramble that happens to land on the pattern is not a scramble;
+      // the next seed is as fixed as the first.
+      if (!game.puzzle.matches(game.target)) break;
+      game.puzzle = build(game.source, game.kind, game.size, game.carve);
     }
-    // Kept, because the generated code claims to hand you the board you are
-    // looking at and could not: the scramble is deliberately absent from
-    // history, being the board rather than anything the player did, so
-    // without this the snippet reproduced a solved cube and called it yours.
-    game.scramble = walk.join(" ");
-    // A scramble that happens to land on the pattern is not a scramble
-    if (game.puzzle.matches(game.target)) return startGame(true);
     // The scramble is the board, not the player's doing, so the move count
     // starts at zero. history is the player's record from here on.
     game.puzzle.history = [];
@@ -471,6 +538,10 @@ function renderGame() {
   }
   for (const id of ["play-start", "play-undo", "play-share"])
     $(id).disabled = false;
+  // renderGame runs after refreshWrite and was quietly re-enabling the
+  // button that refreshWrite had just turned off: a flat pattern has
+  // nothing to solve, so Scramble stays off however this page is redrawn.
+  $("play-start").disabled = game.flat;
   draw($("play-canvas"), p);
   // The Script plate shows the same board, not a copy: one game object,
   // drawn twice, so the console's result is visible where it is typed.
@@ -1923,6 +1994,7 @@ function runScriptButton() {
       } catch { /* a hand-edited record; start fresh */ }
       best.chars = Math.min(best.chars ?? Infinity, result.chars);
       localStorage.setItem(key, JSON.stringify(best));
+      renderAlbum();
       out.textContent += ` Best build here: ${best.chars} characters.`;
     }
     return;
@@ -1968,6 +2040,7 @@ function runScriptButton() {
     best.chars = Math.min(best.chars ?? Infinity, result.chars);
     best.moves = Math.min(best.moves ?? Infinity, result.moves);
     localStorage.setItem(key, JSON.stringify(best));
+    renderAlbum();
     out.textContent += ` Best here: ${best.chars} characters, ${best.moves} moves.`;
   }
 }
@@ -2933,8 +3006,10 @@ function init() {
       syncKind();
     }
     refreshWrite();
+    renderAlbum();
   });
   syncKind();
+  renderAlbum();
 
   $("body-add").addEventListener("click", () => {
     // Placed a body's width along the diagonal, which is where two cubes

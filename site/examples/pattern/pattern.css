@@ -243,6 +243,53 @@ body.example {
   background: color-mix(in oklab, var(--yellow) 22%, var(--paper));
 }
 
+/* ── The album ─────────────────────────────────────────────────────────────────── */
+
+.album {
+  margin: var(--space-2) 0 0;
+}
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+}
+.album-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  padding: var(--space-1);
+  border: var(--rule) solid var(--ink);
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.album-card[aria-current] {
+  background: var(--yellow);
+}
+.album-art {
+  width: 100%;
+}
+.album-art svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.album-name {
+  font-weight: 700;
+}
+.album-board,
+.album-best {
+  font-family: var(--mono);
+  font-size: var(--size-sm);
+}
+.album-best {
+  color: color-mix(in oklab, var(--ink) 72%, var(--paper));
+}
+
 /* ── The foot ────────────────────────────────────────────────────────── */
 
 .example-foot {
