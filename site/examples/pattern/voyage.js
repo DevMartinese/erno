@@ -170,10 +170,21 @@ const svgOf = (value, extra = {}) =>
     ...extra,
   });
 
-const frameOf = (value) => ({
-  radius: value.board.getRadius(),
-  center: value.board._viewCenter,
-});
+// A staging frame that COVERS both boards: anything smaller crops the
+// larger one into a mangled thing mid-transition. Centred on the next
+// board, wide enough for both from that centre.
+function stagingFrame(prev, next) {
+  const c = next.board._viewCenter;
+  let radius = 0;
+  for (const v of [prev, next]) {
+    const d = v.board._viewCenter.map((x, i) => x - c[i]);
+    radius = Math.max(
+      radius,
+      Math.hypot(d[0], d[1], d[2]) + v.board.getRadius(),
+    );
+  }
+  return { radius, center: c };
+}
 
 function drawValue(value) {
   base.innerHTML = svgOf(value);
@@ -211,6 +222,7 @@ function settleTransform(svgA, svgB) {
   const [bx, by] = px(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
   const scale = (a.x1 - a.x0) / (b.x1 - b.x0);
   return {
+    still: Math.abs(scale - 1) < 0.004 && Math.abs(ax - bx) < 0.75 && Math.abs(ay - by) < 0.75,
     origin: `${bx.toFixed(1)}px ${by.toFixed(1)}px`,
     css: `translate(${(ax - bx).toFixed(1)}px, ${(ay - by).toFixed(1)}px) scale(${scale.toFixed(4)})`,
   };
@@ -224,6 +236,10 @@ async function settleTo(svg, oldSvg) {
     return;
   }
   const t = settleTransform(oldSvg, svg);
+  if (t.still) {
+    base.innerHTML = svg;
+    return;
+  }
   base.style.transition = "none";
   base.style.transformOrigin = t.origin;
   base.style.transform = t.css;
@@ -265,8 +281,13 @@ async function crossfadeTo(svg) {
   over.classList.remove("is-arriving");
   base.classList.add("is-yielding");
   await sleep(440);
+  // land without a blink: the base takes the new render at full presence
+  // in the same beat the overlay leaves - no re-fade, no ghost
+  base.style.transition = "none";
   base.innerHTML = svg;
   base.classList.remove("is-yielding");
+  void base.offsetHeight;
+  base.style.transition = "";
   over.remove();
 }
 
@@ -294,14 +315,15 @@ async function morphTo(next, gen) {
     return;
   }
 
-  const F = frameOf(next);
+  const F = stagingFrame(prev, next);
   const A = new Map(prev.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const B = new Map(next.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const leaving = [...A].filter(([k]) => !B.has(k));
   const arriving = [...B].filter(([k]) => !A.has(k));
 
-  // step into the next board's frame, gliding from the old framing
-  const prevInF = svgOf(prev, { frame: F, fitSphere: false });
+  // step into the staging frame - wide enough for both bodies, so
+  // neither is ever cropped - gliding from the old framing
+  const prevInF = svgOf(prev, { frame: F });
   await settleTo(prevInF, base.innerHTML);
   if (gen !== state.gen) return;
 
@@ -325,20 +347,22 @@ async function morphTo(next, gen) {
     while (i < leaving.length) {
       if (gen !== state.gen) return;
       for (let c = 0; c < chunk && i < leaving.length; c++) gone.add(leaving[i++][1]);
-      base.innerHTML = svgOf(prev, { frame: F, fitSphere: false, pieces: (idx) => !gone.has(idx) });
+      base.innerHTML = svgOf(prev, { frame: F, pieces: (idx) => !gone.has(idx) });
       await sleep(Math.max(24, 55 * 0.93 ** (i / chunk)));
     }
     // the survivors change clothes (new stickers surface) behind a whisper
     await veilSwap(() => {
-      base.innerHTML = svgOf(next);
+      base.innerHTML = svgOf(next, { frame: F });
     });
-  } else if (leaving.length || arriving.length) {
-    // shell change: two aligned renders crossfade; the body stays
-    await crossfadeTo(svgOf(next));
   } else {
-    // same cells, new paint or new position: the aligned crossfade again
-    await crossfadeTo(svgOf(next));
+    // shell change, or new paint on the same cells: two aligned renders
+    // crossfade in the staging frame; the body stays
+    await crossfadeTo(svgOf(next, { frame: F }));
   }
+  if (gen !== state.gen) return;
+
+  // and settle out into the next board's own framing
+  await settleTo(svgOf(next), base.innerHTML);
   state.shown = next;
 }
 
