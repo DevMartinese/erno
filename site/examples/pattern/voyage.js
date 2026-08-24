@@ -160,88 +160,104 @@ const STEPS = [
 const sourceOf = (s) => s.lines.map((segs) => segs.join("")).join("\n");
 
 // ── The board ───────────────────────────────────────────────────────────────
+//
+// ONE CAMERA, for the whole voyage. Every board is drawn in the same
+// world frame, so nothing is ever rescaled to fit: a 3x3 is small
+// because it IS small, a five is bigger, the weld is bigger still, and
+// the only thing that ever changes size on screen is the object itself.
+// That single decision retires every reframe, settle and camera hold
+// this page used to need - the coherent thing and the simple thing at
+// once.
 
 const state = { step: -1, gen: 0, shown: null };
 const table = $("voyage-table");
+
+const ghostLayer = document.createElement("div");
+ghostLayer.className = "board-layer board-layer--ghost";
+table.appendChild(ghostLayer);
 
 const base = document.createElement("div");
 base.className = "board-layer";
 table.appendChild(base);
 
+// The frame that holds every board this voyage builds, measured from the
+// boards themselves rather than guessed.
+const FRAME = (() => {
+  let radius = 0;
+  for (const spec of ["3", "5", "3x3x5", "3 + 3 @ 2,2,0"]) {
+    const b = rubik(spec).board;
+    if (b._viewSpheres)
+      for (const s of b._viewSpheres)
+        radius = Math.max(radius, Math.hypot(s.c[0], s.c[1], s.c[2]) + s.r);
+    else radius = Math.max(radius, b.getRadius());
+  }
+  return { center: [0, 0, 0], radius: Math.ceil(radius * 20) / 20 };
+})();
+
 const svgOf = (value, extra = {}) =>
   value.board.toSVG({
-    fitSphere: true,
+    frame: FRAME,
     padding: 8,
     ...(value.veil ? { pieces: value.veil } : {}),
     ...extra,
   });
 
+// The scaffold: the same board drawn as bare outlines - no body, no
+// fills - so the cubies that have not arrived yet read as cubes instead
+// of as a black absence. The board lends itself for one render and is
+// handed back exactly as it was.
+const tokenColour = (name, fallback) =>
+  getComputedStyle(document.body).getPropertyValue(name).trim() || fallback;
+const GHOST_INK = tokenColour("--ink", "#17110c");
+const GHOST_PAPER = tokenColour("--paper", "#f4efe7");
+
+/**
+ * The scaffold, in two dialects. Outside the body - a cube that has not
+ * arrived, a shell that is leaving - it is drawn in INK under the board,
+ * where paper is the backdrop. Inside the body - the hollow a missing
+ * cubie leaves, which the mechanism honestly paints black - it is drawn
+ * in PAPER over the board, so the cavity is lit by its own edges and
+ * reads as cubes waiting rather than as a hole.
+ */
+function ghostSvg(value, pieces, lit) {
+  const b = value.board;
+  const plastic = b.plastic;
+  const styleObj = b._styleObj;
+  const styleFn = b._styleFn;
+  b.plastic = "none";
+  b._styleObj = {
+    fill: "none",
+    stroke: lit ? GHOST_PAPER : GHOST_INK,
+    strokeWidth: lit ? 1.8 : 1.6,
+    strokeOpacity: lit ? 0.55 : 0.32,
+  };
+  b._styleFn = null;
+  const svg = b.toSVG({ frame: FRAME, padding: 8, ...(pieces ? { pieces } : {}) });
+  b.plastic = plastic;
+  b._styleObj = styleObj;
+  b._styleFn = styleFn;
+  return svg;
+}
+
+function showGhost(svg, lit) {
+  ghostLayer.classList.toggle("board-layer--lit", !!lit);
+  ghostLayer.innerHTML = svg;
+  ghostLayer.classList.add("is-arriving");
+  void ghostLayer.offsetHeight;
+  ghostLayer.classList.remove("is-arriving");
+}
+
+async function hideGhost() {
+  if (!ghostLayer.innerHTML) return;
+  ghostLayer.classList.add("is-arriving");
+  await sleep(reduced ? 0 : 420);
+  ghostLayer.innerHTML = "";
+  ghostLayer.classList.remove("is-arriving");
+}
+
 function drawValue(value) {
   base.innerHTML = svgOf(value);
   state.shown = value;
-}
-
-// A staging frame that covers both boards, centred on the next one.
-function stagingFrame(prev, next) {
-  const c = next.board._viewCenter;
-  let radius = 0;
-  for (const v of [prev, next]) {
-    const d = v.board._viewCenter.map((x, i) => x - c[i]);
-    radius = Math.max(radius, Math.hypot(d[0], d[1], d[2]) + v.board.getRadius());
-  }
-  return { radius, center: c };
-}
-
-// Reading a render like a surveyor: content box straight off the string.
-function surveySvg(svg) {
-  const vb = svg.match(/viewBox="([^"]+)"/)[1].split(" ").map(Number);
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const m of svg.matchAll(/points="([^"]+)"/g))
-    for (const pair of m[1].split(" ")) {
-      const [x, y] = pair.split(",").map(Number);
-      if (x < x0) x0 = x; if (x > x1) x1 = x;
-      if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
-  return { vb, x0, y0, x1, y1 };
-}
-
-function settleTransform(svgA, svgB, kA = 1) {
-  const a = surveySvg(svgA);
-  const b = surveySvg(svgB);
-  const W = table.clientWidth || 480;
-  const px = (m, x, y) => [((x - m.vb[0]) / m.vb[2]) * W, ((y - m.vb[1]) / m.vb[2]) * W];
-  const [ax, ay] = px(a, (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2);
-  const [bx, by] = px(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
-  const scale = (kA * (a.x1 - a.x0)) / (b.x1 - b.x0);
-  return {
-    still: Math.abs(scale - 1) < 0.004 && Math.abs(ax - bx) < 0.75 && Math.abs(ay - by) < 0.75,
-    origin: `${bx.toFixed(1)}px ${by.toFixed(1)}px`,
-    css: `translate(${(ax - bx).toFixed(1)}px, ${(ay - by).toFixed(1)}px) scale(${scale.toFixed(4)})`,
-  };
-}
-
-// Swap the base to a new render, gliding from where the old one stood.
-async function settleTo(svg, oldSvg, gen) {
-  if (gen !== state.gen) return;
-  if (reduced || !oldSvg) {
-    base.innerHTML = svg;
-    return;
-  }
-  const t = settleTransform(oldSvg, svg);
-  if (t.still) {
-    base.innerHTML = svg;
-    return;
-  }
-  base.style.transition = "none";
-  base.style.transformOrigin = t.origin;
-  base.style.transform = t.css;
-  base.innerHTML = svg;
-  void base.offsetHeight;
-  base.style.transition = "transform 560ms cubic-bezier(0.77, 0, 0.175, 1)";
-  base.style.transform = "";
-  await sleep(580);
-  base.style.transition = "";
-  base.style.transformOrigin = "";
 }
 
 // A transient layer above the base: the moving half of every story.
@@ -288,13 +304,14 @@ async function crossfadeTo(svg, gen) {
   base.style.transition = "";
 }
 
-// ── The morph: one continuous body ──────────────────────────────────────────
+// ── The morph: one continuous body in one steady frame ──────────────────────
 
 const cellKey = (p) => p.slotPoint.map((v) => Math.round(v * 2)).join(",");
 
 async function morphTo(next, gen) {
   const prev = state.shown;
   if (!prev || reduced) {
+    await hideGhost();
     drawValue(next);
     return;
   }
@@ -307,43 +324,10 @@ async function morphTo(next, gen) {
     return;
   }
 
-  const F = stagingFrame(prev, next);
   const A = new Map(prev.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const B = new Map(next.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const leaving = new Set([...A].filter(([k]) => !B.has(k)).map(([, i]) => i));
   const arriving = new Set([...B].filter(([k]) => !A.has(k)).map(([, i]) => i));
-
-  const arrivingEntriesEarly = [...B].filter(([k]) => !A.has(k));
-  const sharedKeysEarly = [...B.keys()].filter((k) => A.has(k));
-
-  // For a JOIN (a second body arriving beside a standing one) the camera
-  // holds still: the standing cube keeps its exact size while the other
-  // slides in, and only the finished weld gets one pull-back. Everything
-  // else steps into the staging frame with a measured glide.
-  const willSlide = (() => {
-    if (!arrivingEntriesEarly.length || !sharedKeysEarly.length) return false;
-    const arrCount = arrivingEntriesEarly.length;
-    return arrCount < B.size / 1.6;
-  })();
-
-  let held = null;
-  if (willSlide && !reduced) {
-    const own = base.innerHTML;
-    const inF = svgOf(prev, { frame: F });
-    const a = surveySvg(own);
-    const b = surveySvg(inF);
-    const scale = ((a.x1 - a.x0) / a.vb[2]) / ((b.x1 - b.x0) / b.vb[2]);
-    const W0 = table.clientWidth || 480;
-    const cxF = ((b.x0 + b.x1) / 2 - b.vb[0]) / b.vb[2];
-    const cyF = ((b.y0 + b.y1) / 2 - b.vb[1]) / b.vb[2];
-    table.style.transformOrigin = `${(cxF * 100).toFixed(1)}% ${(cyF * 100).toFixed(1)}%`;
-    table.style.transform = `scale(${scale.toFixed(4)})`;
-    base.innerHTML = inF;
-    held = { k: scale, ox: cxF * W0, oy: cyF * W0 };
-  } else {
-    await settleTo(svgOf(prev, { frame: F }), base.innerHTML, gen);
-  }
-  if (gen !== state.gen) return;
 
   // hearts and distances order the waves: growth radiates outward from
   // what stands, departure peels inward from the rim
@@ -373,10 +357,9 @@ async function morphTo(next, gen) {
     return out;
   };
 
-  // Every visible instant is a COMPLETE board. A wave is not a handful
-  // of floating cubies (a cubie alone shows its dark inner walls); it is
-  // the whole board at an intermediate state, stacked and faded in
-  // sequence, so occlusion is always the mechanism's own.
+  // Every visible instant is a COMPLETE board: a cubie drawn alone shows
+  // its dark inner walls, so a wave is the whole board at an
+  // intermediate state, stacked and faded in sequence.
   const stackFade = async (renders, dir, stagger) => {
     if (reduced) return;
     if (dir === "in") {
@@ -404,12 +387,13 @@ async function morphTo(next, gen) {
   };
 
   if (leaving.size) {
-    // removal, watched: the board peels from the rim inward - a stack of
-    // intermediate boards, the fullest on top, fading away in order
+    // removal, watched: the board peels from the rim inward, and what is
+    // going stays outlined while it goes
     const under = arriving.size
-      ? svgOf(next, { frame: F, pieces: (i) => !arriving.has(i) })
-      : svgOf(next, { frame: F });
+      ? svgOf(next, { pieces: (i) => !arriving.has(i) })
+      : svgOf(next);
     base.innerHTML = under;
+    showGhost(ghostSvg(prev, (i) => leaving.has(i)));
     const waves = waveify([...A].filter(([k]) => !B.has(k)), false);
     const cumulative = [];
     const gone = new Set();
@@ -417,14 +401,14 @@ async function morphTo(next, gen) {
       for (const idx of w) gone.add(idx);
       cumulative.push(new Set(gone));
     }
-    // bottom -> top: most removed -> untouched
     const renders = [];
     for (let k = waves.length - 1; k >= 1; k--) {
       const g = cumulative[k - 1];
-      renders.push(svgOf(prev, { frame: F, pieces: (i) => !g.has(i) }));
+      renders.push(svgOf(prev, { pieces: (i) => !g.has(i) }));
     }
-    renders.push(svgOf(prev, { frame: F }));
+    renders.push(svgOf(prev));
     await stackFade(renders, "out", 170);
+    await hideGhost();
     if (gen !== state.gen) return;
   }
 
@@ -434,17 +418,18 @@ async function morphTo(next, gen) {
     const to = spotOfKeys(arrivingEntries.map(([k]) => k));
     const dx = to[0] + to[1] - (from[0] + from[1]);
     const slide = arriving.size < B.size / 1.6 && Math.abs(dx) > 0.5 && sharedKeys.length;
+    // the shape that is coming, outlined: nothing arrives out of nowhere
+    showGhost(ghostSvg(next, (i) => arriving.has(i)));
     if (slide) {
       // a second body arrives as one cube, slides in from its side, welds
-      const joining = svgOf(next, { frame: F, pieces: (i) => arriving.has(i) });
+      const joining = svgOf(next, { pieces: (i) => arriving.has(i) });
       const over = overlayWith(joining, dx > 0 ? "is-joining-r" : "is-joining-l");
       void over.offsetHeight;
       over.classList.remove("is-joining-r", "is-joining-l");
       await sleep(reduced ? 0 : 840);
       over.remove();
     } else {
-      // growth, watched: intermediate boards stacked fuller and fuller,
-      // fading on in order - the bigger cube gets made before your eyes
+      // growth, watched: intermediate boards stacked fuller and fuller
       const survivors = new Set([...B.values()].filter((i) => !arriving.has(i)));
       const waves = waveify(arrivingEntries, true);
       const standing = new Set(survivors);
@@ -452,56 +437,22 @@ async function morphTo(next, gen) {
       for (const w of waves) {
         for (const idx of w) standing.add(idx);
         const snapshot = new Set(standing);
-        renders.push(svgOf(next, { frame: F, pieces: (i) => snapshot.has(i) }));
+        renders.push(svgOf(next, { pieces: (i) => snapshot.has(i) }));
       }
       await stackFade(renders, "in", 180);
     }
     if (gen !== state.gen) return;
-    const fullF = svgOf(next, { frame: F });
-    base.innerHTML = fullF;
-    if (held) {
-      // ONE size story: swap the camera hold for a base transform that
-      // looks identical, aimed at the final framing, and release once -
-      // the finished weld glides straight to its resting size
-      const ownSvg = svgOf(next);
-      // where the finished weld truly sits on screen: the camera hold
-      // scales about the standing core, so every centre rides O + k(P-O)
-      const a = surveySvg(fullF);
-      const b = surveySvg(ownSvg);
-      const W = table.clientWidth || 480;
-      const pxOf = (m, x, y) => [((x - m.vb[0]) / m.vb[2]) * W, ((y - m.vb[1]) / m.vb[2]) * W];
-      const [axr, ayr] = pxOf(a, (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2);
-      const ax = held.ox + held.k * (axr - held.ox);
-      const ay = held.oy + held.k * (ayr - held.oy);
-      const [bx, by] = pxOf(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
-      const scale2 = (held.k * (a.x1 - a.x0)) / (b.x1 - b.x0);
-      table.style.transform = "";
-      table.style.transformOrigin = "";
-      base.style.transition = "none";
-      base.style.transformOrigin = `${bx.toFixed(1)}px ${by.toFixed(1)}px`;
-      base.style.transform = `translate(${(ax - bx).toFixed(1)}px, ${(ay - by).toFixed(1)}px) scale(${scale2.toFixed(4)})`;
-      base.innerHTML = ownSvg;
-      void base.offsetHeight;
-      base.style.transition = "transform 820ms cubic-bezier(0.77, 0, 0.175, 1)";
-      base.style.transform = "";
-      await sleep(840);
-      base.style.transition = "";
-      base.style.transformOrigin = "";
-      state.shown = next;
-      return;
-    }
+    base.innerHTML = svgOf(next);
+    await hideGhost();
   } else if (leaving.size) {
     // the survivors' new stickers surface behind a whisper
     await veilSwap(() => {
-      base.innerHTML = svgOf(next, { frame: F });
+      base.innerHTML = svgOf(next);
     }, gen);
   } else {
-    await crossfadeTo(svgOf(next, { frame: F }), gen);
+    await crossfadeTo(svgOf(next), gen);
   }
   if (gen !== state.gen) return;
-
-  // settle out into the next board's own framing
-  await settleTo(svgOf(next), base.innerHTML, gen);
   state.shown = next;
 }
 
@@ -540,7 +491,8 @@ async function playTurns(value, seq, gen) {
   state.shown = value;
 }
 
-// The assembly: pieces return to the frame one by one, quickening.
+// The assembly: the whole cube stands outlined, and the pieces return to
+// it one by one - you can see exactly what is being built.
 async function reveal(value, gen) {
   const board = value.board;
   const held = new Set();
@@ -553,6 +505,7 @@ async function reveal(value, gen) {
     return;
   }
   const standing = new Set(held);
+  showGhost(ghostSvg(value, (idx) => !standing.has(idx)), true);
   await veilSwap(() => {
     base.innerHTML = svgOf(value, { pieces: (idx) => standing.has(idx) });
   }, gen);
@@ -561,11 +514,16 @@ async function reveal(value, gen) {
     if (gen !== state.gen) return;
     standing.add(idx);
     base.innerHTML = svgOf(value, { pieces: (id) => standing.has(id) });
+    // the scaffold keeps only what is still missing
+    const left = new Set(standing);
+    ghostLayer.innerHTML = ghostSvg(value, (id) => !left.has(id), true);
     await sleep(Math.max(40, 95 * 0.95 ** i));
     i++;
   }
+  await hideGhost();
   state.shown = value;
 }
+
 
 // ── The code panel: segments, not keystrokes ────────────────────────────────
 

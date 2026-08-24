@@ -187,16 +187,35 @@
         position: relative;
       }
       #voyage-table {
-        width: min(80%, 30rem);
+        /* one camera: the frame is fixed, so this width is the world's
+           scale for the whole voyage - a 3×3 fills less of it than a
+           five, and that difference is the honest one */
+        width: min(96%, 44rem, 68vh);
         position: relative;
       }
       #voyage-table svg { width: 100%; height: auto; display: block; }
       .board-layer {
+        position: relative;
+        z-index: 1;
         transition: opacity 640ms ease, filter 640ms ease;
       }
       .board-layer--over {
         position: absolute;
         inset: 0;
+        z-index: 2;
+      }
+      /* the scaffold: what is coming, or going, drawn as bare outline */
+      .board-layer--ghost {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        transition: opacity 420ms ease;
+      }
+      /* the lit dialect rides ABOVE the board: it is the cavity's own
+         edges, and a cavity is only dark from the outside */
+      .board-layer--ghost.board-layer--lit {
+        z-index: 3;
+        pointer-events: none;
       }
       /* the shell change: both bodies on screen through the middle */
       .board-layer.is-arriving { opacity: 0; filter: blur(2px); }
