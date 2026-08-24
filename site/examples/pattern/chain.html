@@ -165,13 +165,23 @@
       #voyage-table {
         contain: content;
         width: min(80%, 30rem);
-        transition: opacity 260ms var(--ease-strong), transform 260ms var(--ease-strong),
-          filter 260ms var(--ease-strong);
+        position: relative;
       }
       #voyage-table svg { width: 100%; height: auto; display: block; }
-      #voyage-table.is-molting {
-        opacity: 0;
-        transform: scale(0.975);
+      .board-layer {
+        transition: opacity 440ms ease, filter 440ms ease;
+      }
+      .board-layer + .board-layer {
+        position: absolute;
+        inset: 0;
+      }
+      /* the shell change: both bodies on screen through the middle */
+      .board-layer.is-arriving { opacity: 0; filter: blur(2px); }
+      .board-layer.is-yielding { opacity: 0; filter: blur(2px); }
+      /* the whisper: a recolouring hides in the blur, the body stays */
+      .board-layer.is-veiled {
+        transition: opacity 160ms ease, filter 160ms ease;
+        opacity: 0.85;
         filter: blur(2px);
       }
       #voyage-goal {
@@ -192,11 +202,10 @@
       #voyage-goal .example-label { display: block; margin-bottom: 0.3rem; }
 
       @media (prefers-reduced-motion: reduce) {
-        .cline, .voyage-caption p, #voyage-table {
+        .cline, .voyage-caption p, .board-layer {
           transition-property: opacity;
           transition-duration: 150ms;
         }
-        #voyage-table.is-molting { transform: none; filter: none; }
       }
     </style>
   </head>

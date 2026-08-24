@@ -4,7 +4,7 @@
    Two panels. The left is the sketch, growing and refined step by step -
    lines type themselves in, edits happen at the common prefix, retired
    lines collapse away. The right is the consequence: the real board,
-   molting through rebuilds behind a two-pixel blur, playing real turns,
+   settling between framings, crossfading aligned shells, playing turns,
    assembling piece by piece. Nothing is a recording: every step's code
    runs against the engine when it lands.
 
@@ -155,6 +155,13 @@ const STEPS = [
 
 const table = $("voyage-table");
 
+// The table holds one BASE layer (what stands) and, during a shell
+// change, a transient overlay - two aligned renders crossfading, so the
+// body never leaves the screen.
+const base = document.createElement("div");
+base.className = "board-layer";
+table.appendChild(base);
+
 const svgOf = (value, extra = {}) =>
   value.board.toSVG({
     fitSphere: true,
@@ -163,45 +170,113 @@ const svgOf = (value, extra = {}) =>
     ...extra,
   });
 
+const frameOf = (value) => ({
+  radius: value.board.getRadius(),
+  center: value.board._viewCenter,
+});
+
 function drawValue(value) {
-  table.innerHTML = svgOf(value);
+  base.innerHTML = svgOf(value);
   state.shown = value;
 }
 
-// The molt: the old board leaves behind two pixels of blur, the new one
-// arrives from 97.5% - one object transforming, never two objects swapping.
-async function molt(value) {
-  if (reduced) {
-    drawValue(value);
-    return;
-  }
-  table.classList.add("is-molting");
-  await sleep(270);
-  drawValue(value);
-  table.classList.remove("is-molting");
-  await sleep(270);
+// ── Reading a render like a surveyor ────────────────────────────────────────
+//
+// The settle between two framings needs the same body's screen position in
+// both. No DOM, no projector math: every polygon's points already live in
+// viewBox units inside the string, so the content box is a string away.
+function surveySvg(svg) {
+  const vb = svg.match(/viewBox="([^"]+)"/)[1].split(" ").map(Number);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const m of svg.matchAll(/points="([^"]+)"/g))
+    for (const pair of m[1].split(" ")) {
+      const [x, y] = pair.split(",").map(Number);
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  return { vb, x0, y0, x1, y1 };
 }
 
-// A briefer seam, for the middle of a morph: the reframe between two
-// boards' viewBoxes hides behind the same two pixels of blur.
-async function pulse(fn) {
+// The transform that makes render B look like render A at the moment of
+// the swap - measured off the two strings at the table's real width.
+function settleTransform(svgA, svgB) {
+  const a = surveySvg(svgA);
+  const b = surveySvg(svgB);
+  const W = table.clientWidth || 480;
+  const px = (m, x, y) => [
+    ((x - m.vb[0]) / m.vb[2]) * W,
+    ((y - m.vb[1]) / m.vb[2]) * W, // same scale both axes: viewBox is uncropped
+  ];
+  const [ax, ay] = px(a, (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2);
+  const [bx, by] = px(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+  const scale = (a.x1 - a.x0) / (b.x1 - b.x0);
+  return {
+    origin: `${bx.toFixed(1)}px ${by.toFixed(1)}px`,
+    css: `translate(${(ax - bx).toFixed(1)}px, ${(ay - by).toFixed(1)}px) scale(${scale.toFixed(4)})`,
+  };
+}
+
+// Swap the base to a new render, gliding from exactly where the old one
+// stood: the same body, re-framed, never replaced.
+async function settleTo(svg, oldSvg) {
+  if (reduced || !oldSvg) {
+    base.innerHTML = svg;
+    return;
+  }
+  const t = settleTransform(oldSvg, svg);
+  base.style.transition = "none";
+  base.style.transformOrigin = t.origin;
+  base.style.transform = t.css;
+  base.innerHTML = svg;
+  void base.offsetHeight;
+  base.style.transition = "transform 340ms cubic-bezier(0.77, 0, 0.175, 1)";
+  base.style.transform = "";
+  await sleep(360);
+  base.style.transition = "";
+  base.style.transformOrigin = "";
+}
+
+// A whisper of a veil for a seam where only the paint changes: the body
+// stays at nearly full presence, the recolouring hides in the blur.
+async function veilSwap(fn) {
   if (reduced) {
     fn();
     return;
   }
-  table.classList.add("is-molting");
-  await sleep(180);
+  base.classList.add("is-veiled");
+  await sleep(160);
   fn();
-  table.classList.remove("is-molting");
-  await sleep(180);
+  base.classList.remove("is-veiled");
+  await sleep(160);
 }
 
-// The morph: two boards matched cell by cell on the one lattice. What
-// only the old board owns dissolves from the rim inward; what only the
-// new board owns accretes from the shared core outward; the paint and
-// the frame change under the blur in the middle. A cube grows into a
-// five, a five is carved down to a box, a box meets its second body -
-// the same walk tells every one of those stories.
+// Two aligned renders crossfading in place - the shell change. Both are
+// on screen through the middle, which is the whole point.
+async function crossfadeTo(svg) {
+  if (reduced) {
+    base.innerHTML = svg;
+    return;
+  }
+  const over = document.createElement("div");
+  over.className = "board-layer is-arriving";
+  over.innerHTML = svg;
+  table.appendChild(over);
+  void over.offsetHeight;
+  over.classList.remove("is-arriving");
+  base.classList.add("is-yielding");
+  await sleep(440);
+  base.innerHTML = svg;
+  base.classList.remove("is-yielding");
+  over.remove();
+}
+
+// ── The morph ───────────────────────────────────────────────────────────────
+//
+// Everything happens in the NEXT board's own frame. The old board settles
+// into that frame first (measured, gliding, the same body re-framed);
+// then: pure removals dissolve cell by cell and seam behind a whisper of
+// blur; shell changes crossfade in two aligned layers. Nothing ever
+// leaves the screen to be replaced.
 const cellKey = (p) => p.slotPoint.map((v) => Math.round(v * 2)).join(",");
 
 async function morphTo(next, gen) {
@@ -210,41 +285,39 @@ async function morphTo(next, gen) {
     drawValue(next);
     return;
   }
+  if (
+    prev.board.getTints().join() === next.board.getTints().join() &&
+    prev.board.getPosition() === next.board.getPosition() &&
+    !prev.veil && !next.veil
+  ) {
+    drawValue(next);
+    return;
+  }
+
+  const F = frameOf(next);
   const A = new Map(prev.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const B = new Map(next.board.pieces.map((pc, i) => [cellKey(pc), i]));
   const leaving = [...A].filter(([k]) => !B.has(k));
   const arriving = [...B].filter(([k]) => !A.has(k));
-  if (!leaving.length && !arriving.length) {
-    // the same board in the same clothes needs no ceremony at all
-    if (
-      prev.board.getTints().join() === next.board.getTints().join() &&
-      prev.board.getPosition() === next.board.getPosition()
-    ) {
-      drawValue(next);
-      return;
+
+  // step into the next board's frame, gliding from the old framing
+  const prevInF = svgOf(prev, { frame: F, fitSphere: false });
+  await settleTo(prevInF, base.innerHTML);
+  if (gen !== state.gen) return;
+
+  if (leaving.length && !arriving.length) {
+    // pure removal: the rim dissolves, farthest from the survivors first
+    const heart = [0, 0, 0];
+    const spot = (k) => k.split(",").map((v) => Number(v) / 2);
+    for (const k of B.keys()) {
+      const c = spot(k);
+      heart[0] += c[0]; heart[1] += c[1]; heart[2] += c[2];
     }
-    // same mechanism: a repaint or a repositioning - one molt tells it
-    await molt(next);
-    return;
-  }
-
-  // distances from the shared region's heart order both processions
-  const shared = [...B.keys()].filter((k) => A.has(k));
-  const heart = [0, 0, 0];
-  const spot = (k) => k.split(",").map((v) => Number(v) / 2);
-  for (const k of shared.length ? shared : [...B.keys()]) {
-    const c = spot(k);
-    heart[0] += c[0]; heart[1] += c[1]; heart[2] += c[2];
-  }
-  const n = (shared.length ? shared : [...B.keys()]).length;
-  heart.forEach((v, i) => (heart[i] = v / n));
-  const far = (k) => {
-    const c = spot(k);
-    return (c[0] - heart[0]) ** 2 + (c[1] - heart[1]) ** 2 + (c[2] - heart[2]) ** 2;
-  };
-
-  // phase one: the rim dissolves, farthest first
-  if (leaving.length) {
+    heart.forEach((v, i) => (heart[i] = v / B.size));
+    const far = (k) => {
+      const c = spot(k);
+      return (c[0] - heart[0]) ** 2 + (c[1] - heart[1]) ** 2 + (c[2] - heart[2]) ** 2;
+    };
     leaving.sort((a, b) => far(b[0]) - far(a[0]));
     const gone = new Set();
     const chunk = Math.max(1, Math.ceil(leaving.length / 22));
@@ -252,91 +325,21 @@ async function morphTo(next, gen) {
     while (i < leaving.length) {
       if (gen !== state.gen) return;
       for (let c = 0; c < chunk && i < leaving.length; c++) gone.add(leaving[i++][1]);
-      table.innerHTML = svgOf(prev, { pieces: (idx) => !gone.has(idx) });
+      base.innerHTML = svgOf(prev, { frame: F, fitSphere: false, pieces: (idx) => !gone.has(idx) });
       await sleep(Math.max(24, 55 * 0.93 ** (i / chunk)));
     }
-  }
-
-  // the seam: paint and frame change behind the blur
-  const standing = new Set(shared.map((k) => B.get(k)));
-  await pulse(() => {
-    table.innerHTML = svgOf(next, { pieces: (idx) => standing.has(idx) });
-  });
-
-  // phase two: the new body accretes, nearest first
-  if (arriving.length) {
-    arriving.sort((a, b) => far(a[0]) - far(b[0]));
-    const chunk = Math.max(1, Math.ceil(arriving.length / 22));
-    let i = 0;
-    while (i < arriving.length) {
-      if (gen !== state.gen) return;
-      for (let c = 0; c < chunk && i < arriving.length; c++) standing.add(arriving[i++][1]);
-      table.innerHTML = svgOf(next, { pieces: (idx) => standing.has(idx) });
-      await sleep(Math.max(24, 55 * 0.93 ** (i / chunk)));
-    }
+    // the survivors change clothes (new stickers surface) behind a whisper
+    await veilSwap(() => {
+      base.innerHTML = svgOf(next);
+    });
+  } else if (leaving.length || arriving.length) {
+    // shell change: two aligned renders crossfade; the body stays
+    await crossfadeTo(svgOf(next));
+  } else {
+    // same cells, new paint or new position: the aligned crossfade again
+    await crossfadeTo(svgOf(next));
   }
   state.shown = next;
-}
-
-// Real turns, eased frame by frame, each one a touch quicker than the last.
-async function playTurns(value, seq, gen) {
-  const board = value.board; // materialized fresh for this value: ours to move
-  const tokens = seq.split(/\s+/).filter(Boolean);
-  let i = 0;
-  for (const token of tokens) {
-    if (gen !== state.gen) return;
-    const ms = reduced ? 0 : Math.max(70, 200 * 0.93 ** i);
-    if (ms) {
-      const t0 = performance.now();
-      await new Promise((done) => {
-        const frame = (now) => {
-          try {
-            if (gen !== state.gen) return done();
-            const t = Math.min(1, (now - t0) / ms);
-            const progress = 1 - (1 - t) ** 3;
-            table.innerHTML = svgOf(value, { turn: { move: token, progress } });
-            if (t < 1) requestAnimationFrame(frame);
-            else done();
-          } catch (err) {
-            console.error(err);
-            done();
-          }
-        };
-        requestAnimationFrame(frame);
-      });
-    }
-    board.move(token);
-    table.innerHTML = svgOf(value);
-    i++;
-  }
-  state.shown = value;
-}
-
-// The assembly: pieces return to the frame one by one, quick and quickening.
-async function reveal(value, gen) {
-  const board = value.board;
-  const held = new Set();
-  board.pieces.forEach((piece, idx) => {
-    if (piece.faces.filter((f) => f.letter).length < 2) held.add(idx);
-  });
-  const free = board.pieces.map((_, idx) => idx).filter((idx) => !held.has(idx));
-  if (reduced) {
-    drawValue(value);
-    return;
-  }
-  const standing = new Set(held);
-  await pulse(() => {
-    table.innerHTML = svgOf(value, { pieces: (idx) => standing.has(idx) });
-  });
-  let i = 0;
-  for (const idx of free) {
-    if (gen !== state.gen) return;
-    standing.add(idx);
-    table.innerHTML = svgOf(value, { pieces: (id) => standing.has(id) });
-    await sleep(Math.max(30, 70 * 0.94 ** i));
-    i++;
-  }
-  state.shown = value;
 }
 
 // ── The code panel ──────────────────────────────────────────────────────────

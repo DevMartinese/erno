@@ -2350,8 +2350,8 @@ export class Twisty {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
-  _project() {
-    return makeProjector(this.camera, this.tile, 2 * this._radius);
+  _project(span) {
+    return makeProjector(this.camera, this.tile, 2 * (span || this._radius));
   }
 
   /**
@@ -2841,14 +2841,18 @@ export class Twisty {
     });
   }
 
-  getFaces(turn, pieceFilter) {
-    const proj = this._project();
+  getFaces(turn, pieceFilter, frame) {
+    // `frame` borrows another board's framing - radius and view centre -
+    // so two boards drawn in the same frame land their shared lattice
+    // cells on identical pixels. That is what lets one board become
+    // another on screen instead of being replaced by it.
+    const proj = this._project(frame && frame.radius);
     // `view` orients a definition (the Pyraminx sits in a cube frame);
     // `deform` is the caller's, and composes on top of it.
     const view = this._deform
       ? matMul(this._deform, this.def.view || IDENT)
       : this.def.view || IDENT;
-    const R = this._radius;
+    const R = (frame && frame.radius) || this._radius;
     const spin = this._spinFor(turn);
     if (spin) {
       // The turn axis carried into render space. A layer is bounded by cut
@@ -2860,7 +2864,7 @@ export class Twisty {
     }
 
     const inset = Math.max(0, Math.min(0.45, this.stickerInset));
-    const C = this._viewCenter;
+    const C = (frame && frame.center) || this._viewCenter;
     const toRender = (p) => [p[0] - C[0] + R, R - (p[1] - C[1]), R - (p[2] - C[2])];
     // physical placement, then orient for display — p' = V · (M·p + T),
     // where T carries every turn taken about a centre other than the origin
@@ -3217,12 +3221,15 @@ export class Twisty {
    * padding, viewBox, fitSphere, turn, prepend, append.
    */
   toSVG(options = {}) {
-    const faces = this.getFaces(options.turn, options.pieces);
+    const faces = this.getFaces(options.turn, options.pieces, options.frame);
     const pad = options.padding === undefined ? 20 : options.padding;
 
     let vb;
     if (options.viewBox) vb = options.viewBox;
-    else if (options.fitSphere) {
+    else if (options.frame) {
+      const FR = options.frame.radius;
+      vb = sphereViewBox(this._project(FR), FR, FR, FR, FR, pad);
+    } else if (options.fitSphere) {
       // A number frames to that radius instead of the puzzle's own, so a set
       // of puzzles can share one frame. Two 3×3s draw the same geometry but
       // reserve different room — a Mirror shape-shifts and needs it — and
