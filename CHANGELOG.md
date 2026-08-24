@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.13 (2026-08-23)
+
+- The weld's laws, computed instead of quoted: `lawful()` now judges
+  welded assemblies exactly. Every turn is a permutation of facelet
+  places, the group those turns generate is built by Schreier-Sims
+  (`src/group.js`, BigInt orders, validated by reproducing the 3x3's
+  43,252,003,274,489,856,000 positions from its six face turns), and
+  membership decides - body by body where the slabs never meet, so the
+  verdict names the body it convicts. On a weld a slab either always
+  comes back to itself or never does, so lawful means reachable and
+  the verdict is complete. Bandaged assemblies still wait, and say so.
+- The weld spells body-first everywhere: `pieceNamed("ADLB")` is body
+  A's DLB, and a bare name on a weld is refused with the lesson, since
+  two bodies both answer to one. The tamper verbs follow, and
+  `swapPieces` learns the road the origin symmetry cannot walk: each
+  piece turns in place until its stickers face the other slot's
+  outward pattern, then walks straight over - within a body, or across
+  the bar, where the judge duly convicts both travellers.
+- Welds carve. `carve("centers")` on a weld removes the single-sticker
+  pieces of both bodies (only body A lives at the origin, so the
+  two-zero-coordinates rule was never going to reach body B); the
+  board spec takes it (`"3 + 3 @ 2,2,0 - centers"` round-trips, named
+  carves spell body-first, the weld's shared pieces refuse); and the
+  carved weld keeps the exact judge whatever was carved, because
+  blocking only fires a turn whose occupied slab comes back to itself,
+  so the holes never walk to new places.
+
 ## 0.2.12 (2026-08-22)
 
 - The alg value, engine-native: `algOf(board, seq)` declares a sequence
