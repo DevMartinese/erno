@@ -607,9 +607,15 @@ async function renderLines(lines, gen) {
   const before = new Map();
   if (!reduced) for (const el of oldLines) before.set(el, el.getBoundingClientRect().top);
 
-  // retire unclaimed lines
+  // retire unclaimed lines: pinned where they stand, out of the flow, so
+  // the survivors' glide is the only motion the eye has to follow
+  const hostBox = linesHost.getBoundingClientRect();
   for (const [i, el] of oldLines.entries()) {
     if (usedOld.has(i)) continue;
+    const r = el.getBoundingClientRect();
+    el.style.top = `${r.top - hostBox.top}px`;
+    el.style.left = `${r.left - hostBox.left}px`;
+    el.style.width = `${r.width}px`;
     el.classList.add("is-gone");
     setTimeout(() => el.remove(), 700);
   }

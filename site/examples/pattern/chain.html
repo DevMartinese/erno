@@ -98,6 +98,7 @@
       .voyage-caption p.is-entering { opacity: 0; transform: translateY(8px); }
 
       #voyage-lines {
+        position: relative;
         overflow: visible;
         font-family: var(--mono);
         font-size: 1.05rem;
@@ -122,13 +123,16 @@
         transition: opacity 420ms var(--ease-strong), transform 420ms var(--ease-strong);
       }
       .cline.is-new { opacity: 0; transform: translateY(10px); }
+      /* a retiring line leaves the FLOW at once - measured into place,
+         out of the layout - so the lines below can glide up instead of
+         waiting for a collapse that cannot animate from auto */
       .cline.is-gone {
+        position: absolute;
         opacity: 0;
         transform: translateY(-8px);
-        max-height: 0;
+        filter: blur(3px);
         transition: opacity 300ms var(--ease-strong), transform 300ms var(--ease-strong),
-          max-height 360ms var(--ease-move) 80ms;
-        overflow: hidden;
+          filter 300ms var(--ease-strong);
       }
       /* the segment is the unit of change: it floats in soft and a
          little blurred, and a replaced one crosses over as a ghost */
@@ -155,7 +159,9 @@
       .voyage-verdict {
         font-family: var(--mono);
         font-size: var(--size-sm);
-        min-height: 2.6em;
+        /* room for the longest reading a step can print, so the column's
+           centred block never shifts when a verdict runs long */
+        min-height: 5.7em;
         margin: var(--space-1) 0 0;
         white-space: pre-wrap;
         transition: opacity 200ms var(--ease-strong);
