@@ -1,3 +1,4 @@
+import { groupOf } from "../src/group.js";
 import {
   Erno,
   Twisty,
@@ -1900,6 +1901,55 @@ test("the engine alg speaks the weld dialect, body-first", () => {
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────
+
+test("the weld's laws are computed, and the cube's own group vouches for the method", () => {
+  const c = new Cube({ size: 3 });
+  const gens = ["U", "D", "L", "R", "F", "B"].map((tok) => c._faceletPermOf(tok));
+  const g = groupOf(gens, c._faceletCount);
+  assert(g.order === 43252003274489856000n, "the face turns generate exactly the cube's group");
+  const d = new Cube({ size: 3 });
+  d.scramble(40, 11);
+  assert(g.contains(d._faceletPermNow()), "a scramble is a member");
+  assert(!g.contains(new Cube({ size: 3 }).twistCorner("URF")._faceletPermNow()), "a twisted corner is not");
+  assert(!g.contains(new Cube({ size: 3 }).flipEdge("UF")._faceletPermNow()), "a lone flip is not");
+});
+
+test("the Siamese is judged exactly: lawful means reachable", () => {
+  const s = new Siamese();
+  const v = s.lawful();
+  assert(v.lawful && v.complete, "at rest, lawful and complete");
+  for (const seed of [1, 7, 13, 29, 42]) {
+    s.scramble(30, seed);
+    assert(s.lawful().lawful, `a scramble stays lawful (seed ${seed})`);
+  }
+});
+
+test("the weld's judge names the body it convicts", () => {
+  const twisted = new Siamese().twistCorner("DLB").lawful();
+  assert(!twisted.lawful, "a twisted corner is convicted");
+  assert(twisted.breaks.some((b) => /body [A-Z]/.test(b)), "and the verdict names the body");
+  assert(!new Siamese().flipEdge("DL").lawful().lawful, "a lone flip is convicted");
+  assert(!new Siamese().swapPieces("D", "U").lawful().lawful, "two centres alone cannot trade places");
+});
+
+test("on a weld, what turns once turns always", () => {
+  const s = new Siamese();
+  const rest = s.legalMoves().join(" ");
+  for (const seed of [3, 17]) {
+    s.scramble(40, seed);
+    assert(s.legalMoves().join(" ") === rest, "the legal set is the shape's, not the state's");
+  }
+  assert(s.lawful().complete, "which is why the verdict is complete, not cautious");
+});
+
+test("the unequal weld is judged on its own turns", () => {
+  const f = new Fused();
+  const v = f.lawful();
+  assert(v.lawful && v.complete, "at rest");
+  f.scramble(30, 5);
+  assert(f.lawful().lawful, "a scramble is reachable");
+  assert(!new Fused().twistCorner("DLB").lawful().lawful, "a twisted corner is not");
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -504,15 +504,12 @@ test("the laws of the possible, and the verbs that break them", () => {
     p.scramble();
     assert(p.lawful().lawful, `${p.name}: every reachable position stays lawful`);
   }
-  // welded assemblies get the verbs but not yet the judge, honestly
-  new Siamese().twistCorner("DLB"); // does not throw
-  let welded = "";
-  try {
-    new Siamese().lawful();
-  } catch (e) {
-    welded = e.message;
-  }
-  assert(/welded/.test(welded), "a weld's laws are not written, and it says so");
+  // welded assemblies get the verbs AND, now, the judge: computed from
+  // the mechanism's own turns, exact, and convicting by body
+  const weld = new Siamese().twistCorner("DLB").lawful();
+  assert(!weld.lawful && /body A/.test(weld.breaks[0]), "a weld's twist is convicted, and the body is named");
+  const rested = new Siamese().lawful();
+  assert(rested.lawful && rested.complete, "a weld at rest is lawful, and the verdict is complete");
 
   // the Void is under the law; the Megaminx says its laws are not written
   assert(!new Void().flipEdge("UF").lawful().lawful, "the Void answers to it");

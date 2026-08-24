@@ -24,6 +24,7 @@
  */
 
 import { expand, isAlgebra } from "./algebra.js";
+import { groupOf } from "./group.js";
 import {
   makeProjector,
   buildSvgAttributes,
@@ -1912,6 +1913,121 @@ export class Twisty {
     return this;
   }
 
+  // ── The weld's laws, computed instead of quoted ──────────────────────────
+  //
+  // A facelet is a place a sticker can stand: a slot and an outward
+  // direction. Every position is a permutation of the facelets, and every
+  // turn is one too - the same slab rotation whoever stands in it. On a
+  // weld the occupied region never changes (_turnFits keeps it whole), so
+  // a slab either always comes back to itself or never does: which turns
+  // exist is the shape's business, not the state's. That is what lets the
+  // judge be exact here: the group those turns generate IS the reachable
+  // set, and membership is computed - Schreier-Sims, in group.js - never
+  // quoted from a book.
+
+  _faceletGeom() {
+    if (this._faceletPlaces) return this._faceletPlaces;
+    const places = new Array(this._faceletCount);
+    for (const [key, { index }] of this._faceletIndex) {
+      const [slot, dir] = key.split("|").map((part) => part.split(",").map(Number));
+      places[index] = { slot, dir };
+    }
+    return (this._faceletPlaces = places);
+  }
+
+  /** The current position as a permutation of the facelet places. */
+  _faceletPermNow() {
+    const perm = new Array(this._faceletCount);
+    this.pieces.forEach((piece, i) => {
+      const slot = this._slotOf(i);
+      for (const f of piece.faces) {
+        if (!f.letter) continue;
+        const home = this._faceletAt(homeSlot(piece, f), f.normal);
+        if (home === undefined || perm[home.index] !== undefined) continue;
+        const now = this._faceletAt(slot, matVec(this._rot[i], f.normal));
+        if (now === undefined)
+          throw new Error(
+            `erno: ${this.nameOf(i)} is standing off the lattice; that is damage, not a position`,
+          );
+        perm[home.index] = now.index;
+      }
+    });
+    return perm;
+  }
+
+  /**
+   * One turn as a permutation of facelet places, or null when its slab
+   * never comes back to itself - on a weld such a token is refused in
+   * every position, so it contributes nothing to what is reachable.
+   */
+  _faceletPermOf(token) {
+    const places = this._faceletGeom();
+    const spec = this.parseMove(token);
+    if (!spec.angle) return null;
+    const M = snapMatrix(rotationMatrix(spec.axis, spec.angle));
+    const t = offsetFor(M, spec.center || ORIGIN);
+    const perm = new Array(places.length);
+    for (let k = 0; k < places.length; k++) {
+      const { slot, dir } = places[k];
+      if (!this._inLayer(slot, spec)) {
+        perm[k] = k;
+        continue;
+      }
+      const to = this._faceletAt(add(matVec(M, slot), t), matVec(M, dir));
+      if (to === undefined) return null;
+      perm[k] = to.index;
+    }
+    return perm;
+  }
+
+  /**
+   * The weld's turns, grouped by the body their token names, each with its
+   * strong generating set. Bodies whose slabs never meet judge separately,
+   * which is what lets a verdict name the body; a weld strange enough to
+   * share a slab is judged whole.
+   */
+  _weldGroups() {
+    if (this._weldLaw) return this._weldLaw;
+    const byBody = new Map();
+    const moved = new Set();
+    for (const token of this.vocabulary()) {
+      const perm = this._faceletPermOf(token);
+      if (!perm) continue;
+      const body = token[0];
+      if (!byBody.has(body)) byBody.set(body, { gens: [], support: new Set() });
+      const b = byBody.get(body);
+      b.gens.push(perm);
+      for (let k = 0; k < perm.length; k++)
+        if (perm[k] !== k) {
+          b.support.add(k);
+          moved.add(k);
+        }
+    }
+    // Disjoint supports are what let the laws factor body by body. If two
+    // bodies ever share a facelet, the factoring is a lie - judge whole.
+    const entries = [...byBody.entries()];
+    let disjoint = true;
+    for (let a = 0; a < entries.length && disjoint; a++)
+      for (let b = a + 1; b < entries.length && disjoint; b++)
+        for (const k of entries[a][1].support)
+          if (entries[b][1].support.has(k)) {
+            disjoint = false;
+            break;
+          }
+    const bodies = new Map();
+    if (disjoint) {
+      for (const [letter, b] of entries)
+        bodies.set(letter, {
+          support: [...b.support].sort((x, y) => x - y),
+          group: groupOf(b.gens, this._faceletCount),
+        });
+    } else {
+      const gens = entries.flatMap(([, b]) => b.gens);
+      bodies.set("", { support: [...moved].sort((x, y) => x - y), group: groupOf(gens, this._faceletCount) });
+    }
+    return (this._weldLaw = { bodies, moved });
+  }
+
   /**
    * Judge the current position against the laws of the possible.
    *
@@ -1919,16 +2035,61 @@ export class Twisty {
    * the whole truth: lawful means reachable. On other cubes and cuboids
    * only the corner twist law is checked; it is sound everywhere a face
    * can turn, so "unlawful" is always final, but "lawful" there is not a
-   * promise. A welded assembly is refused: its laws are not written yet.
+   * promise. On a welded assembly the judge is exact and COMPUTED: every
+   * turn is a permutation of facelet places, the group they generate is
+   * built by Schreier-Sims and membership decides — and because a weld's
+   * slab either always turns or never does, lawful means reachable there
+   * too, body by body. Only a bandaged assembly still waits.
    *
    * @returns {{lawful: boolean, breaks: string[], complete: boolean}}
    */
   lawful() {
     this._boxFamily();
-    if ((this.def.name || "").startsWith("fused"))
-      throw new Error(
-        "erno: the laws of a welded assembly are not written here yet",
-      );
+    if ((this.def.name || "").startsWith("fused")) {
+      if (this.pieces.some((p) => p.slotShifts && p.slotShifts.length > 1))
+        throw new Error(
+          "erno: the laws of a bandaged assembly are not written here yet",
+        );
+      const perm = this._faceletPermNow();
+      const { bodies, moved } = this._weldGroups();
+      const breaks = [];
+      // What no turn ever reaches must stand home: the weld's own bar.
+      if ([...perm.keys()].some((k) => !moved.has(k) && perm[k] !== k))
+        breaks.push(
+          "the weld's shared pieces stand moved: nothing turns the bar",
+        );
+      for (const [letter, body] of bodies) {
+        const local = new Map(body.support.map((k, j) => [k, j]));
+        const restricted = new Array(body.support.length);
+        let crossed = false;
+        for (const k of body.support) {
+          const j = local.get(perm[k]);
+          if (j === undefined) {
+            crossed = true;
+            break;
+          }
+          restricted[local.get(k)] = j;
+        }
+        const whom = letter ? `body ${letter}` : "the weld";
+        if (crossed) {
+          breaks.push(
+            `a piece of ${whom} stands in the other body: the weld's turns never carry a piece across the bar`,
+          );
+          continue;
+        }
+        // Membership over the body's own points: pad back to the universe
+        // so the group can read it.
+        const padded = perm.map((_, k) => k);
+        for (const k of body.support) padded[k] = body.support[restricted[local.get(k)]];
+        if (!body.group.contains(padded))
+          breaks.push(
+            `${whom} stands outside the reach of its own turns: no sequence of this weld's moves brings it back`,
+          );
+      }
+      // Exact, not cautious: on a weld a slab either always turns or never
+      // does, so the group of its turns is the whole reachable set.
+      return { lawful: breaks.length === 0, breaks, complete: true };
+    }
 
     const corners = [];
     const edges = [];
