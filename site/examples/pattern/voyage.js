@@ -317,47 +317,87 @@ async function morphTo(next, gen) {
   await settleTo(svgOf(prev, { frame: F }), base.innerHTML, gen);
   if (gen !== state.gen) return;
 
+  // hearts and distances order the waves: growth radiates outward from
+  // what stands, departure peels inward from the rim
+  const spotOfKeys = (keys) => {
+    const heart = [0, 0, 0];
+    for (const k of keys) {
+      const c = k.split(",").map((v) => Number(v) / 2);
+      heart[0] += c[0]; heart[1] += c[1]; heart[2] += c[2];
+    }
+    return keys.length ? heart.map((v) => v / keys.length) : heart;
+  };
+  const sharedKeys = [...B.keys()].filter((k) => A.has(k));
+  const heart = spotOfKeys(sharedKeys.length ? sharedKeys : [...B.keys()]);
+  const farOf = (k) => {
+    const c = k.split(",").map((v) => Number(v) / 2);
+    return (c[0] - heart[0]) ** 2 + (c[1] - heart[1]) ** 2 + (c[2] - heart[2]) ** 2;
+  };
+  const waveify = (entries, outward) => {
+    const sorted = [...entries].sort((a, b) =>
+      outward ? farOf(a[0]) - farOf(b[0]) : farOf(b[0]) - farOf(a[0]),
+    );
+    const waves = Math.max(4, Math.min(10, Math.ceil(sorted.length / 6)));
+    const per = Math.ceil(sorted.length / waves);
+    const out = [];
+    for (let i = 0; i < sorted.length; i += per)
+      out.push(new Set(sorted.slice(i, i + per).map(([, idx]) => idx)));
+    return out;
+  };
+
   if (leaving.size) {
-    // what is being cut lifts away as one soft group; what remains is
-    // already dressed as the next board underneath it
+    // the cubies leave in waves, peeling from the rim inward: you watch
+    // the removal happen, softly, group by soft group
     const under = arriving.size
       ? svgOf(next, { frame: F, pieces: (i) => !arriving.has(i) })
       : svgOf(next, { frame: F });
-    const cut = svgOf(prev, { frame: F, pieces: (i) => leaving.has(i) });
     base.innerHTML = under;
-    const over = overlayWith(cut, "");
-    void over.offsetHeight;
-    over.classList.add("is-lifting");
-    await sleep(reduced ? 0 : 780);
-    over.remove();
+    const waves = waveify([...A].filter(([k]) => !B.has(k)), false);
+    const overs = waves.map((wave) =>
+      overlayWith(svgOf(prev, { frame: F, pieces: (i) => wave.has(i) }), ""),
+    );
+    for (const over of overs) {
+      over.classList.add("is-lifting");
+      await sleep(reduced ? 0 : 130);
+    }
+    await sleep(reduced ? 0 : 700);
+    for (const over of overs) over.remove();
     if (gen !== state.gen) return;
   }
 
   if (arriving.size) {
-    // what joins arrives as one body: the weld's second cube slides in,
-    // a bigger shell blooms on - same motion, different distance
-    const joining = svgOf(next, { frame: F, pieces: (i) => arriving.has(i) });
-    const spotOf = (set, map) => {
-      const heart = [0, 0, 0];
-      let n = 0;
-      for (const [k] of map) {
-        const idx = map.get(k);
-        if (!set.has(idx)) continue;
-        const c = k.split(",").map((v) => Number(v) / 2);
-        heart[0] += c[0]; heart[1] += c[1]; heart[2] += c[2];
-        n++;
-      }
-      return n ? heart.map((v) => v / n) : heart;
-    };
-    const from = spotOf(new Set([...B.values()].filter((i) => !arriving.has(i))), B);
-    const to = spotOf(arriving, B);
+    const arrivingEntries = [...B].filter(([k]) => !A.has(k));
+    const from = spotOfKeys(sharedKeys);
+    const to = spotOfKeys(arrivingEntries.map(([k]) => k));
     const dx = to[0] + to[1] - (from[0] + from[1]);
-    const slide = arriving.size < B.size / 1.6 && Math.abs(dx) > 0.5;
-    const over = overlayWith(joining, slide ? (dx > 0 ? "is-joining-r" : "is-joining-l") : "is-arriving");
-    void over.offsetHeight;
-    over.classList.remove("is-joining-r", "is-joining-l", "is-arriving");
-    await sleep(reduced ? 0 : 840);
-    over.remove();
+    const slide = arriving.size < B.size / 1.6 && Math.abs(dx) > 0.5 && sharedKeys.length;
+    if (slide) {
+      // a second body arrives as one cube, slides in from its side, welds
+      const joining = svgOf(next, { frame: F, pieces: (i) => arriving.has(i) });
+      const over = overlayWith(joining, dx > 0 ? "is-joining-r" : "is-joining-l");
+      void over.offsetHeight;
+      over.classList.remove("is-joining-r", "is-joining-l");
+      await sleep(reduced ? 0 : 840);
+      over.remove();
+    } else {
+      // growth is built: cubies join in waves radiating outward from
+      // what already stands - you watch the bigger cube get made
+      const waves = waveify(arrivingEntries, true);
+      const overs = [];
+      for (const wave of waves) {
+        if (gen !== state.gen) break;
+        const over = overlayWith(
+          svgOf(next, { frame: F, pieces: (i) => wave.has(i) }),
+          "is-arriving",
+        );
+        overs.push(over);
+        void over.offsetHeight;
+        over.classList.remove("is-arriving");
+        await sleep(reduced ? 0 : 140);
+      }
+      await sleep(reduced ? 0 : 660);
+      for (const over of overs) over.remove();
+    }
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next, { frame: F });
   } else if (leaving.size) {
