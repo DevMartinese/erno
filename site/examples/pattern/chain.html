@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pattern · the chain</title>
-    <meta name="description" content="One fluent value, transformed link by link. The sketchpad for Pattern's chained language." />
+    <meta name="description" content="One fluent value, transformed link by link. The journey through Pattern's chained language, in one screen." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       rel="stylesheet"
@@ -13,173 +13,219 @@
     <link rel="stylesheet" href="../../site.css" />
     <link rel="stylesheet" href="./pattern.css" />
     <style>
-      /* The sketchpad: two panels, code and consequence. */
-      .sketch {
-        display: grid;
-        grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-        min-height: calc(100vh - 8rem);
-        border-top: var(--rule) solid var(--ink);
+      :root {
+        --ease-strong: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
       }
-      .sketch-code {
-        padding: var(--space-3) var(--space-4);
-        border-right: var(--rule) solid var(--ink);
+      html, body.example { height: 100%; }
+      body.example {
         display: flex;
         flex-direction: column;
-        gap: var(--space-1);
+        overflow: hidden;
+        max-width: 100rem;
+        margin-inline: auto;
+        border-inline: var(--rule) solid var(--ink);
       }
-      #chain-editor {
-        flex: 1;
-        min-height: 24rem;
-        resize: none;
-        font-family: var(--mono);
-        font-size: var(--size-sm);
-        line-height: 1.7;
-        background: var(--code-bg, #ece7dd);
-        color: var(--ink);
-        border: var(--rule) solid var(--ink);
-        padding: var(--space-2);
-      }
-      #chain-editor:focus {
-        outline: 2px solid var(--ink);
-        outline-offset: -2px;
-      }
-      .sketch-run {
+
+      /* ── The masthead: one quiet row ─────────────────────────────────── */
+      .voyage-head {
         display: flex;
         align-items: baseline;
         gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-bottom: var(--rule) solid var(--ink);
+        flex: 0 0 auto;
       }
-      .sketch-hint {
+      .voyage-head h1 {
+        font-size: var(--size-xl);
+        margin: 0;
+      }
+      .voyage-step-title {
         font-family: var(--mono);
         font-size: var(--size-sm);
-        opacity: 0.7;
+        transition: opacity 200ms var(--ease-strong);
       }
-      .sketch-board {
-        padding: var(--space-3) var(--space-4);
+      .voyage-dots {
+        margin-left: auto;
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+      .voyage-dots button {
+        width: 0.55rem;
+        height: 0.55rem;
+        padding: 0;
+        border: var(--rule) solid var(--ink);
+        background: transparent;
+        cursor: pointer;
+        transition: background 200ms ease, transform 140ms var(--ease-strong);
+      }
+      .voyage-dots button[aria-current="true"] { background: var(--ink); }
+      .voyage-dots button:active { transform: scale(0.9); }
+
+      /* ── The stage: two panels, one screen ───────────────────────────── */
+      .voyage {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+        min-height: 0;
+      }
+      .voyage-code {
+        border-right: var(--rule) solid var(--ink);
+        padding: var(--space-3);
         display: flex;
         flex-direction: column;
-        gap: var(--space-2);
+        min-height: 0;
       }
-      #slot-table {
-        max-width: 24rem;
-        margin: 0 auto;
+      .voyage-caption {
+        min-height: 3.2em;
+        margin: 0 0 var(--space-2);
+        max-width: var(--medida);
       }
-      #slot-table svg { width: 100%; height: auto; display: block; }
-      .sketch-goal {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        border: var(--rule) solid var(--ink);
-        padding: var(--space-1);
-        min-height: 5rem;
+      .voyage-caption p {
+        margin: 0;
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 240ms var(--ease-strong), transform 240ms var(--ease-strong);
       }
-      #slot-goal { width: 7rem; flex: 0 0 auto; }
-      #slot-goal svg { width: 100%; height: auto; display: block; }
-      #chain-status {
+      .voyage-caption p.is-leaving { opacity: 0; transform: translateY(-6px); }
+      .voyage-caption p.is-entering { opacity: 0; transform: translateY(8px); }
+
+      #voyage-lines {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
         font-family: var(--mono);
         font-size: var(--size-sm);
-        min-height: 2.4em;
-        margin: 0;
+        line-height: 1.9;
+        background: color-mix(in oklab, var(--ink) 5%, var(--paper));
+        border: var(--rule) solid var(--ink);
+        padding: var(--space-2) var(--space-3);
+        white-space: pre;
+      }
+      .cline {
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 200ms var(--ease-strong), transform 200ms var(--ease-strong);
+      }
+      .cline.is-new { opacity: 0; transform: translateY(6px); }
+      .cline.is-gone {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+        transition: opacity 160ms var(--ease-strong), transform 160ms var(--ease-strong),
+          max-height 200ms var(--ease-move) 60ms;
+        overflow: hidden;
+      }
+      .caret {
+        display: inline-block;
+        width: 0.55em;
+        height: 1.1em;
+        background: var(--ink);
+        vertical-align: text-bottom;
+        animation: caret-blink 1s steps(1) infinite;
+      }
+      @keyframes caret-blink { 50% { opacity: 0; } }
+
+      .voyage-verdict {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        min-height: 2.6em;
+        margin: var(--space-1) 0 0;
         white-space: pre-wrap;
+        transition: opacity 200ms var(--ease-strong);
+      }
+
+      .voyage-nav {
+        display: flex;
+        gap: var(--space-1);
+        align-items: center;
+        margin-top: var(--space-1);
+      }
+      .voyage-nav button {
+        transition: transform 140ms var(--ease-strong);
+      }
+      .voyage-nav button:active { transform: scale(0.97); }
+      .voyage-hint {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        opacity: 0.6;
+        margin-left: auto;
+      }
+
+      /* ── The board side ──────────────────────────────────────────────── */
+      .voyage-board {
+        display: grid;
+        place-items: center;
+        padding: var(--space-3);
+        min-height: 0;
+        position: relative;
+      }
+      #voyage-table {
+        width: min(80%, 30rem);
+        transition: opacity 260ms var(--ease-strong), transform 260ms var(--ease-strong),
+          filter 260ms var(--ease-strong);
+      }
+      #voyage-table svg { width: 100%; height: auto; display: block; }
+      #voyage-table.is-molting {
+        opacity: 0;
+        transform: scale(0.975);
+        filter: blur(2px);
+      }
+      #voyage-goal {
+        position: absolute;
+        right: var(--space-3);
+        bottom: var(--space-3);
+        width: 7.5rem;
+        border: var(--rule) solid var(--ink);
+        padding: var(--space-1);
+        background: var(--paper);
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 240ms var(--ease-strong), transform 240ms var(--ease-strong);
+      }
+      #voyage-goal[hidden] { display: none; }
+      #voyage-goal svg { width: 100%; height: auto; display: block; }
+      #voyage-goal .example-label { display: block; margin-bottom: 0.3rem; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .cline, .voyage-caption p, #voyage-table {
+          transition-property: opacity;
+          transition-duration: 150ms;
+        }
+        #voyage-table.is-molting { transform: none; filter: none; }
       }
     </style>
   </head>
   <body class="example">
-    <header class="example-head">
+    <header class="voyage-head">
       <a class="example-back" href="./">erno</a>
-      <span class="example-kind">sketchpad</span>
       <h1>The chain</h1>
-      <p class="example-lede">
-        One fluent value, transformed link by link. <code>rubik()</code> is
-        the source, the links are the story of what you did to a sound
-        cube, and <code>out()</code> routes a value to a slot. Edit and
-        press <strong>Ctrl+Enter</strong>: the code you watch is the code
-        that runs.
-      </p>
+      <span class="voyage-step-title" id="voyage-title"></span>
+      <nav class="voyage-dots" id="voyage-dots" aria-label="Steps"></nav>
     </header>
 
-    <main class="sketch">
-      <section class="sketch-code">
-        <label class="example-label" for="chain-editor">the sketch</label>
-        <textarea id="chain-editor" spellcheck="false">
-const base = rubik("3")
-  .paint((x, y, z) => y > 0 ? "B" : "F")
-
-base.out(goal)
-base.scramble(7).out()
-</textarea>
-        <div class="sketch-run">
-          <button id="chain-run">Run</button>
-          <span class="sketch-hint">Ctrl+Enter runs. The chain re-runs whole; seeds keep it honest.</span>
+    <main class="voyage">
+      <section class="voyage-code">
+        <div class="voyage-caption"><p id="voyage-caption"></p></div>
+        <div id="voyage-lines" aria-live="off"></div>
+        <p class="voyage-verdict demo-readout" id="voyage-verdict"></p>
+        <div class="voyage-nav">
+          <button id="voyage-prev">Back</button>
+          <button id="voyage-next">Next</button>
+          <span class="voyage-hint">arrow keys walk · the code is really running</span>
         </div>
-        <p class="demo-readout" id="chain-status"></p>
       </section>
 
-      <section class="sketch-board">
-        <span class="example-label">the table</span>
-        <div id="slot-table"></div>
-        <div class="sketch-goal">
-          <div id="slot-goal"></div>
-          <div>
-            <span class="example-label">the goal</span>
-            <p class="demo-readout" id="goal-note">Route a chain here with <code>out(goal)</code>.</p>
-          </div>
+      <section class="voyage-board">
+        <div id="voyage-table"></div>
+        <div id="voyage-goal" hidden>
+          <span class="example-label">the goal</span>
+          <div id="voyage-goal-art"></div>
         </div>
       </section>
     </main>
 
-    <script type="module">
-      import { rubik, alg, onOut, resetOutputs, takeOutputs } from "./chain.js";
-
-      const $ = (id) => document.getElementById(id);
-      const slots = { table: $("slot-table"), goal: $("slot-goal") };
-
-      const draw = (host, value) => {
-        // a value in pieces wears its veil: only what stands is drawn
-        host.innerHTML = value.board.toSVG({
-          fitSphere: true,
-          padding: 8,
-          ...(value.veil ? { pieces: value.veil } : {}),
-        });
-      };
-
-      onOut((name, value) => {
-        if (slots[name]) draw(slots[name], value);
-        if (name === "goal") $("goal-note").textContent = "The picture to reach.";
-      });
-
-      function run() {
-        const src = $("chain-editor").value;
-        const status = $("chain-status");
-        resetOutputs();
-        slots.table.innerHTML = "";
-        slots.goal.innerHTML = "";
-        $("goal-note").textContent = "Route a chain here with out(goal).";
-        try {
-          const fn = new Function("rubik", "alg", "goal", "table", `"use strict";\n${src}`);
-          fn(rubik, alg, "goal", "table");
-          const outs = takeOutputs();
-          if (!outs.size) {
-            status.textContent = "The chains ran, but none was routed: end one with .out()";
-            return;
-          }
-          const table = outs.get("table");
-          status.textContent = table
-            ? `On the table: ${table.board.pieces.length} pieces, ${table.moves()} moves` +
-              (outs.has("goal") ? `, ${table.off()} stickers off the goal.` : ".")
-            : "Routed, but nothing on the table: end a chain with .out()";
-        } catch (err) {
-          status.textContent = err.message;
-        }
-      }
-
-      $("chain-run").addEventListener("click", run);
-      $("chain-editor").addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-          e.preventDefault();
-          run();
-        }
-      });
-      run();
-    </script>
+    <script type="module" src="./voyage.js"></script>
   </body>
 </html>
