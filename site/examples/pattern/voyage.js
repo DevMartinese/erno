@@ -205,14 +205,14 @@ function surveySvg(svg) {
   return { vb, x0, y0, x1, y1 };
 }
 
-function settleTransform(svgA, svgB) {
+function settleTransform(svgA, svgB, kA = 1) {
   const a = surveySvg(svgA);
   const b = surveySvg(svgB);
   const W = table.clientWidth || 480;
   const px = (m, x, y) => [((x - m.vb[0]) / m.vb[2]) * W, ((y - m.vb[1]) / m.vb[2]) * W];
   const [ax, ay] = px(a, (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2);
   const [bx, by] = px(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
-  const scale = (a.x1 - a.x0) / (b.x1 - b.x0);
+  const scale = (kA * (a.x1 - a.x0)) / (b.x1 - b.x0);
   return {
     still: Math.abs(scale - 1) < 0.004 && Math.abs(ax - bx) < 0.75 && Math.abs(ay - by) < 0.75,
     origin: `${bx.toFixed(1)}px ${by.toFixed(1)}px`,
@@ -333,12 +333,13 @@ async function morphTo(next, gen) {
     const a = surveySvg(own);
     const b = surveySvg(inF);
     const scale = ((a.x1 - a.x0) / a.vb[2]) / ((b.x1 - b.x0) / b.vb[2]);
-    const cx = (((b.x0 + b.x1) / 2 - b.vb[0]) / b.vb[2]) * 100;
-    const cy = (((b.y0 + b.y1) / 2 - b.vb[1]) / b.vb[2]) * 100;
-    table.style.transformOrigin = `${cx.toFixed(1)}% ${cy.toFixed(1)}%`;
+    const W0 = table.clientWidth || 480;
+    const cxF = ((b.x0 + b.x1) / 2 - b.vb[0]) / b.vb[2];
+    const cyF = ((b.y0 + b.y1) / 2 - b.vb[1]) / b.vb[2];
+    table.style.transformOrigin = `${(cxF * 100).toFixed(1)}% ${(cyF * 100).toFixed(1)}%`;
     table.style.transform = `scale(${scale.toFixed(4)})`;
     base.innerHTML = inF;
-    held = true;
+    held = { k: scale, ox: cxF * W0, oy: cyF * W0 };
   } else {
     await settleTo(svgOf(prev, { frame: F }), base.innerHTML, gen);
   }
@@ -456,14 +457,38 @@ async function morphTo(next, gen) {
       await stackFade(renders, "in", 180);
     }
     if (gen !== state.gen) return;
-    base.innerHTML = svgOf(next, { frame: F });
+    const fullF = svgOf(next, { frame: F });
+    base.innerHTML = fullF;
     if (held) {
-      // the one pull-back: the finished weld eases into the panel
-      table.style.transition = "transform 760ms cubic-bezier(0.77, 0, 0.175, 1)";
+      // ONE size story: swap the camera hold for a base transform that
+      // looks identical, aimed at the final framing, and release once -
+      // the finished weld glides straight to its resting size
+      const ownSvg = svgOf(next);
+      // where the finished weld truly sits on screen: the camera hold
+      // scales about the standing core, so every centre rides O + k(P-O)
+      const a = surveySvg(fullF);
+      const b = surveySvg(ownSvg);
+      const W = table.clientWidth || 480;
+      const pxOf = (m, x, y) => [((x - m.vb[0]) / m.vb[2]) * W, ((y - m.vb[1]) / m.vb[2]) * W];
+      const [axr, ayr] = pxOf(a, (a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2);
+      const ax = held.ox + held.k * (axr - held.ox);
+      const ay = held.oy + held.k * (ayr - held.oy);
+      const [bx, by] = pxOf(b, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2);
+      const scale2 = (held.k * (a.x1 - a.x0)) / (b.x1 - b.x0);
       table.style.transform = "";
-      await sleep(780);
-      table.style.transition = "";
       table.style.transformOrigin = "";
+      base.style.transition = "none";
+      base.style.transformOrigin = `${bx.toFixed(1)}px ${by.toFixed(1)}px`;
+      base.style.transform = `translate(${(ax - bx).toFixed(1)}px, ${(ay - by).toFixed(1)}px) scale(${scale2.toFixed(4)})`;
+      base.innerHTML = ownSvg;
+      void base.offsetHeight;
+      base.style.transition = "transform 820ms cubic-bezier(0.77, 0, 0.175, 1)";
+      base.style.transform = "";
+      await sleep(840);
+      base.style.transition = "";
+      base.style.transformOrigin = "";
+      state.shown = next;
+      return;
     }
   } else if (leaving.size) {
     // the survivors' new stickers surface behind a whisper
