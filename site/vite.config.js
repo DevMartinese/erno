@@ -15,10 +15,8 @@ export default defineConfig({
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         playground: fileURLToPath(new URL("./playground.html", import.meta.url)),
         gallery: fileURLToPath(new URL("./gallery.html", import.meta.url)),
-        // Examples: pages that use the library rather than document it
-        pattern: fileURLToPath(
-          new URL("./examples/pattern/index.html", import.meta.url),
-        ),
+        // Pattern lives at ./examples/pattern/ and runs under `npm run dev`,
+        // but does not ship: it is being worked on locally for now.
       },
     },
   },
