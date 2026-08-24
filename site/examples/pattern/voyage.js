@@ -230,7 +230,8 @@ function settleTransform(svgA, svgB) {
 
 // Swap the base to a new render, gliding from exactly where the old one
 // stood: the same body, re-framed, never replaced.
-async function settleTo(svg, oldSvg) {
+async function settleTo(svg, oldSvg, gen) {
+  if (gen !== state.gen) return;
   if (reduced || !oldSvg) {
     base.innerHTML = svg;
     return;
@@ -254,33 +255,38 @@ async function settleTo(svg, oldSvg) {
 
 // A whisper of a veil for a seam where only the paint changes: the body
 // stays at nearly full presence, the recolouring hides in the blur.
-async function veilSwap(fn) {
-  if (reduced) {
-    fn();
+async function veilSwap(fn, gen) {
+  if (reduced || gen !== state.gen) {
+    if (gen === state.gen) fn();
     return;
   }
   base.classList.add("is-veiled");
   await sleep(160);
-  fn();
+  if (gen === state.gen) fn();
   base.classList.remove("is-veiled");
   await sleep(160);
 }
 
 // Two aligned renders crossfading in place - the shell change. Both are
 // on screen through the middle, which is the whole point.
-async function crossfadeTo(svg) {
-  if (reduced) {
-    base.innerHTML = svg;
+async function crossfadeTo(svg, gen) {
+  if (reduced || gen !== state.gen) {
+    if (gen === state.gen) base.innerHTML = svg;
     return;
   }
   const over = document.createElement("div");
-  over.className = "board-layer is-arriving";
+  over.className = "board-layer board-layer--over is-arriving";
   over.innerHTML = svg;
   table.appendChild(over);
   void over.offsetHeight;
   over.classList.remove("is-arriving");
   base.classList.add("is-yielding");
   await sleep(440);
+  over.remove();
+  if (gen !== state.gen) {
+    base.classList.remove("is-yielding");
+    return;
+  }
   // land without a blink: the base takes the new render at full presence
   // in the same beat the overlay leaves - no re-fade, no ghost
   base.style.transition = "none";
@@ -288,7 +294,6 @@ async function crossfadeTo(svg) {
   base.classList.remove("is-yielding");
   void base.offsetHeight;
   base.style.transition = "";
-  over.remove();
 }
 
 // ── The morph ───────────────────────────────────────────────────────────────
@@ -324,7 +329,7 @@ async function morphTo(next, gen) {
   // step into the staging frame - wide enough for both bodies, so
   // neither is ever cropped - gliding from the old framing
   const prevInF = svgOf(prev, { frame: F });
-  await settleTo(prevInF, base.innerHTML);
+  await settleTo(prevInF, base.innerHTML, gen);
   if (gen !== state.gen) return;
 
   if (leaving.length && !arriving.length) {
@@ -353,17 +358,79 @@ async function morphTo(next, gen) {
     // the survivors change clothes (new stickers surface) behind a whisper
     await veilSwap(() => {
       base.innerHTML = svgOf(next, { frame: F });
-    });
+    }, gen);
   } else {
     // shell change, or new paint on the same cells: two aligned renders
     // crossfade in the staging frame; the body stays
-    await crossfadeTo(svgOf(next, { frame: F }));
+    await crossfadeTo(svgOf(next, { frame: F }), gen);
   }
   if (gen !== state.gen) return;
 
   // and settle out into the next board's own framing
-  await settleTo(svgOf(next), base.innerHTML);
+  await settleTo(svgOf(next), base.innerHTML, gen);
   state.shown = next;
+}
+
+// Real turns, eased frame by frame, each one a touch quicker than the last.
+async function playTurns(value, seq, gen) {
+  const board = value.board;
+  const tokens = seq.split(/\s+/).filter(Boolean);
+  let i = 0;
+  for (const token of tokens) {
+    if (gen !== state.gen) return;
+    const ms = reduced ? 0 : Math.max(70, 200 * 0.93 ** i);
+    if (ms) {
+      const t0 = performance.now();
+      await new Promise((done) => {
+        const frame = (now) => {
+          try {
+            if (gen !== state.gen) return done();
+            const t = Math.min(1, (now - t0) / ms);
+            const progress = 1 - (1 - t) ** 3;
+            base.innerHTML = svgOf(value, { turn: { move: token, progress } });
+            if (t < 1) requestAnimationFrame(frame);
+            else done();
+          } catch (err) {
+            console.error(err);
+            done();
+          }
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+    board.move(token);
+    if (gen !== state.gen) return;
+    base.innerHTML = svgOf(value);
+    i++;
+  }
+  state.shown = value;
+}
+
+// The assembly: pieces return to the frame one by one, quick and quickening.
+async function reveal(value, gen) {
+  const board = value.board;
+  const held = new Set();
+  board.pieces.forEach((piece, idx) => {
+    if (piece.faces.filter((f) => f.letter).length < 2) held.add(idx);
+  });
+  const free = board.pieces.map((_, idx) => idx).filter((idx) => !held.has(idx));
+  if (reduced) {
+    drawValue(value);
+    return;
+  }
+  const standing = new Set(held);
+  await veilSwap(() => {
+    base.innerHTML = svgOf(value, { pieces: (idx) => standing.has(idx) });
+  }, gen);
+  let i = 0;
+  for (const idx of free) {
+    if (gen !== state.gen) return;
+    standing.add(idx);
+    base.innerHTML = svgOf(value, { pieces: (id) => standing.has(id) });
+    await sleep(Math.max(30, 70 * 0.94 ** i));
+    i++;
+  }
+  state.shown = value;
 }
 
 // ── The code panel ──────────────────────────────────────────────────────────

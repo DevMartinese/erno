@@ -21,7 +21,10 @@
       body.example {
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        /* clip, not hidden: a clipped box cannot be scrolled even
+           programmatically, so a focused button can never shove the
+           sheet and reveal slivers of the panel below */
+        overflow: clip;
         max-width: 100rem;
         margin-inline: auto;
         border-inline: var(--rule) solid var(--ink);
@@ -171,7 +174,7 @@
       .board-layer {
         transition: opacity 440ms ease, filter 440ms ease;
       }
-      .board-layer + .board-layer {
+      .board-layer--over {
         position: absolute;
         inset: 0;
       }
@@ -185,6 +188,7 @@
         filter: blur(2px);
       }
       #voyage-goal {
+        z-index: 2;
         position: absolute;
         right: var(--space-3);
         bottom: var(--space-3);
@@ -200,6 +204,15 @@
       #voyage-goal.is-entering { opacity: 0; transform: translateY(8px); }
       #voyage-goal svg { width: 100%; height: auto; display: block; }
       #voyage-goal .example-label { display: block; margin-bottom: 0.3rem; }
+
+      /* A window too narrow for two columns stacks them ON PURPOSE:
+         board above, code below, both whole - never a broken grid. */
+      @media (max-width: 56rem) {
+        .voyage { grid-template-columns: minmax(0, 1fr); }
+        .voyage-code { border-right: none; border-top: var(--rule) solid var(--ink); order: 1; }
+        .voyage-board { order: 0; min-height: 40vh; }
+        body.example { overflow: auto; }
+      }
 
       @media (prefers-reduced-motion: reduce) {
         .cline, .voyage-caption p, .board-layer {
