@@ -347,15 +347,19 @@ the code.
    (they factor: disjoint supports), derived and *named* so the judge
    gains its voice there; unlocks exotic placements and carves on
    welds.
-2. **The challenge format** — target + road + board spec (the same
-   string `board()` speaks, carve included) + seeds. Two leagues:
-   *this position* (fixed seed, hardcoding is the floor) and *any
-   position* (N seeds; what golfs is a solver). Four level kinds, one
-   unique to this game: **reach** the pattern; **build** it; **build
-   the impossible** — the target is unlawful on purpose, won when the
-   judge names the broken law; and **which road exists?** — shown a
-   picture, answer with the script that proves it reachable or only
-   buildable. Three honest metrics, never one number: characters,
-   moves, fuel — separate boards, each its own virtue.
+2. **The challenge format** — partly standing now. Every challenge
+   owns a fixed seed (the *this position* league, where hardcoding is
+   the floor), the album keeps a record per road, and the *any
+   position* league runs the same script over five seeds derived from
+   the challenge's own — solver road only, since a script that builds
+   or carves ignores the positions it was handed. Still open: the four
+   level kinds, one unique to this game: **reach** the pattern;
+   **build** it; **build the impossible** — the target is unlawful on
+   purpose, won when the judge names the broken law (needs targets
+   that carry a position, not just a paint); and **which road
+   exists?** — shown a picture, answer with the script that proves it
+   reachable or only buildable. Characters, moves, fuel are all three
+   scored now — separate boards, each its own virtue: the writing, the
+   cube, and what you needed to ask.
 3. **The verb question** — `reflect`/`exchange`/`swap` split vs one
    general `under(name)`. Tables identical either way.

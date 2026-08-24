@@ -392,6 +392,7 @@ function targetOf(i) {
 /** Show the challenge picture, and say whether the function matches it. */
 function renderChallenge(puzzle) {
   const panel = $("goal-panel");
+  if ($("script-league")) $("script-league").disabled = game.challenge === null;
   if (game.challenge === null) {
     panel.dataset.state = "free";
     $("write-kind").disabled = false;
@@ -456,6 +457,7 @@ function renderAlbum() {
     const reached = bestOf(`erno-pattern-best-${i}`);
     const built = bestOf(`erno-pattern-built-${i}`);
     const carved = bestOf(`erno-pattern-carved-${i}`);
+    const league = bestOf(`erno-pattern-any-${i}`);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "album-card";
@@ -466,10 +468,13 @@ function renderAlbum() {
       c.kind === "cube"
         ? `${c.size}×${c.size}×${c.size}`
         : `3×3×${c.size}`;
+    // Old records predate the fuel board; they show what they know.
+    const f = (b) => (b.fuel == null ? "" : ` · ${b.fuel}f`);
     const lines = [];
-    if (reached) lines.push(`Reached: ${reached.chars}c · ${reached.moves}m`);
-    if (built) lines.push(`Built: ${built.chars}c`);
-    if (carved) lines.push(`Carved: ${carved.chars}c · ${carved.moves}m`);
+    if (reached) lines.push(`Reached: ${reached.chars}c · ${reached.moves}m${f(reached)}`);
+    if (built) lines.push(`Built: ${built.chars}c${f(built)}`);
+    if (carved) lines.push(`Carved: ${carved.chars}c · ${carved.moves}m${f(carved)}`);
+    if (league) lines.push(`League: ${league.chars}c · ${league.moves}m${f(league)}`);
     if (!lines.length) lines.push("No record yet");
     const hint =
       c.road === "build"
@@ -494,7 +499,7 @@ function renderAlbum() {
 
 // ── Solve ───────────────────────────────────────────────────────────────────
 
-function startGame(scramble) {
+function startGame(scramble, seedOverride) {
   game.puzzle = build(game.source, game.kind, game.size, game.carve);
   game.build = null; // a fresh board is whole; Reset heals a bin left open
   game.built = false;
@@ -508,7 +513,8 @@ function startGame(scramble) {
     // as a board, so a challenge is the same position for everyone and
     // Reset really does bring it back; free play keeps the dice.
     const c = game.challenge === null ? null : CHALLENGES[game.challenge];
-    for (let seed = c ? c.seed : undefined; ; seed = c ? seed + 1 : undefined) {
+    const first = seedOverride ?? (c ? c.seed : undefined);
+    for (let seed = first; ; seed = seed === undefined ? undefined : seed + 1) {
       // Kept, because the generated code claims to hand you the board you
       // are looking at and could not: the scramble is deliberately absent
       // from history, being the board rather than anything the player did,
@@ -1137,7 +1143,8 @@ function runScript(source) {
   // dies with a clear message instead of hanging the page. A loop that
   // never asks anything cannot be stopped from here; the page says so in
   // the docs rather than pretending.
-  let fuel = 20000;
+  const FUEL = 20000;
+  let fuel = FUEL;
   const spend = () => {
     if (--fuel < 0) throw new Error("out of fuel: 20,000 calls is a runaway loop");
   };
@@ -1738,6 +1745,7 @@ function runScript(source) {
   return {
     moves: Math.max(0, p.history.length - before),
     chars: source.trim().length,
+    fuel: FUEL - fuel,
     road,
     recon,
     startedWhole,
@@ -1845,7 +1853,7 @@ async function watchBack(recon, startPos) {
   reconActive = gen;
   game.busy = true;
   renderMoves();
-  for (const id of ["play-start", "play-undo", "play-share", "seq-run", "script-run"])
+  for (const id of ["play-start", "play-undo", "play-share", "seq-run", "script-run", "script-league"])
     $(id).disabled = true;
   skip.hidden = false;
 
@@ -1934,6 +1942,7 @@ async function watchBack(recon, startPos) {
   skip.hidden = true;
   game.busy = false;
   $("script-run").disabled = false;
+  $("script-league").disabled = game.challenge === null;
   renderGame();
 }
 
@@ -2007,9 +2016,10 @@ function runScriptButton() {
         best = JSON.parse(localStorage.getItem(key)) || {};
       } catch { /* a hand-edited record; start fresh */ }
       best.chars = Math.min(best.chars ?? Infinity, result.chars);
+      best.fuel = Math.min(best.fuel ?? Infinity, result.fuel);
       localStorage.setItem(key, JSON.stringify(best));
       renderAlbum();
-      out.textContent += ` Best build here: ${best.chars} characters.`;
+      out.textContent += ` Best build here: ${best.chars} characters, ${best.fuel} fuel.`;
     }
     return;
   }
@@ -2044,9 +2054,10 @@ function runScriptButton() {
         } catch { /* a hand-edited record; start fresh */ }
         best.chars = Math.min(best.chars ?? Infinity, result.chars);
         best.moves = Math.min(best.moves ?? Infinity, result.moves);
+        best.fuel = Math.min(best.fuel ?? Infinity, result.fuel);
         localStorage.setItem(key, JSON.stringify(best));
         renderAlbum();
-        out.textContent += ` Best carve here: ${best.chars} characters, ${best.moves} moves.`;
+        out.textContent += ` Best carve here: ${best.chars} characters, ${best.moves} moves, ${best.fuel} fuel.`;
       }
     } else {
       out.textContent = `Carved: ${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers off the picture.`;
@@ -2054,7 +2065,7 @@ function runScriptButton() {
     return;
   }
   out.textContent = hit
-    ? `Reached the pattern: ${result.chars} characters, ${result.moves} moves.`
+    ? `Reached the pattern: ${result.chars} characters, ${result.moves} moves, ${result.fuel} fuel.`
     : `${result.chars} characters, ${result.moves} moves, ${game.puzzle.distanceTo(game.target)} stickers still out of place.`;
   // Two boards, because they are two different virtues.
   if (hit && game.challenge !== null) {
@@ -2065,10 +2076,87 @@ function runScriptButton() {
     } catch { /* a hand-edited record; start fresh */ }
     best.chars = Math.min(best.chars ?? Infinity, result.chars);
     best.moves = Math.min(best.moves ?? Infinity, result.moves);
+    best.fuel = Math.min(best.fuel ?? Infinity, result.fuel);
     localStorage.setItem(key, JSON.stringify(best));
     renderAlbum();
-    out.textContent += ` Best here: ${best.chars} characters, ${best.moves} moves.`;
+    out.textContent += ` Best here: ${best.chars} characters, ${best.moves} moves, ${best.fuel} fuel.`;
   }
+}
+
+// ── The league ──────────────────────────────────────────────────────────────
+//
+// The second board the spec promises. "This position" is the challenge's
+// own seed, and hardcoding its answer is the floor; the league hands the
+// SAME script five seeded positions, and only a solver survives all five.
+// The seeds are derived from the challenge's own, spaced far past the
+// retry walk, so the league is the same league on every machine. It is
+// the solver's league: a script that builds or carves ignores the
+// positions it was handed, and is told so instead of being scored.
+const LEAGUE = 5;
+
+const leagueSeeds = (c) =>
+  Array.from({ length: LEAGUE }, (_, k) => c.seed + 1000 * (k + 1));
+
+function runLeagueButton() {
+  const src = $("script-code").value;
+  const out = $("script-status");
+  if (game.challenge === null || !src.trim()) return;
+  const c = CHALLENGES[game.challenge];
+  reconGen++;
+  // carve state is snapshotted: a script that carves is refused below,
+  // but by then the board it stood on has already been reshaped.
+  const carve0 = game.carve;
+  let chars = 0;
+  let movesInAll = 0;
+  let fuelInAll = 0;
+  let verdict = "";
+  try {
+    for (const [k, seed] of leagueSeeds(c).entries()) {
+      startGame(true, seed);
+      let result;
+      try {
+        result = runScript(src);
+      } catch (err) {
+        verdict = `The league: died at position ${k + 1} of ${LEAGUE}: ${err.message}`;
+        break;
+      }
+      chars = result.chars;
+      if (game.build) {
+        verdict = `The league is the solver's: at position ${k + 1} the board is in pieces, ${game.build.tray.length} in the bin.`;
+        break;
+      }
+      if (result.road !== "solve") {
+        verdict = `The league is the solver's: it hands you five positions, and a script that builds or carves ignores them.`;
+        break;
+      }
+      if (!game.puzzle.matches(game.target)) {
+        verdict = `The league: fell at position ${k + 1} of ${LEAGUE}, ${game.puzzle.distanceTo(game.target)} stickers off.`;
+        break;
+      }
+      movesInAll += result.moves;
+      fuelInAll += result.fuel;
+    }
+  } finally {
+    // The challenge's own position comes back, whatever the league did.
+    game.carve = carve0;
+    startGame(true);
+  }
+  if (verdict) {
+    out.textContent = verdict;
+    return;
+  }
+  out.textContent = `The league: reached on all ${LEAGUE} positions: ${chars} characters, ${movesInAll} moves, ${fuelInAll} fuel in all.`;
+  const key = `erno-pattern-any-${game.challenge}`;
+  let best = {};
+  try {
+    best = JSON.parse(localStorage.getItem(key)) || {};
+  } catch { /* a hand-edited record; start fresh */ }
+  best.chars = Math.min(best.chars ?? Infinity, chars);
+  best.moves = Math.min(best.moves ?? Infinity, movesInAll);
+  best.fuel = Math.min(best.fuel ?? Infinity, fuelInAll);
+  localStorage.setItem(key, JSON.stringify(best));
+  renderAlbum();
+  out.textContent += ` Best league here: ${best.chars} characters, ${best.moves} moves, ${best.fuel} fuel.`;
 }
 
 // ── The code for what you are looking at ────────────────────────────────────
@@ -3060,6 +3148,7 @@ function init() {
   });
   $("seq-run").addEventListener("click", runSequence);
   $("script-run").addEventListener("click", runScriptButton);
+  $("script-league").addEventListener("click", runLeagueButton);
   $("recon-skip").addEventListener("click", () => {
     reconGen++; // the replay yields and the truth is drawn
   });

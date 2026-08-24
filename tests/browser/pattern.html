@@ -227,6 +227,12 @@ f.onload = () => setTimeout(async () => {
   $("script-code").value = 'turn("R"); if (at("UFR") == "?") turn("R\'")';
   $("script-run").click(); await wait(200);
   check("at() contesta sin romper", /characters/.test($("script-status").textContent), $("script-status").textContent.slice(0,50));
+  // en reposo el tablero ya viste el patron: un script que solo mira
+  // acierta con cero movimientos, y el veredicto trae las tres virtudes
+  $("play-reset").click(); await wait(100);
+  $("script-code").value = "moves()";
+  $("script-run").click(); await wait(200);
+  check("el puntaje es triple: el fuel se reporta", /moves, \d+ fuel/.test($("script-status").textContent), $("script-status").textContent.slice(0, 60));
   $("play-reset").click(); await wait(100);
 
   paso("12 leyes");
@@ -318,6 +324,27 @@ f.onload = () => setTimeout(async () => {
     check("la marca del tallador aparece en la tarjeta", /Carved: 9c · 4m/.test(d.querySelectorAll(".album-card")[0].textContent), d.querySelectorAll(".album-card")[0].textContent.slice(0, 80));
     w.localStorage.removeItem("erno-pattern-carved-0");
     d.querySelectorAll(".album-card")[1].click(); await wait(320);
+  }
+
+  paso("17 la liga");
+  // ── 17. la liga ────────────────────────────────────────────────────────
+  {
+    check("la liga espera un reto", $("script-league").disabled);
+    d.querySelectorAll(".album-card")[0].click(); await wait(400);
+    check("con reto elegido, la liga abre", !$("script-league").disabled);
+    $("script-code").value = 'turn("R")';
+    $("script-league").click(); await wait(800);
+    check("una vuelta no gana la liga", /fell at position 1 of 5/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    // y el tablero vuelve a la posicion propia del reto
+    const propia = $("play-canvas").innerHTML;
+    $("play-start").click(); await wait(400);
+    check("la liga devuelve la posicion del reto", $("play-canvas").innerHTML === propia);
+    // un script que arma es rechazado con palabras, no puntuado
+    $("script-code").value = "deal(); for (const p of bin()) place(p, p)";
+    $("script-league").click(); await wait(800);
+    check("la liga es del solver", /the solver's/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    d.querySelectorAll(".album-card")[0].click(); await wait(320);
+    check("la liga vuelve a cerrarse en libre", $("script-league").disabled);
   }
 
   paso("10 enlace");
