@@ -8,8 +8,13 @@
    ───────────────────────────────────────────────────────────────────── */
 
 body.example {
-  max-width: none;
+  /* Full bleed was the plan, but this page is prose beside diagrams: on a
+     wide monitor "full" is mostly beige. The sheet is capped and ruled at
+     its edges instead, so the layout reads as set, not as spilled. */
+  max-width: 100rem;
   padding: 0;
+  margin-inline: auto;
+  border-inline: var(--rule) solid var(--ink);
 }
 
 /* ── The head ────────────────────────────────────────────────────────── */
@@ -61,11 +66,13 @@ body.example {
   border-bottom: var(--rule) solid var(--ink);
 }
 .example-text {
-  grid-column: span 6;
+  grid-column: span 7;
   padding: var(--space-5) var(--space-4) var(--space-6);
 }
 .example-demo {
-  grid-column: span 6;
+  /* The words carry this page; the board is their diagram. Seven columns
+     of prose against five of plate keeps the board company-sized. */
+  grid-column: span 5;
   border-left: var(--rule) solid var(--ink);
   display: grid;
   place-items: center;
@@ -267,9 +274,12 @@ body.example {
 }
 .album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
   gap: var(--space-1);
   margin: var(--space-1) 0 0;
+}
+.album-art svg {
+  max-height: 8.5rem;
 }
 .album-card {
   display: flex;
