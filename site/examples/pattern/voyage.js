@@ -770,7 +770,11 @@ async function goTo(step) {
   state.step = step;
   const s = STEPS[step];
 
-  $("voyage-title").textContent = s.title;
+  // the numeral is the entry point; the name is its label
+  const [numeral, ...rest] = s.title.split(" · ");
+  $("voyage-num").textContent = numeral;
+  $("voyage-title").textContent = rest.join(" · ");
+  $("voyage-count").textContent = `${step + 1} / ${STEPS.length}`;
   [...$("voyage-dots").children].forEach((d, i) =>
     d.setAttribute("aria-current", String(i === step)),
   );
