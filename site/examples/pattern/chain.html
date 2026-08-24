@@ -98,14 +98,13 @@
       .voyage-caption p.is-entering { opacity: 0; transform: translateY(8px); }
 
       #voyage-lines {
-        contain: content;
         overflow: visible;
         font-family: var(--mono);
-        font-size: 1.02rem;
-        line-height: 2.2;
+        font-size: 1.05rem;
+        line-height: 1.95;
         /* the tallest step is five lines; the box is sized for it once,
            so adding a line above never resizes the component */
-        min-height: 16.4em;
+        min-height: 13.4em;
         background: color-mix(in oklab, var(--ink) 4%, var(--paper));
         border: var(--rule) solid var(--ink);
         padding: var(--space-3) var(--space-3);
@@ -113,7 +112,11 @@
       }
       .cline {
         position: relative;
-        min-height: 2.2em;
+        min-height: 1.95em;
+      }
+      /* an empty line is a breath, not a hole */
+      .cline:empty, .cline[data-text=""] {
+        min-height: 1em;
         opacity: 1;
         transform: translateY(0);
         transition: opacity 420ms var(--ease-strong), transform 420ms var(--ease-strong);
@@ -136,11 +139,13 @@
           filter 560ms var(--ease-strong);
       }
       .seg-in { opacity: 0; transform: translateY(8px); filter: blur(3px); }
-      /* the ink of the language: strings blue, keywords red, links bold */
+      /* the ink of the language: quiet structure, blue literals, bold
+         links, and the source word wears the house red */
       .tk-str { color: var(--blue); }
-      .tk-kw { color: var(--red); }
-      .tk-num { color: var(--red); }
+      .tk-kw { color: color-mix(in oklab, var(--ink) 52%, var(--paper)); }
+      .tk-num { color: var(--blue); }
       .tk-fn { font-weight: 700; }
+      .tk-src { font-weight: 700; color: var(--red); }
       .seg-out {
         opacity: 0;
         transform: translateY(-5px);
@@ -182,7 +187,6 @@
         position: relative;
       }
       #voyage-table {
-        contain: content;
         width: min(80%, 30rem);
         position: relative;
       }

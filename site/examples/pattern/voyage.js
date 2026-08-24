@@ -313,8 +313,35 @@ async function morphTo(next, gen) {
   const leaving = new Set([...A].filter(([k]) => !B.has(k)).map(([, i]) => i));
   const arriving = new Set([...B].filter(([k]) => !A.has(k)).map(([, i]) => i));
 
-  // step into the staging frame, gliding
-  await settleTo(svgOf(prev, { frame: F }), base.innerHTML, gen);
+  const arrivingEntriesEarly = [...B].filter(([k]) => !A.has(k));
+  const sharedKeysEarly = [...B.keys()].filter((k) => A.has(k));
+
+  // For a JOIN (a second body arriving beside a standing one) the camera
+  // holds still: the standing cube keeps its exact size while the other
+  // slides in, and only the finished weld gets one pull-back. Everything
+  // else steps into the staging frame with a measured glide.
+  const willSlide = (() => {
+    if (!arrivingEntriesEarly.length || !sharedKeysEarly.length) return false;
+    const arrCount = arrivingEntriesEarly.length;
+    return arrCount < B.size / 1.6;
+  })();
+
+  let held = null;
+  if (willSlide && !reduced) {
+    const own = base.innerHTML;
+    const inF = svgOf(prev, { frame: F });
+    const a = surveySvg(own);
+    const b = surveySvg(inF);
+    const scale = ((a.x1 - a.x0) / a.vb[2]) / ((b.x1 - b.x0) / b.vb[2]);
+    const cx = (((b.x0 + b.x1) / 2 - b.vb[0]) / b.vb[2]) * 100;
+    const cy = (((b.y0 + b.y1) / 2 - b.vb[1]) / b.vb[2]) * 100;
+    table.style.transformOrigin = `${cx.toFixed(1)}% ${cy.toFixed(1)}%`;
+    table.style.transform = `scale(${scale.toFixed(4)})`;
+    base.innerHTML = inF;
+    held = true;
+  } else {
+    await settleTo(svgOf(prev, { frame: F }), base.innerHTML, gen);
+  }
   if (gen !== state.gen) return;
 
   // hearts and distances order the waves: growth radiates outward from
@@ -430,6 +457,14 @@ async function morphTo(next, gen) {
     }
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next, { frame: F });
+    if (held) {
+      // the one pull-back: the finished weld eases into the panel
+      table.style.transition = "transform 760ms cubic-bezier(0.77, 0, 0.175, 1)";
+      table.style.transform = "";
+      await sleep(780);
+      table.style.transition = "";
+      table.style.transformOrigin = "";
+    }
   } else if (leaving.size) {
     // the survivors' new stickers surface behind a whisper
     await veilSwap(() => {
@@ -538,10 +573,15 @@ function ink(seg) {
       i += kw[0].length;
       continue;
     }
-    const fn = rest.match(/^\.?(rubik|alg|paint|carve|turn|scramble|deal|place|bin|out|times|order)(?=\()/);
+    const src2 = rest.match(/^(rubik|alg)(?=\()/);
+    if (src2) {
+      out += `<span class="tk-src">${src2[0]}</span>`;
+      i += src2[0].length;
+      continue;
+    }
+    const fn = rest.match(/^\.(paint|carve|turn|scramble|deal|place|bin|out|times|order|reflect|exchange)(?=\()/);
     if (fn) {
-      const dot = fn[0].startsWith(".") ? "." : "";
-      out += `${dot}<span class="tk-fn">${fn[0].slice(dot.length)}</span>`;
+      out += `.<span class="tk-fn">${fn[0].slice(1)}</span>`;
       i += fn[0].length;
       continue;
     }
@@ -631,6 +671,13 @@ async function renderLines(lines, gen) {
   for (const plan of plans) {
     reconcileSegments(plan.el, plan.segs);
     plan.el.dataset.text = plan.text;
+    // every span re-inked from its raw text: one pass, one dress code,
+    // whatever road brought the span here
+    for (const span of plan.el.querySelectorAll(".seg")) {
+      const raw = span.dataset.raw ?? span.textContent;
+      span.dataset.raw = raw;
+      span.innerHTML = ink(raw);
+    }
     if (plan.entered) {
       void plan.el.offsetHeight;
       plan.el.classList.remove("is-new");
