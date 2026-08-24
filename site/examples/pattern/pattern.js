@@ -130,6 +130,10 @@ const CHALLENGES = [
   { name: "Home", kind: "cube", size: 3, seed: 97, road: "build", solution: "return face" },
   { name: "Solid checker", kind: "cube", size: 3, seed: 103, road: "build", solution: "return (x + y + z) % 2 ? F : B" },
   { name: "Inked centers", kind: "cube", size: 3, seed: 109, road: "carve", solution: "return kind == 1 ? 0 : face" },
+  // The weld's own levels, standing since its laws were written: one to
+  // reach on twelve turns' worth of group, one to build body-first.
+  { name: "Two houses", kind: "siamese", size: 3, seed: 127, solution: "return y > 1 ? U : face" },
+  { name: "Welded home", kind: "siamese", size: 3, seed: 131, road: "build", solution: "return face" },
 ];
 
 const PRESETS = {
@@ -467,7 +471,9 @@ function renderAlbum() {
     const board =
       c.kind === "cube"
         ? `${c.size}×${c.size}×${c.size}`
-        : `3×3×${c.size}`;
+        : c.kind === "siamese"
+          ? "3 + 3 weld"
+          : `3×3×${c.size}`;
     // Old records predate the fuel board; they show what they know.
     const f = (b) => (b.fuel == null ? "" : ` · ${b.fuel}f`);
     const lines = [];

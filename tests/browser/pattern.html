@@ -95,7 +95,7 @@ f.onload = () => setTimeout(async () => {
   // ── 5. los retos ───────────────────────────────────────────────────────
   const goal = $("write-goal");
   const retos = [...goal.options].slice(1);
-  check("hay once retos (dos piden el sticker, tres nombran su camino)", retos.length === 11);
+  check("hay trece retos (dos piden el sticker, dos son del weld)", retos.length === 13);
   for (const o of retos) {
     goal.value = o.value; fire(goal); await wait(400);
     check(`reto ${o.textContent}: muestra la meta`, $("goal-art").innerHTML.startsWith("<svg"));
@@ -304,8 +304,8 @@ f.onload = () => setTimeout(async () => {
   // ── 16. el album ───────────────────────────────────────────────────────
   {
     const cards = [...d.querySelectorAll(".album-card")];
-    check("el album tiene los once niveles", cards.length === 11, String(cards.length));
-    check("los niveles nuevos dicen su camino", d.querySelectorAll(".album-road").length === 3, String(d.querySelectorAll(".album-road").length));
+    check("el album tiene los trece niveles", cards.length === 13, String(cards.length));
+    check("los niveles nuevos dicen su camino", d.querySelectorAll(".album-road").length === 4, String(d.querySelectorAll(".album-road").length));
     check("cada tarjeta trae su dibujo", cards.every(c => c.querySelector("svg")));
     check("cada tarjeta trae tablero y par", cards.every(c => /par \d/.test(c.textContent)));
     cards[0].click(); await wait(320);
