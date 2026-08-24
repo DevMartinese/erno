@@ -1588,8 +1588,6 @@ function runScript(source) {
       if (!names.length)
         throw new Error("point the drill: carve takes slot names, or 'centers'");
       const ref = build(game.source, game.kind, game.size); // uncarved reference
-      if (ref instanceof Fused)
-        throw new Error("a weld waits for its laws before it can be carved");
       const skey = (slot) => slot.map((v) => Math.round(v * 1e4)).join(",");
       const keys = new Set(game.carve ? game.carve.keys : []);
       const carvedNames = new Set(game.carve ? game.carve.names : []);
@@ -2105,15 +2103,18 @@ function runScriptButton() {
     // and the page will not consult a judge outside its scope.
     const centersOnly =
       game.carve && game.carve.names.length === 1 && game.carve.names[0] === "centers";
+    // A carved WELD is judged in full whatever was carved: its blocking
+    // keeps the holes in place, so the group of its turns is still the
+    // whole reachable set. A carved cube keeps its crowns on centers only.
     let law = null;
-    if (centersOnly) {
+    if (centersOnly || game.puzzle instanceof Fused) {
       try {
         law = game.puzzle.lawful();
       } catch { /* then the crowns stay unclaimed */ }
     }
     if (hit) {
       out.textContent =
-        centersOnly && law && law.lawful
+        law && law.lawful
           ? `Carved and reached: ${result.chars} characters, ${result.moves} moves, both crowns.`
           : `Carved and reached: ${result.chars} characters, ${result.moves} moves.`;
       if (game.challenge !== null) {

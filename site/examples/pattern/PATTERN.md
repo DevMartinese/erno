@@ -190,12 +190,16 @@ other body wears its own scramble.
   board, unturned this run — you carve on the bench, not mid-solve. No
   `fill()`: nothing unsaws wood; Reset heals. `carve("centers")` **is**
   the Void — and keeps **both crowns**: the cube's three laws never
-  mention a centre, so they hold verbatim. Other carves change the laws
+  mention a centre, so they hold verbatim. On a cube, other carves change the laws
   → "laws unwritten", said, not pretended. Carving removes pieces,
   never moves: `legal()` stays constant. A carve re-publishes
   symmetries (the Void keeps all planes; a one-corner carve loses `RL`
-  and reflect refuses with the surviving list). Cubes and cuboids only;
-  welds wait on their laws.
+  and reflect refuses with the surviving list). **Welds carve too**,
+  and keep the exact judge whatever was carved: a blocking board only
+  fires a turn whose occupied slab comes back to itself, so the holes
+  never walk to new places and lawful still means reachable. On a weld
+  "centers" means the single-sticker pieces of both bodies, and a
+  named carve speaks body-first.
 
 ### Read
 
@@ -314,7 +318,7 @@ the code.
 | Built piece by piece | yes | yes | body-first, spun | body-first, spun | not yet |
 | Law's crown | three laws | corner twist law | computed, by body | computed, by body | centers: verbatim; others: unwritten |
 | `deal()` | yes | yes | yes | yes | no, names its carve |
-| Can be carved | yes | yes | waits | waits | is one |
+| Can be carved | yes | yes | yes, exact judge | yes, exact judge | is one |
 | `board()` spells it | `"3"` | `"2x2x3"` | `"3 + 3 @ …"` | `"3 + 2 @ …"` | `"3 - centers"` |
 
 ---
@@ -350,8 +354,9 @@ the code.
    membership decides, body by body where the slabs never meet. On a
    weld a slab either always turns or never does, so lawful means
    reachable — the verdict is complete, and it names the body it
-   convicts. Exotic placements arrived with it; carves on welds still
-   wait.
+   convicts. Exotic placements arrived with it, and so did carves on
+   welds: blocking keeps the holes still, so the carved weld keeps the
+   exact judge whatever was carved.
 2. **The challenge format** — standing. Every challenge owns a fixed
    seed (the *this position* league, where hardcoding is the floor),
    the album keeps a record per road, and the *any position* league

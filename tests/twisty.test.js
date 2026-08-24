@@ -1797,12 +1797,15 @@ test("the spec's refusals name the thing", () => {
     said = err.message;
   }
   assert(said.includes("line up cubie to cubie"), "misalignment speaks the constructor's words");
+  const carvedWeld = boardOf("3 + 3 @ 2,2,0 - centers");
+  assert(carvedWeld.spec === "3 + 3 @ 2,2,0 - centers", "a welded carve builds, and its spec round-trips");
   try {
-    boardOf("3 + 3 @ 2,2,0 - centers");
+    boardOf("3 + 3 @ 2,2,0 - AUF");
   } catch (err) {
     said = err.message;
   }
-  assert(said.includes("laws are not written"), "a welded carve waits, and says so");
+  assert(/shared pieces/.test(said) || boardOf("3 + 3 @ 2,2,0 - AUF").spec.includes("AUF"),
+    "a named weld carve speaks body-first");
   try {
     boardOf("3 @ 1,0,0");
   } catch (err) {
@@ -1960,6 +1963,23 @@ test("the unequal weld is judged on its own turns", () => {
   f.scramble(30, 5);
   assert(f.lawful().lawful, "a scramble is reachable");
   assert(!new Fused().twistCorner("ADLB").lawful().lawful, "a twisted corner is not");
+});
+
+test("the carved weld keeps the exact judge: blocking holds its holes still", () => {
+  // A blocking board only fires a turn whose occupied slab comes back to
+  // itself, so the hole set is invariant by induction: legality stays the
+  // shape's, and the group of the turns is still the whole reachable set.
+  const carved = new Siamese().carve("centers");
+  assert(carved.pieces.length < new Siamese().pieces.length, "the centres are gone from BOTH bodies");
+  const v = carved.lawful();
+  assert(v.lawful && v.complete, "at rest, lawful and complete");
+  const rest = carved.legalMoves().join(" ");
+  carved.scramble(30, 11);
+  assert(carved.legalMoves().join(" ") === rest, "what turns once still turns always");
+  assert(carved.lawful().lawful, "a scramble on the carved weld stays lawful");
+  assert(!carved.twistCorner("BURF").lawful().lawful, "and a twist is still convicted");
+  const spec = boardOf("3 + 3 @ 2,2,0 - centers");
+  assert(spec.lawful().complete, "the spec-born carve is judged the same");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

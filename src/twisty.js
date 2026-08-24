@@ -2277,6 +2277,11 @@ export class Twisty {
    * @returns {Twisty}
    */
   carve(remove) {
+    // On a weld "centers" cannot mean two zero coordinates - only body A
+    // lives at the origin. A centre is the piece with one sticker, and on
+    // a weld that spelling reaches both bodies alike.
+    if (remove === "centers" && this.bodies)
+      remove = ({ stickers }) => stickers === 1;
     const extra = normalizeRemove(remove);
     if (!extra)
       throw new Error(

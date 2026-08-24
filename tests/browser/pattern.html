@@ -374,6 +374,18 @@ f.onload = () => setTimeout(async () => {
     check("y de vuelta al aire libre", $("write-goal").value === "", $("write-goal").value);
   }
 
+  paso("20 el weld tallado");
+  // ── 20. el weld se talla, y el juez no se apaga ────────────────────────
+  {
+    $("script-code").value = 'board("3 + 3 @ 2,2,0"); carve("centers"); turn("AD")';
+    $("script-run").click(); await wait(9000);
+    check("el weld se talla sin esperar leyes", !/waits for its laws/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    check("y el camino del tallador habla", /Carved/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    $("script-code").value = 'board("3")';
+    $("script-run").click(); await wait(2000);
+    $("play-reset").click(); await wait(300);
+  }
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

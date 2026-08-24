@@ -673,10 +673,14 @@ boardOf("3 + 3 @ 2,2,0")              // the classic siamese pair, spelled out
 boardOf("3 + 3x2x3 @ 2,0.5,0")        // a cube welded to a cuboid
 boardOf("3 - centers")                // renders byte for byte as new Void()
 boardOf("3 - FU").spec                // "3 - UF": carve names come back canonical
+boardOf("3 + 3 @ 2,2,0 - centers")    // a carved weld, judged in full
 ```
 
-Misaligned lattices are refused in the constructor's words, and a welded
-spec does not carve yet: its laws are not written.
+Misaligned lattices are refused in the constructor's words. A welded spec
+carves too: on a weld "centers" means the single-sticker pieces of both
+bodies, a named carve speaks body-first (`- ADLB`), and the carved weld
+keeps the exact judge - its blocking holds the holes still, so lawful
+still means reachable.
 
 ## Seeded scrambles
 

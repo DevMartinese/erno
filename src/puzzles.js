@@ -2566,8 +2566,6 @@ export function boardOf(spec, options = {}) {
   let remove = null;
   const canonicalCarves = [];
   if (carves.length) {
-    if (bodies.length > 1)
-      throw new Error("erno: a welded spec does not carve yet; its laws are not written");
     const keyOf = (sl) => sl.map((v) => Math.round(v * 1e4)).join(",");
     const keys = new Set();
     let centersToo = false;
@@ -2587,15 +2585,28 @@ export function boardOf(spec, options = {}) {
       }
       const idx = ref.pieceNamed(c);
       keys.add(keyOf(ref.getPieces().find((x) => x.index === idx).slot));
-      canonicalCarves.push(ref.nameOf(idx));
+      // A weld's canonical spelling is body-first, like everything else on
+      // it; a shared piece is the weld's own and is not for carving.
+      if (bodies.length > 1) {
+        const body = ref._bodyOf(idx);
+        if (body < 0)
+          throw new Error("erno: the weld's shared pieces are the weld's own; they do not carve");
+        canonicalCarves.push(String.fromCharCode(65 + body) + ref.nameOf(idx));
+      } else canonicalCarves.push(ref.nameOf(idx));
     }
+    // On a weld a centre is the single-sticker piece - both bodies alike -
+    // because only body A lives at the origin.
+    const isCentre = ({ slot, stickers }) =>
+      bodies.length > 1
+        ? stickers === 1
+        : slot.filter((v) => Math.abs(v) < 1e-6).length >= 2;
     remove =
-      !keys.size && centersToo && !coreToo
+      !keys.size && centersToo && !coreToo && bodies.length === 1
         ? "centers" // the plain word keeps the Void byte for byte
-        : ({ slot, stickers }) =>
-            (centersToo && slot.filter((v) => Math.abs(v) < 1e-6).length >= 2) ||
-            (coreToo && stickers === 0) ||
-            keys.has(keyOf(slot));
+        : (info) =>
+            (centersToo && isCentre(info)) ||
+            (coreToo && info.stickers === 0) ||
+            keys.has(keyOf(info.slot));
   }
   const board = make(remove ? { remove } : {});
   const sizeStr = (s) => (s[0] === s[1] && s[1] === s[2] ? String(s[0]) : s.join("x"));
