@@ -237,9 +237,9 @@ async function settleTo(svg, oldSvg, gen) {
   base.style.transform = t.css;
   base.innerHTML = svg;
   void base.offsetHeight;
-  base.style.transition = "transform 380ms cubic-bezier(0.77, 0, 0.175, 1)";
+  base.style.transition = "transform 560ms cubic-bezier(0.77, 0, 0.175, 1)";
   base.style.transform = "";
-  await sleep(400);
+  await sleep(580);
   base.style.transition = "";
   base.style.transformOrigin = "";
 }
@@ -260,10 +260,10 @@ async function veilSwap(fn, gen) {
     return;
   }
   base.classList.add("is-veiled");
-  await sleep(160);
+  await sleep(240);
   if (gen === state.gen) fn();
   base.classList.remove("is-veiled");
-  await sleep(160);
+  await sleep(240);
 }
 
 // Two aligned renders crossfading in place: the repaint story.
@@ -275,7 +275,7 @@ async function crossfadeTo(svg, gen) {
   const over = overlayWith(svg, "is-arriving");
   over.classList.remove("is-arriving");
   base.classList.add("is-yielding");
-  await sleep(440);
+  await sleep(660);
   over.remove();
   if (gen !== state.gen) {
     base.classList.remove("is-yielding");
@@ -328,7 +328,7 @@ async function morphTo(next, gen) {
     const over = overlayWith(cut, "");
     void over.offsetHeight;
     over.classList.add("is-lifting");
-    await sleep(reduced ? 0 : 460);
+    await sleep(reduced ? 0 : 780);
     over.remove();
     if (gen !== state.gen) return;
   }
@@ -356,7 +356,7 @@ async function morphTo(next, gen) {
     const over = overlayWith(joining, slide ? (dx > 0 ? "is-joining-r" : "is-joining-l") : "is-arriving");
     void over.offsetHeight;
     over.classList.remove("is-joining-r", "is-joining-l", "is-arriving");
-    await sleep(reduced ? 0 : 500);
+    await sleep(reduced ? 0 : 840);
     over.remove();
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next, { frame: F });
@@ -382,7 +382,7 @@ async function playTurns(value, seq, gen) {
   let i = 0;
   for (const token of tokens) {
     if (gen !== state.gen) return;
-    const ms = reduced ? 0 : Math.max(70, 200 * 0.93 ** i);
+    const ms = reduced ? 0 : Math.max(95, 260 * 0.94 ** i);
     if (ms) {
       const t0 = performance.now();
       await new Promise((done) => {
@@ -431,7 +431,7 @@ async function reveal(value, gen) {
     if (gen !== state.gen) return;
     standing.add(idx);
     base.innerHTML = svgOf(value, { pieces: (id) => standing.has(id) });
-    await sleep(Math.max(30, 70 * 0.94 ** i));
+    await sleep(Math.max(40, 95 * 0.95 ** i));
     i++;
   }
   state.shown = value;
@@ -440,6 +440,52 @@ async function reveal(value, gen) {
 // ── The code panel: segments, not keystrokes ────────────────────────────────
 
 const linesHost = $("voyage-lines");
+
+// The ink of the language, hand-rolled: strings wear blue (they are the
+// mini-notation), keywords red, the chain's links bold. A segment is
+// always whole - a string never splits across two - so each one can be
+// inked on its own.
+const escapeHtml = (t) =>
+  t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function ink(seg) {
+  let out = "";
+  let i = 0;
+  const src = seg;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== ch) j++;
+      out += `<span class="tk-str">${escapeHtml(src.slice(i, j + 1))}</span>`;
+      i = j + 1;
+      continue;
+    }
+    const rest = src.slice(i);
+    const kw = rest.match(/^(const|let|for|of|new|return)\b/);
+    if (kw) {
+      out += `<span class="tk-kw">${kw[0]}</span>`;
+      i += kw[0].length;
+      continue;
+    }
+    const fn = rest.match(/^\.?(rubik|alg|paint|carve|turn|scramble|deal|place|bin|out|times|order)(?=\()/);
+    if (fn) {
+      const dot = fn[0].startsWith(".") ? "." : "";
+      out += `${dot}<span class="tk-fn">${fn[0].slice(dot.length)}</span>`;
+      i += fn[0].length;
+      continue;
+    }
+    const num = rest.match(/^\d+(\.\d+)?/);
+    if (num && !/\w/.test(src[i - 1] || "")) {
+      out += `<span class="tk-num">${num[0]}</span>`;
+      i += num[0].length;
+      continue;
+    }
+    out += escapeHtml(ch);
+    i++;
+  }
+  return out;
+}
 
 async function renderLines(lines, gen) {
   const oldLines = [...linesHost.querySelectorAll(".cline")];
@@ -472,7 +518,7 @@ async function renderLines(lines, gen) {
   for (const [i, el] of oldLines.entries()) {
     if (usedOld.has(i)) continue;
     el.classList.add("is-gone");
-    setTimeout(() => el.remove(), 420);
+    setTimeout(() => el.remove(), 700);
   }
 
   // structure: land everything in final order
@@ -520,12 +566,12 @@ async function renderLines(lines, gen) {
       plan.el.classList.remove("is-new");
     }
   }
-  if (!reduced) await sleep(80);
+  if (!reduced) await sleep(140);
 }
 
 function reconcileSegments(lineEl, segs) {
   const olds = [...lineEl.querySelectorAll(".seg")];
-  const oldTexts = olds.map((el) => el.textContent);
+  const oldTexts = olds.map((el) => el.dataset.raw ?? el.textContent);
   const target = segs.filter((sg) => sg !== "");
 
   // common prefix and suffix of segment lists: the middle is the change
@@ -553,14 +599,15 @@ function reconcileSegments(lineEl, segs) {
     el.style.top = `${r.top - lr.top}px`;
     void el.offsetHeight;
     el.classList.add("seg-out");
-    setTimeout(() => el.remove(), 340);
+    setTimeout(() => el.remove(), 620);
   }
   // in with the middle news, before the kept suffix
   const anchorEl = sFx ? olds[olds.length - sFx] : null;
   for (const sg of target.slice(p, target.length - sFx)) {
     const span = document.createElement("span");
     span.className = "seg seg-in";
-    span.textContent = sg;
+    span.innerHTML = ink(sg);
+    span.dataset.raw = sg;
     lineEl.insertBefore(span, anchorEl);
     void span.offsetHeight;
     span.classList.remove("seg-in");
@@ -594,7 +641,7 @@ function reconcileSegments(lineEl, segs) {
 async function swapText(el, text) {
   if (el.textContent === text) return;
   el.classList.add("is-leaving");
-  await sleep(reduced ? 0 : 200);
+  await sleep(reduced ? 0 : 280);
   el.classList.remove("is-leaving");
   el.classList.add("is-entering");
   el.textContent = text;
