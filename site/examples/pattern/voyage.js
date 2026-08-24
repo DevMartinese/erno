@@ -345,23 +345,58 @@ async function morphTo(next, gen) {
     return out;
   };
 
+  // Every visible instant is a COMPLETE board. A wave is not a handful
+  // of floating cubies (a cubie alone shows its dark inner walls); it is
+  // the whole board at an intermediate state, stacked and faded in
+  // sequence, so occlusion is always the mechanism's own.
+  const stackFade = async (renders, dir, stagger) => {
+    if (reduced) return;
+    if (dir === "in") {
+      const overs = [];
+      for (const svg of renders) {
+        if (gen !== state.gen) break;
+        const over = overlayWith(svg, "is-arriving");
+        overs.push(over);
+        void over.offsetHeight;
+        over.classList.remove("is-arriving");
+        await sleep(stagger);
+      }
+      await sleep(660);
+      for (const over of overs) over.remove();
+    } else {
+      const overs = renders.map((svg) => overlayWith(svg, ""));
+      for (let k = overs.length - 1; k >= 0; k--) {
+        if (gen !== state.gen) break;
+        overs[k].classList.add("is-yielding");
+        await sleep(stagger);
+      }
+      await sleep(660);
+      for (const over of overs) over.remove();
+    }
+  };
+
   if (leaving.size) {
-    // the cubies leave in waves, peeling from the rim inward: you watch
-    // the removal happen, softly, group by soft group
+    // removal, watched: the board peels from the rim inward - a stack of
+    // intermediate boards, the fullest on top, fading away in order
     const under = arriving.size
       ? svgOf(next, { frame: F, pieces: (i) => !arriving.has(i) })
       : svgOf(next, { frame: F });
     base.innerHTML = under;
     const waves = waveify([...A].filter(([k]) => !B.has(k)), false);
-    const overs = waves.map((wave) =>
-      overlayWith(svgOf(prev, { frame: F, pieces: (i) => wave.has(i) }), ""),
-    );
-    for (const over of overs) {
-      over.classList.add("is-lifting");
-      await sleep(reduced ? 0 : 130);
+    const cumulative = [];
+    const gone = new Set();
+    for (const w of waves) {
+      for (const idx of w) gone.add(idx);
+      cumulative.push(new Set(gone));
     }
-    await sleep(reduced ? 0 : 700);
-    for (const over of overs) over.remove();
+    // bottom -> top: most removed -> untouched
+    const renders = [];
+    for (let k = waves.length - 1; k >= 1; k--) {
+      const g = cumulative[k - 1];
+      renders.push(svgOf(prev, { frame: F, pieces: (i) => !g.has(i) }));
+    }
+    renders.push(svgOf(prev, { frame: F }));
+    await stackFade(renders, "out", 170);
     if (gen !== state.gen) return;
   }
 
@@ -380,23 +415,18 @@ async function morphTo(next, gen) {
       await sleep(reduced ? 0 : 840);
       over.remove();
     } else {
-      // growth is built: cubies join in waves radiating outward from
-      // what already stands - you watch the bigger cube get made
+      // growth, watched: intermediate boards stacked fuller and fuller,
+      // fading on in order - the bigger cube gets made before your eyes
+      const survivors = new Set([...B.values()].filter((i) => !arriving.has(i)));
       const waves = waveify(arrivingEntries, true);
-      const overs = [];
-      for (const wave of waves) {
-        if (gen !== state.gen) break;
-        const over = overlayWith(
-          svgOf(next, { frame: F, pieces: (i) => wave.has(i) }),
-          "is-arriving",
-        );
-        overs.push(over);
-        void over.offsetHeight;
-        over.classList.remove("is-arriving");
-        await sleep(reduced ? 0 : 140);
+      const standing = new Set(survivors);
+      const renders = [];
+      for (const w of waves) {
+        for (const idx of w) standing.add(idx);
+        const snapshot = new Set(standing);
+        renders.push(svgOf(next, { frame: F, pieces: (i) => snapshot.has(i) }));
       }
-      await sleep(reduced ? 0 : 660);
-      for (const over of overs) over.remove();
+      await stackFade(renders, "in", 180);
     }
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next, { frame: F });
