@@ -92,6 +92,13 @@ body.example {
 }
 .example-canvas {
   width: 100%;
+  /* A board is a diagram, not a hero: the column is wide for the text's
+     sake, and a cube that fills it towers over everything beside it.
+     Capped and anchored at the top of its column - never sticky: a board
+     that rides the scroll climbs over its own plate's controls. */
+  max-width: 24rem;
+  align-self: start;
+  justify-self: center;
   display: grid;
   place-items: center;
 }
@@ -241,6 +248,16 @@ body.example {
 }
 #play-panel[data-won] .example-demo {
   background: color-mix(in oklab, var(--yellow) 22%, var(--paper));
+}
+
+/* ── The glass ───────────────────────────────────────────────────────── */
+
+#play-canvas-gl {
+  aspect-ratio: 1 / 1;
+}
+#play-gl[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 /* ── The album ─────────────────────────────────────────────────────────────────── */

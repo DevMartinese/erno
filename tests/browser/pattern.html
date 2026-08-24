@@ -386,6 +386,18 @@ f.onload = () => setTimeout(async () => {
     $("play-reset").click(); await wait(300);
   }
 
+  paso("21 el vidrio");
+  // ── 21. el vidrio opcional ─────────────────────────────────────────────
+  {
+    const gl = $("play-gl");
+    check("el vidrio espera su boton", !!gl && gl.getAttribute("aria-pressed") === "false");
+    gl.click(); await wait(1500);
+    const on = gl.getAttribute("aria-pressed") === "true";
+    check("o enciende, o rehusa con palabras", on || /SVG only/.test($("play-status").textContent), $("play-status").textContent.slice(0, 60));
+    if (on) { gl.click(); await wait(300); }
+    check("y el SVG nunca se fue", $("play-canvas").innerHTML.startsWith("<svg"));
+  }
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

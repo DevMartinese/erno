@@ -263,9 +263,29 @@ import("https://esm.sh/sugar-high")
 // is measured once, off a real cube, in the same viewBox the renders use.
 // (viewBox units are projection units, and the projector normalizes by
 // the puzzle's radius, so world width = viewBox width × radius.)
+// ── The glass: an optional WebGL twin of the play canvas ────────────────────
+//
+// The engine is renderer-blind - getPieces() hands any view the same truth
+// the SVG draws from - and the package ships a three.js adapter. This is
+// that adapter, behind a toggle: the SVG stays the page's identity and its
+// truth (every canvas below still renders it), the glass is a second pair
+// of eyes on the same board. Replays and builds speak SVG (the veil and
+// the shadow are the SVG's own tricks), so the glass steps aside for them.
+const glass = { on: false, view: null, module: null };
+
+function syncGlass() {
+  const el = $("play-canvas-gl");
+  if (!el) return;
+  const showing = glass.on && !!glass.view && !game.build && !game.busy;
+  el.hidden = !showing;
+  $("play-canvas").hidden = showing;
+}
+
 let refWorldWidth = null;
 
 const draw = (host, puzzle, turn) => {
+  if (glass.on && glass.view && !game.build && host === $("play-canvas"))
+    glass.view.show(puzzle, turn);
   host.innerHTML = puzzle.toSVG({ fitSphere: true, turn, padding: 8 });
   const svg = host.firstElementChild;
   if (!svg || !puzzle.getFrame) return;
@@ -608,10 +628,12 @@ function renderGame() {
       `In pieces: ${game.build.tray.length} in the bin. ` +
       `The turns wait for the last place(); Reset heals it.`;
     $("play-panel").removeAttribute("data-won");
+    syncGlass();
     if ($("seq-input")) renderSequence();
     renderCode();
     return;
   }
+  syncGlass();
   for (const id of ["play-start", "play-undo", "play-share"])
     $(id).disabled = false;
   // renderGame runs after refreshWrite and was quietly re-enabling the
@@ -1922,6 +1944,7 @@ async function watchBack(recon, startPos) {
 
   reconActive = gen;
   game.busy = true;
+  syncGlass();
   renderMoves();
   for (const id of ["play-start", "play-undo", "play-share", "seq-run", "script-run", "script-league"])
     $(id).disabled = true;
@@ -3296,6 +3319,23 @@ function init() {
       game.puzzle.swapPieces(a, b);
     }));
 
+  $("play-gl").addEventListener("click", async () => {
+    glass.on = !glass.on;
+    let refused = "";
+    if (glass.on && !glass.view) {
+      try {
+        if (!glass.module) glass.module = await import("../../three-view.js");
+        glass.view = await glass.module.createThreeView($("play-canvas-gl"));
+      } catch (err) {
+        // No WebGL here; the SVG was never going anywhere.
+        glass.on = false;
+        refused = `SVG only: ${err.message}`;
+      }
+    }
+    $("play-gl").setAttribute("aria-pressed", String(glass.on));
+    renderGame();
+    if (refused) $("play-status").textContent = refused;
+  });
   $("play-start").addEventListener("click", () => startGame(true));
   $("play-reset").addEventListener("click", () => {
     if (game.carve) {
