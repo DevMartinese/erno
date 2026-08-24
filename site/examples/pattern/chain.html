@@ -78,8 +78,11 @@
         padding: var(--space-3);
         display: flex;
         flex-direction: column;
+        justify-content: center;
+        gap: var(--space-2);
         min-height: 0;
       }
+      .voyage-nav { margin-top: var(--space-2); }
       .voyage-caption {
         min-height: 3.2em;
         margin: 0 0 var(--space-2);
@@ -96,40 +99,45 @@
 
       #voyage-lines {
         contain: content;
-        flex: 1;
-        min-height: 0;
-        overflow: auto;
+        overflow: visible;
         font-family: var(--mono);
-        font-size: var(--size-sm);
-        line-height: 1.9;
-        background: color-mix(in oklab, var(--ink) 5%, var(--paper));
+        font-size: 1.02rem;
+        line-height: 2.2;
+        background: color-mix(in oklab, var(--ink) 4%, var(--paper));
         border: var(--rule) solid var(--ink);
-        padding: var(--space-2) var(--space-3);
+        padding: var(--space-3) var(--space-3);
         white-space: pre;
       }
       .cline {
+        position: relative;
+        min-height: 2.2em;
         opacity: 1;
         transform: translateY(0);
-        transition: opacity 200ms var(--ease-strong), transform 200ms var(--ease-strong);
+        transition: opacity 260ms var(--ease-strong), transform 260ms var(--ease-strong);
       }
-      .cline.is-new { opacity: 0; transform: translateY(6px); }
+      .cline.is-new { opacity: 0; transform: translateY(8px); }
       .cline.is-gone {
         opacity: 0;
-        transform: translateY(-4px);
+        transform: translateY(-6px);
         max-height: 0;
-        transition: opacity 160ms var(--ease-strong), transform 160ms var(--ease-strong),
-          max-height 200ms var(--ease-move) 60ms;
+        transition: opacity 180ms var(--ease-strong), transform 180ms var(--ease-strong),
+          max-height 220ms var(--ease-move) 60ms;
         overflow: hidden;
       }
-      .caret {
+      /* the segment is the unit of change: it floats in soft and a
+         little blurred, and a replaced one crosses over as a ghost */
+      .seg {
         display: inline-block;
-        width: 0.55em;
-        height: 1.1em;
-        background: var(--ink);
-        vertical-align: text-bottom;
-        animation: caret-blink 1s steps(1) infinite;
+        white-space: pre;
+        transition: opacity 320ms var(--ease-strong), transform 320ms var(--ease-strong),
+          filter 320ms var(--ease-strong);
       }
-      @keyframes caret-blink { 50% { opacity: 0; } }
+      .seg-in { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+      .seg-out {
+        opacity: 0;
+        transform: translateY(-5px);
+        filter: blur(3px);
+      }
 
       .voyage-verdict {
         font-family: var(--mono);
@@ -181,6 +189,20 @@
       /* the shell change: both bodies on screen through the middle */
       .board-layer.is-arriving { opacity: 0; filter: blur(2px); }
       .board-layer.is-yielding { opacity: 0; filter: blur(2px); }
+      /* what is cut lifts away as one soft group */
+      .board-layer.is-lifting {
+        transition: opacity 460ms ease, transform 460ms var(--ease-strong), filter 460ms ease;
+        opacity: 0;
+        transform: translateY(-2.5%) scale(1.01);
+        filter: blur(2px);
+      }
+      /* the second cube arrives from its own side and welds on */
+      .board-layer.is-joining-r { opacity: 0; transform: translate(7%, -7%); filter: blur(2px); }
+      .board-layer.is-joining-l { opacity: 0; transform: translate(-7%, 7%); filter: blur(2px); }
+      .board-layer--over {
+        transition: opacity 500ms var(--ease-strong), transform 500ms var(--ease-strong),
+          filter 500ms var(--ease-strong);
+      }
       /* the whisper: a recolouring hides in the blur, the body stays */
       .board-layer.is-veiled {
         transition: opacity 160ms ease, filter 160ms ease;
