@@ -227,6 +227,24 @@ Unlawfulness is an invariant: scramble a damaged cube all you like, and
 `lawful()` still names the law that was broken. That is the whole tragedy
 of the borrowed cube, stated as a theorem.
 
+The judge rules welded boards too, and its verdict there is computed
+rather than quoted: every turn is a permutation of sticker places, the
+group those turns generate is built inside the engine (Schreier-Sims),
+and membership decides. On a weld a slab either always comes back to
+itself or never does, so lawful means reachable, the verdict is
+complete, and it names the body it convicts. Pieces and slots on a weld
+spell body-first, the way its moves already do:
+
+```js
+import { Siamese } from "erno.js";
+
+const weld = new Siamese().twistCorner("ADLB"); // body A's DLB corner
+console.assert(!weld.lawful().lawful);
+// "body A stands outside the reach of its own turns: no sequence of
+//  this weld's moves brings it back"
+console.assert(new Siamese().lawful().complete); // exact, not cautious
+```
+
 ### Renderers that are not this one
 
 The SVG is one consumer of the engine, not the engine. `getPieces()` hands

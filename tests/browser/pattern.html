@@ -347,6 +347,20 @@ f.onload = () => setTimeout(async () => {
     check("la liga vuelve a cerrarse en libre", $("script-league").disabled);
   }
 
+  paso("18 el weld construido");
+  // ── 18. el weld, armado y juzgado ──────────────────────────────────────
+  {
+    $("script-code").value = 'board("3 + 3 @ 2,2,0"); deal(); for (const q of bin()) place(q, q)';
+    $("script-run").click(); await wait(9000);
+    check("el weld armado en casa gana ambas coronas", /both crowns/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    $("script-code").value = 'board("3 + 3 @ 2,2,0"); deal(); for (const q of bin()) place(q, q, q == "ADLB" ? 1 : 0)';
+    $("script-run").click(); await wait(9000);
+    check("el weld torcido es condenado con palabras", /not a lawful cube/.test($("script-status").textContent), $("script-status").textContent.slice(0, 90));
+    $("script-code").value = 'board("3")';
+    $("script-run").click(); await wait(2000);
+    $("play-reset").click(); await wait(300);
+  }
+
   paso("10 enlace");
   // ── 10. el enlace ──────────────────────────────────────────────────────
   try { $("play-share").click(); await wait(60);

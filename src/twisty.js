@@ -1903,14 +1903,71 @@ export class Twisty {
     if (this._stickerCount(A.i) !== this._stickerCount(B.i))
       throw new Error(`erno: ${a} and ${b} are not the same kind of piece`);
     if (A.i === B.i) return this;
-    const Q = this._symmetryTaking(
-      A.c.map((v) => Math.round(v * 2)),
-      B.c.map((v) => Math.round(v * 2)),
-    );
-    const Qi = [0, 1, 2].map((r) => [Q[0][r], Q[1][r], Q[2][r]]); // transpose
-    this._tamper(A.i, Q, ORIGIN);
-    this._tamper(B.i, Qi, ORIGIN);
+    if (!this.bodies) {
+      const Q = this._symmetryTaking(
+        A.c.map((v) => Math.round(v * 2)),
+        B.c.map((v) => Math.round(v * 2)),
+      );
+      const Qi = [0, 1, 2].map((r) => [Q[0][r], Q[1][r], Q[2][r]]); // transpose
+      this._tamper(A.i, Q, ORIGIN);
+      this._tamper(B.i, Qi, ORIGIN);
+      return this;
+    }
+    // On a weld neither slot is the other's mirror about the origin, so
+    // each piece turns IN PLACE until its stickers face the other slot's
+    // outward pattern, then walks straight over - every sticker still
+    // faces out, in body A, in body B, or across the bar.
+    const carry = (P, to) => {
+      const R = this._rotationAligning(this._slotDirs(P.c), this._slotDirs(to.c));
+      this._tamper(P.i, R, P.c);
+      this._translate(P.i, [to.c[0] - P.c[0], to.c[1] - P.c[1], to.c[2] - P.c[2]]);
+    };
+    carry(A, B);
+    carry(B, A);
     return this;
+  }
+
+  /** The outward directions a sticker can face at this slot. */
+  _slotDirs(slot) {
+    const key = keyOf(slot);
+    return this._faceletGeom()
+      .filter((f) => keyOf(f.slot) === key)
+      .map((f) => f.dir);
+  }
+
+  /** The smallest proper rotation laying one outward pattern on another. */
+  _rotationAligning(from, to) {
+    const PERMS = [
+      [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+    ];
+    const PSIGN = { "0,1,2": 1, "1,2,0": 1, "2,0,1": 1, "0,2,1": -1, "1,0,2": -1, "2,1,0": -1 };
+    const want = new Set(to.map(keyOf));
+    let best = null;
+    let bestTrace = -Infinity;
+    for (const perm of PERMS)
+      for (let bits = 0; bits < 8; bits++) {
+        const sign = [bits & 1 ? -1 : 1, bits & 2 ? -1 : 1, bits & 4 ? -1 : 1];
+        if (PSIGN[perm.join(",")] * sign[0] * sign[1] * sign[2] !== 1) continue;
+        const apply = (v) => [sign[0] * v[perm[0]], sign[1] * v[perm[1]], sign[2] * v[perm[2]]];
+        if (!from.every((d) => want.has(keyOf(apply(d))))) continue;
+        const trace =
+          (perm[0] === 0 ? sign[0] : 0) + (perm[1] === 1 ? sign[1] : 0) + (perm[2] === 2 ? sign[2] : 0);
+        if (trace > bestTrace) {
+          bestTrace = trace;
+          const Q = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+          for (let r = 0; r < 3; r++) Q[r][perm[r]] = sign[r];
+          best = Q;
+        }
+      }
+    if (!best)
+      throw new Error("erno: no rotation lays those stickers outward there");
+    return best;
+  }
+
+  /** Walk one piece to another slot, stickers already aligned. */
+  _translate(i, t) {
+    this._slotT[i] = add(this._slotT[i], t);
+    this._bodyT[i] = add(this._bodyT[i], t);
   }
 
   // ── The weld's laws, computed instead of quoted ──────────────────────────
@@ -2432,9 +2489,36 @@ export class Twisty {
    * @param {string} name - face letters, any order
    * @returns {number} the piece's index
    */
+  /** Which body a piece belongs to, as an index; shared pieces answer -1. */
+  _bodyOf(i) {
+    if (!this.bodies) return -1;
+    const home = this.pieces[i].slotPoint;
+    const owners = this.bodies
+      .map((b, j) =>
+        home.every((v, k) => Math.abs(v - b.at[k]) <= (b.size[k] - 1) / 2 + 0.01) ? j : -1,
+      )
+      .filter((j) => j >= 0);
+    return owners.length === 1 ? owners[0] : -1;
+  }
+
   pieceNamed(name) {
-    const want = [...new Set(String(name).split(""))].sort().join("");
+    let spelled = String(name);
+    let body = null;
+    // The weld dialect is body-first, for pieces as for moves: ADLB is
+    // body A's DLB. Bare names are ambiguous the moment two bodies both
+    // answer to one, so on a weld the body letter is not a courtesy.
+    if (this.bodies) {
+      const j = spelled.charCodeAt(0) - 65;
+      if (!(j >= 0 && j < this.bodies.length) || spelled.length < 2)
+        throw new Error(
+          `erno: a welded board spells pieces body-first: A${spelled} for body A's ${spelled}`,
+        );
+      body = j;
+      spelled = spelled.slice(1);
+    }
+    const want = [...new Set(spelled.split(""))].sort().join("");
     for (let i = 0; i < this.pieces.length; i++) {
+      if (body !== null && this._bodyOf(i) !== body) continue;
       const mine = [...new Set(this.pieces[i].faces.filter((f) => f.letter).map((f) => f.letter))]
         .sort()
         .join("");

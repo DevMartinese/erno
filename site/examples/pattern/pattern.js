@@ -1448,18 +1448,32 @@ function runScript(source) {
       if (!game.build) throw new Error("nothing is in pieces: deal() first");
       const book = game.build.book;
       if (book) {
-        // The welded dialect: body-first names, home placement only. The
-        // weld's reduced symmetry is the mechanism's to enforce, so until
-        // it can name cross-slot carries, a piece goes where it lives.
+        // The welded dialect with the box's whole power, now that the
+        // weld's laws are written: body-first names, any free slot of the
+        // right kind, spun on the spot - and lawful() says which cube you
+        // built, body by body.
         const name = String(pieceName);
         const idx = book.byName.get(name);
         if (idx === undefined)
           throw new Error(`${name} is not a piece here: a welded board spells pieces body-first, like A${p.nameOf(game.build.tray[0])}`);
         if (!game.build.tray.includes(idx))
           throw new Error(`${name} is not in the bin`);
-        if ((slotName && String(slotName) !== name) || spin)
-          throw new Error("on a welded board a piece goes to its home, unspun, for now");
-        recon.push({ t: "place", piece: name, index: idx, from: name, slot: name, spins: 0 });
+        const slot = slotName ? String(slotName) : name;
+        if (!book.byName.has(slot))
+          throw new Error(`${slot} is not a slot here: a welded board spells slots body-first too`);
+        if (slot.length !== name.length)
+          throw new Error(`${name} cannot stand in ${slot}: wrong kind of slot`);
+        const sk = (v) => v.map((x) => Math.round(x * 1e4)).join(",");
+        const whereIs = (i) => book.bySlot.get(sk(p.getPieces().find((x) => x.index === i).slot));
+        const standing = new Set([...game.build.placed].map(whereIs).filter(Boolean));
+        if (standing.has(slot)) throw new Error(`${slot} is already taken`);
+        const from = whereIs(idx);
+        if (from !== slot) p.swapPieces(from, slot);
+        const spins = ((Math.round(spin) % 3) + 3) % 3;
+        for (let k = 0; k < spins; k++)
+          if (name.length === 4) p.twistCorner(slot);
+          else p.flipEdge(slot);
+        recon.push({ t: "place", piece: name, index: idx, from, slot, spins });
         game.build.tray.splice(game.build.tray.indexOf(idx), 1);
         game.build.placed.add(idx);
         if (!game.build.tray.length) {
@@ -1800,6 +1814,7 @@ function weldBook(board) {
     slot.every((v, i) => Math.abs(v - b.at[i]) <= (b.size[i] - 1) / 2 + 0.01);
   const byIndex = new Map();
   const byName = new Map();
+  const bySlot = new Map();
   const held = new Set();
   for (const pc of board.getPieces()) {
     const k = new Set(
@@ -1815,8 +1830,9 @@ function weldBook(board) {
     const name = String.fromCharCode(65 + owners[0]) + board.nameOf(pc.index);
     byIndex.set(pc.index, name);
     byName.set(name, pc.index);
+    bySlot.set(pc.slot.map((v) => Math.round(v * 1e4)).join(","), name);
   }
-  return { byIndex, byName, held };
+  return { byIndex, byName, bySlot, held };
 }
 
 function shadowBoard() {
@@ -1911,7 +1927,8 @@ async function watchBack(recon, startPos) {
       const idx = ev.index ?? shadow.pieceNamed(ev.piece);
       if (ev.from !== ev.slot) shadow.swapPieces(ev.from, ev.slot);
       for (let k = 0; k < ev.spins; k++)
-        if (ev.piece.length === 3) shadow.twistCorner(ev.slot);
+        if ((shadow.bodies ? ev.piece.length - 1 : ev.piece.length) === 3)
+          shadow.twistCorner(ev.slot);
         else shadow.flipEdge(ev.slot);
       veil.add(idx);
       if (veil.size === shadow.pieces.length) veil = null;

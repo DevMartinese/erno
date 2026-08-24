@@ -122,6 +122,26 @@ cube.scramble()
 cube.setPosition(saved)
 ```
 
+### 8. The newer verbs, which trained models have not met
+
+`boardOf` speaks the board spec: a number is a cube, a triple is a box,
+`+ size @ x,y,z` welds bodies on one lattice, `- name` bakes a carve in.
+`algOf` declares a sequence as a frozen value without turning the board:
+constructors that never simplify, `equals` is the writing, `sameEffect`
+is the permutation. And `lawful()` rules welded boards now - computed,
+exact, and naming the body it convicts.
+
+```js
+import { boardOf, algOf } from 'erno.js'
+
+const board = boardOf('3 + 3 @ 2,2,0')  // the classic Siamese, from a spec
+board.spec                              // the same string, round-tripped
+const a = algOf(board, '[AD, AL]')      // declared, not played
+a.order                                 // read without moving the board
+a.exchange().alg                        // '[BU, BR]': the same trick in body B
+board.lawful().complete                 // true: the weld judge is exact
+```
+
 ## The puzzles
 
 - `Axis` (26 pieces)
@@ -400,6 +420,24 @@ console.assert(!cube.lawful().lawful)
 Unlawfulness is an invariant: scramble a damaged cube all you like, and
 `lawful()` still names the law that was broken. That is the whole tragedy
 of the borrowed cube, stated as a theorem.
+
+The judge rules welded boards too, and its verdict there is computed
+rather than quoted: every turn is a permutation of sticker places, the
+group those turns generate is built inside the engine (Schreier-Sims),
+and membership decides. On a weld a slab either always comes back to
+itself or never does, so lawful means reachable, the verdict is
+complete, and it names the body it convicts. Pieces and slots on a weld
+spell body-first, the way its moves already do:
+
+```js
+import { Siamese } from "erno.js";
+
+const weld = new Siamese().twistCorner("ADLB"); // body A's DLB corner
+console.assert(!weld.lawful().lawful);
+// "body A stands outside the reach of its own turns: no sequence of
+//  this weld's moves brings it back"
+console.assert(new Siamese().lawful().complete); // exact, not cautious
+```
 
 ### Renderers that are not this one
 

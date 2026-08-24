@@ -1925,11 +1925,22 @@ test("the Siamese is judged exactly: lawful means reachable", () => {
 });
 
 test("the weld's judge names the body it convicts", () => {
-  const twisted = new Siamese().twistCorner("DLB").lawful();
+  const twisted = new Siamese().twistCorner("ADLB").lawful();
   assert(!twisted.lawful, "a twisted corner is convicted");
-  assert(twisted.breaks.some((b) => /body [A-Z]/.test(b)), "and the verdict names the body");
-  assert(!new Siamese().flipEdge("DL").lawful().lawful, "a lone flip is convicted");
-  assert(!new Siamese().swapPieces("D", "U").lawful().lawful, "two centres alone cannot trade places");
+  assert(twisted.breaks.some((b) => /body A/.test(b)), "and the verdict names the body");
+  assert(/body B/.test(new Siamese().twistCorner("BURF").lawful().breaks[0]), "either body");
+  assert(!new Siamese().flipEdge("ADL").lawful().lawful, "a lone flip is convicted");
+  assert(!new Siamese().swapPieces("AD", "AU").lawful().lawful, "two centres alone cannot trade places");
+  let said = "";
+  try {
+    new Siamese().twistCorner("DLB");
+  } catch (e) {
+    said = e.message;
+  }
+  assert(/body-first/.test(said), "a bare name on a weld is refused with the lesson");
+  const cross = new Siamese().swapPieces("ADLB", "BURF").lawful();
+  assert(!cross.lawful && cross.breaks.some((b) => /across the bar/.test(b)), "a piece across the bar is named");
+  assert(new Siamese().swapPieces("ADLB", "BURF").swapPieces("ADLB", "BURF").lawful().lawful, "and the swap swaps back");
 });
 
 test("on a weld, what turns once turns always", () => {
@@ -1948,7 +1959,7 @@ test("the unequal weld is judged on its own turns", () => {
   assert(v.lawful && v.complete, "at rest");
   f.scramble(30, 5);
   assert(f.lawful().lawful, "a scramble is reachable");
-  assert(!new Fused().twistCorner("DLB").lawful().lawful, "a twisted corner is not");
+  assert(!new Fused().twistCorner("ADLB").lawful().lawful, "a twisted corner is not");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

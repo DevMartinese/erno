@@ -155,9 +155,10 @@ other body wears its own scramble.
   body-first (`ADLB`, `BDLB`). Refuses on carved boards, naming the
   carve.
 - **`place(piece, slot?, spin?)`** — sets from the bin, spun on the
-  spot: the perfect cube or an impossible one. Welds: home placements,
-  unspun, until their laws are written. Last piece lands → whole,
-  moves at zero.
+  spot: the perfect cube or an impossible one. Welds speak body-first
+  (`ADLB` into `BURF`, spun) and carry the same power, because their
+  laws are written now and the judge can say what you built. Last
+  piece lands → whole, moves at zero.
 
 ### Shape
 
@@ -310,8 +311,8 @@ the code.
 | `legal()` / `can()` | yes | yes | yes | yes | yes |
 | `reflect` | yes | yes | published mirrors | refused, empty list | what survives |
 | `exchange` / `swap` | — | — | prime-free | refused by name | — |
-| Built piece by piece | yes | yes | home, unspun | home, unspun | not yet |
-| Law's crown | three laws | corner twist law | unwritten, said | unwritten | centers: verbatim; others: unwritten |
+| Built piece by piece | yes | yes | body-first, spun | body-first, spun | not yet |
+| Law's crown | three laws | corner twist law | computed, by body | computed, by body | centers: verbatim; others: unwritten |
 | `deal()` | yes | yes | yes | yes | no, names its carve |
 | Can be carved | yes | yes | waits | waits | is one |
 | `board()` spells it | `"3"` | `"2x2x3"` | `"3 + 3 @ …"` | `"3 + 2 @ …"` | `"3 - centers"` |
@@ -343,10 +344,14 @@ the code.
 
 ## 12. Open, on purpose
 
-1. **The weld's laws** — invariants of each body's two-face subgroup
-   (they factor: disjoint supports), derived and *named* so the judge
-   gains its voice there; unlocks exotic placements and carves on
-   welds.
+1. **The weld's laws** — **written now**, and derived rather than
+   quoted: every turn is a permutation of sticker places, the group
+   they generate is built (Schreier–Sims, in the engine) and
+   membership decides, body by body where the slabs never meet. On a
+   weld a slab either always turns or never does, so lawful means
+   reachable — the verdict is complete, and it names the body it
+   convicts. Exotic placements arrived with it; carves on welds still
+   wait.
 2. **The challenge format** — partly standing now. Every challenge
    owns a fixed seed (the *this position* league, where hardcoding is
    the floor), the album keeps a record per road, and the *any

@@ -190,6 +190,26 @@ cube.scramble()
 cube.setPosition(saved)
 \`\`\`
 
+### 8. The newer verbs, which trained models have not met
+
+\`boardOf\` speaks the board spec: a number is a cube, a triple is a box,
+\`+ size @ x,y,z\` welds bodies on one lattice, \`- name\` bakes a carve in.
+\`algOf\` declares a sequence as a frozen value without turning the board:
+constructors that never simplify, \`equals\` is the writing, \`sameEffect\`
+is the permutation. And \`lawful()\` rules welded boards now - computed,
+exact, and naming the body it convicts.
+
+\`\`\`js
+import { boardOf, algOf } from 'erno.js'
+
+const board = boardOf('3 + 3 @ 2,2,0')  // the classic Siamese, from a spec
+board.spec                              // the same string, round-tripped
+const a = algOf(board, '[AD, AL]')      // declared, not played
+a.order                                 // read without moving the board
+a.exchange().alg                        // '[BU, BR]': the same trick in body B
+board.lawful().complete                 // true: the weld judge is exact
+\`\`\`
+
 ## The puzzles
 
 ${puzzles.map((n) => { const v = vocabularyOf(n); return `- \`${n}\`${v ? ` (${v.pieces} pieces)` : ""}`; }).join("\n")}
