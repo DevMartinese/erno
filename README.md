@@ -653,6 +653,9 @@ new Fused({ bodies: [                  // a 2×2 grown on the corner of a 3×3
 ```
 
 Notation prefixes each face with its body's letter: `AU`, `BR'`, `AF2`.
+The first body is A and anchors the lattice; each welded body takes the
+next letter, and `legend()` says who is who in those same letters:
+`new Siamese().legend()` is `"A: 3 at the origin; B: 3 at 2,2,0"`.
 Bodies must line up cubie to cubie on one lattice; anything else would slice
 its neighbour in half, and the constructor says so instead.
 

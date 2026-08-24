@@ -1256,6 +1256,7 @@ function buildFusedDef(name, bodies) {
   });
 
   return {
+    bodies,
     name,
     solids,
     cuts,
@@ -1347,6 +1348,25 @@ export class Fused extends Twisty {
     }
     super(def, options);
     this.bodies = bodies;
+  }
+
+  /**
+   * Who is who, in the letters everything else on the weld already uses:
+   * moves (AD), pieces (ADLB), verdicts ("body A"). The first body is A
+   * and anchors the lattice; each welded body takes the next letter.
+   * Sizes are spelled the way the board spec spells them.
+   */
+  legend() {
+    return this.bodies
+      .map((b, i) => {
+        const [x, y, z] = b.size;
+        const size = x === y && y === z ? String(x) : `${x}x${y}x${z}`;
+        const at = b.at.every((v) => Math.abs(v) < 1e-9)
+          ? "at the origin"
+          : `at ${b.at.join(",")}`;
+        return `${String.fromCharCode(65 + i)}: ${size} ${at}`;
+      })
+      .join("; ");
   }
 
   /**

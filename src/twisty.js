@@ -772,6 +772,19 @@ export class Twisty {
       this._viewCenter = mid.every((v) => Math.abs(v) < 1e-9) ? ORIGIN : mid;
       for (const c of [this._pivot, ...def.turnCenters])
         radius = Math.max(radius, vlen(sub(c, this._viewCenter)) + reachFrom(c));
+      // Per-body spheres, for a frame that hugs the weld. Every piece
+      // lives inside ITS body's sphere at every instant - a weld's turns
+      // are about body centres, and a rotation preserves the distance to
+      // its own centre - so the union of these is exactly as stable as
+      // the one big sphere and far closer to the shape.
+      if (def.bodies)
+        this._viewSpheres = def.bodies.map((b) => {
+          let r = 0;
+          for (const p of verts)
+            if (p.every((v, i) => Math.abs(v - b.at[i]) <= b.size[i] / 2 + 1e-6))
+              r = Math.max(r, vlen(sub(p, b.at)));
+          return { c: b.at, r };
+        });
     } else {
       this._viewCenter = this._pivot.every((v) => Math.abs(v) < 1e-9)
         ? ORIGIN
@@ -3190,7 +3203,28 @@ export class Twisty {
       // as the centre too slides the puzzle off its own frame.
       const C = this._radius;
       const R = typeof options.fitSphere === "number" ? options.fitSphere : C;
-      vb = sphereViewBox(this._project(), C, C, C, R, pad);
+      if (this._viewSpheres && typeof options.fitSphere !== "number") {
+        // The weld in ONE sphere is a small thing in a big square frame;
+        // the union of its body spheres is the same promise - nothing ever
+        // leaves it, mid-turn included - kept much closer to the shape.
+        const proj = this._project();
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const { c, r } of this._viewSpheres) {
+          const b = sphereViewBox(
+            proj,
+            C + c[0] - this._viewCenter[0],
+            C + c[1] - this._viewCenter[1],
+            C + c[2] - this._viewCenter[2],
+            r,
+            0,
+          );
+          x0 = Math.min(x0, b[0]);
+          y0 = Math.min(y0, b[1]);
+          x1 = Math.max(x1, b[0] + b[2]);
+          y1 = Math.max(y1, b[1] + b[3]);
+        }
+        vb = [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
+      } else vb = sphereViewBox(this._project(), C, C, C, R, pad);
     } else vb = boundsViewBox(faces, pad);
 
     const parts = [openSvgTag(vb)];

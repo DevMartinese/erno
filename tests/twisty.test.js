@@ -1982,5 +1982,16 @@ test("the carved weld keeps the exact judge: blocking holds its holes still", ()
   assert(spec.lawful().complete, "the spec-born carve is judged the same");
 });
 
+test("the weld says who is who, in the letters everything else uses", () => {
+  assert(
+    new Siamese().legend() === "A: 3 at the origin; B: 3 at 2,2,0",
+    "the classic Siamese introduces its bodies",
+  );
+  assert(
+    boardOf("3 + 3x2x3 @ 2,0.5,0").legend() === "A: 3 at the origin; B: 3x2x3 at 2,0.5,0",
+    "a spec-born weld does too, sizes spelled like the spec",
+  );
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
