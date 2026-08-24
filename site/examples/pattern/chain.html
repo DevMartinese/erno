@@ -92,6 +92,7 @@
       .voyage-caption p.is-entering { opacity: 0; transform: translateY(8px); }
 
       #voyage-lines {
+        contain: content;
         flex: 1;
         min-height: 0;
         overflow: auto;
@@ -162,6 +163,7 @@
         position: relative;
       }
       #voyage-table {
+        contain: content;
         width: min(80%, 30rem);
         transition: opacity 260ms var(--ease-strong), transform 260ms var(--ease-strong),
           filter 260ms var(--ease-strong);
@@ -185,6 +187,7 @@
         transition: opacity 240ms var(--ease-strong), transform 240ms var(--ease-strong);
       }
       #voyage-goal[hidden] { display: none; }
+      #voyage-goal.is-entering { opacity: 0; transform: translateY(8px); }
       #voyage-goal svg { width: 100%; height: auto; display: block; }
       #voyage-goal .example-label { display: block; margin-bottom: 0.3rem; }
 
