@@ -134,6 +134,14 @@ const CHALLENGES = [
   // reach on twelve turns' worth of group, one to build body-first.
   { name: "Two houses", kind: "siamese", size: 3, seed: 127, solution: "return y > 1 ? U : face" },
   { name: "Welded home", kind: "siamese", size: 3, seed: 131, road: "build", solution: "return face" },
+  // The two level kinds a paint alone cannot make: the target carries a
+  // POSE, a thumb's work applied after the painting, so it can be unlawful
+  // on purpose. Building the impossible is WON when the judge names the
+  // broken law; Which road? does not say whether its tamper is one.
+  { name: "The borrowed cube", kind: "cube", size: 3, seed: 137, level: "impossible",
+    pose: (b) => b.twistCorner("URF"), solution: "return face" },
+  { name: "Which road?", kind: "cube", size: 3, seed: 139, level: "roads",
+    pose: (b) => b.flipEdge("UF").flipEdge("UB"), solution: "return face" },
 ];
 
 const PRESETS = {
@@ -362,8 +370,21 @@ function refreshWrite() {
 
   game.targetPos = puzzle.getPosition();
   game.target = puzzle.getPattern();
+  // A posed level's target is a POSITION, not just a paint: the pose rides
+  // on whatever is written, which is what lets a target be unlawful on
+  // purpose - and lets the solver's road honestly not exist.
+  const posed =
+    game.challenge !== null &&
+    CHALLENGES[game.challenge].pose &&
+    CHALLENGES[game.challenge].kind === game.kind
+      ? CHALLENGES[game.challenge].pose(build(game.source, game.kind, game.size))
+      : null;
+  if (posed) {
+    game.target = posed.getPattern();
+    game.targetPos = posed.getPosition();
+  }
   game.worst = Math.max(1, depth);
-  draw($("play-target"), puzzle);
+  draw($("play-target"), posed || puzzle);
   // Scrambled from the start: a solved board is a finished game, and that is
   // not what anyone should be shown first.
   startGame(depth > 0);
@@ -407,7 +428,8 @@ function renderChallenge(puzzle) {
     return;
   }
   const c = CHALLENGES[game.challenge];
-  draw($("goal-art"), build(c.solution, c.kind, c.size));
+  const shown = build(c.solution, c.kind, c.size);
+  draw($("goal-art"), c.pose ? c.pose(shown) : shown);
   // A challenge names its own board, so the board is not yours to change
   // while it is up. Leaving it open meant you could select a challenge, type
   // its exact answer, switch the puzzle underneath it and be told "not it
@@ -437,9 +459,10 @@ const albumArt = new Map();
 function artOf(i) {
   if (!albumArt.has(i)) {
     const c = CHALLENGES[i];
+    const made = build(c.solution, c.kind, c.size);
     albumArt.set(
       i,
-      build(c.solution, c.kind, c.size).toSVG({ fitSphere: true, padding: 8 }),
+      (c.pose ? c.pose(made) : made).toSVG({ fitSphere: true, padding: 8 }),
     );
   }
   return albumArt.get(i);
@@ -462,6 +485,7 @@ function renderAlbum() {
     const built = bestOf(`erno-pattern-built-${i}`);
     const carved = bestOf(`erno-pattern-carved-${i}`);
     const league = bestOf(`erno-pattern-any-${i}`);
+    const impossible = bestOf(`erno-pattern-impossible-${i}`);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "album-card";
@@ -481,13 +505,19 @@ function renderAlbum() {
     if (built) lines.push(`Built: ${built.chars}c${f(built)}`);
     if (carved) lines.push(`Carved: ${carved.chars}c · ${carved.moves}m${f(carved)}`);
     if (league) lines.push(`League: ${league.chars}c · ${league.moves}m${f(league)}`);
+    if (impossible) lines.push(`Impossible: ${impossible.chars}c${f(impossible)}`);
     if (!lines.length) lines.push("No record yet");
-    const hint =
-      c.road === "build"
-        ? `<span class="album-road">a builder's level</span>`
-        : c.road === "carve"
-          ? `<span class="album-road">a carver's level</span>`
-          : "";
+    const word =
+      c.level === "impossible"
+        ? "build the impossible"
+        : c.level === "roads"
+          ? "which road exists?"
+          : c.road === "build"
+            ? "a builder's level"
+            : c.road === "carve"
+              ? "a carver's level"
+              : "";
+    const hint = word ? `<span class="album-road">${word}</span>` : "";
     card.innerHTML =
       `<span class="album-art">${artOf(i)}</span>` +
       `<span class="album-name">${c.name}</span>` +
@@ -2025,6 +2055,23 @@ function runScriptButton() {
         ? "a lawful cube"
         : "not a lawful cube"
       : "its laws unwritten";
+    const level = game.challenge !== null ? CHALLENGES[game.challenge].level : null;
+    if (hit && law && !law.lawful && level) {
+      // The kind unique to this game: the picture is exact AND the judge
+      // convicts - which is the whole point, and the crown.
+      out.textContent = `Built the impossible: ${result.chars} characters; the judge names it: ${law.breaks[0]}.`;
+      const key = `erno-pattern-impossible-${game.challenge}`;
+      let best = {};
+      try {
+        best = JSON.parse(localStorage.getItem(key)) || {};
+      } catch { /* a hand-edited record; start fresh */ }
+      best.chars = Math.min(best.chars ?? Infinity, result.chars);
+      best.fuel = Math.min(best.fuel ?? Infinity, result.fuel);
+      localStorage.setItem(key, JSON.stringify(best));
+      renderAlbum();
+      out.textContent += ` Best here: ${best.chars} characters, ${best.fuel} fuel.`;
+      return;
+    }
     out.textContent = hit
       ? law
         ? law.lawful
@@ -3137,10 +3184,13 @@ function init() {
       // 3×3×5 by painting a 3×3 is not the same game.
       const c = CHALLENGES[game.challenge];
       kind.value = c.kind;
+      // syncKind FIRST: the size input below re-renders, and a render that
+      // still believes the previous challenge's kind would pose the wrong
+      // board.
+      syncKind();
       game.size = c.size;
       size.value = String(c.size);
       size.dispatchEvent(new Event("input"));
-      syncKind();
     }
     refreshWrite();
     renderAlbum();

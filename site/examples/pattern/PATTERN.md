@@ -352,19 +352,20 @@ the code.
    reachable — the verdict is complete, and it names the body it
    convicts. Exotic placements arrived with it; carves on welds still
    wait.
-2. **The challenge format** — partly standing now. Every challenge
-   owns a fixed seed (the *this position* league, where hardcoding is
-   the floor), the album keeps a record per road, and the *any
-   position* league runs the same script over five seeds derived from
-   the challenge's own — solver road only, since a script that builds
-   or carves ignores the positions it was handed. Still open: the four
-   level kinds, one unique to this game: **reach** the pattern;
-   **build** it; **build the impossible** — the target is unlawful on
-   purpose, won when the judge names the broken law (needs targets
-   that carry a position, not just a paint); and **which road
-   exists?** — shown a picture, answer with the script that proves it
-   reachable or only buildable. Characters, moves, fuel are all three
-   scored now — separate boards, each its own virtue: the writing, the
-   cube, and what you needed to ask.
+2. **The challenge format** — standing. Every challenge owns a fixed
+   seed (the *this position* league, where hardcoding is the floor),
+   the album keeps a record per road, and the *any position* league
+   runs the same script over five seeds derived from the challenge's
+   own — solver road only, since a script that builds or carves
+   ignores the positions it was handed. All four level kinds exist,
+   the one unique to this game included: **reach** the pattern;
+   **build** it; **build the impossible** — the target carries a POSE,
+   a thumb's work applied after the painting, so it is unlawful on
+   purpose and WON when the picture is exact and the judge names the
+   broken law; and **which road exists?** — the pose does not say
+   whether it broke a law, and the script that proves the answer is
+   the answer. Characters, moves, fuel are all three scored — separate
+   boards, each its own virtue: the writing, the cube, and what you
+   needed to ask.
 3. **The verb question** — `reflect`/`exchange`/`swap` split vs one
    general `under(name)`. Tables identical either way.
