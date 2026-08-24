@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.14 (2026-08-24)
+
+- The weld's frame hugs its bodies. `fitSphere` was framing a weld
+  inside one sphere - big enough to cover both bodies and their reach,
+  and square in projection - so the same cubie drew half the size it
+  draws on a lone cube. Every piece lives inside its body's sphere at
+  every instant (a weld's turns are about body centres, and a rotation
+  preserves the distance to its own centre), so the default frame is
+  now the union of the body spheres: exactly as stable, far closer to
+  the shape. The box lives in one place and is shared by `toSVG` and
+  `getFrame`, so the SVG and a WebGL view frame alike.
+- The weld introduces itself: `legend()` says who is who -
+  `"A: 3 at the origin; B: 3 at 2,2,0"` - in the letters its moves,
+  pieces and verdicts already use, sizes spelled the way the board
+  spec spells them.
+
 ## 0.2.13 (2026-08-23)
 
 - The weld's laws, computed instead of quoted: `lawful()` now judges
