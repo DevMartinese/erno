@@ -256,8 +256,28 @@ import("https://esm.sh/sugar-high")
   .then((m) => { highlight = m.highlight; renderCode(); })
   .catch(() => { /* offline: plain text stands */ });
 
+// One cubie, one size. Every canvas draws world units at the scale a 3×3
+// cube sets, so switching boards never changes what a cubie is: a Floppy
+// arrives small because it IS small, and a weld fills the width because
+// it is wide - never because the frame happened to differ. The reference
+// is measured once, off a real cube, in the same viewBox the renders use.
+// (viewBox units are projection units, and the projector normalizes by
+// the puzzle's radius, so world width = viewBox width × radius.)
+let refWorldWidth = null;
+
 const draw = (host, puzzle, turn) => {
   host.innerHTML = puzzle.toSVG({ fitSphere: true, turn, padding: 8 });
+  const svg = host.firstElementChild;
+  if (!svg || !puzzle.getFrame) return;
+  if (refWorldWidth === null)
+    refWorldWidth = new Cube({ size: 3 }).getFrame({ padding: 8 }).halfWidth;
+  const pct = Math.min(
+    100,
+    (100 * puzzle.getFrame({ padding: 8 }).halfWidth) / refWorldWidth,
+  );
+  svg.style.width = pct.toFixed(1) + "%";
+  svg.style.display = "block";
+  svg.style.margin = "0 auto";
 };
 
 // One turn, animated. The whole reason a turning layer has to be drawn in the

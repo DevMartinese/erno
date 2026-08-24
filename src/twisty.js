@@ -2465,13 +2465,43 @@ export class Twisty {
    * @param {Object} [options] - `padding` and `fitSphere`, as toSVG takes them
    * @returns {{halfWidth: number, halfHeight: number}} half extents in world units
    */
+  /**
+   * The default fitSphere box: one sphere for a lone solid, the union of
+   * the body spheres for a weld - the same promise (nothing ever leaves
+   * it, mid-turn included) kept as close to the shape as a sphere allows.
+   */
+  _fitBox(pad) {
+    const C = this._radius;
+    const proj = this._project();
+    if (!this._viewSpheres) return sphereViewBox(proj, C, C, C, C, pad);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const { c, r } of this._viewSpheres) {
+      const b = sphereViewBox(
+        proj,
+        C + c[0] - this._viewCenter[0],
+        C + c[1] - this._viewCenter[1],
+        C + c[2] - this._viewCenter[2],
+        r,
+        0,
+      );
+      x0 = Math.min(x0, b[0]);
+      y0 = Math.min(y0, b[1]);
+      x1 = Math.max(x1, b[0] + b[2]);
+      y1 = Math.max(y1, b[1] + b[3]);
+    }
+    return [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
+  }
+
   getFrame(options = {}) {
     const pad = options.padding === undefined ? 20 : options.padding;
     const C = this._radius;
     const R =
       typeof options.fitSphere === "number" ? options.fitSphere : C;
     const proj = this._project();
-    const vb = sphereViewBox(proj, C, C, C, R, pad);
+    const vb =
+      typeof options.fitSphere === "number"
+        ? sphereViewBox(proj, C, C, C, R, pad)
+        : this._fitBox(pad);
     // How many projected units one world unit spans. Taken from the sphere
     // itself with no padding rather than from an axis, because under an
     // isometric projection the axes foreshorten and the sphere does not.
@@ -3203,28 +3233,10 @@ export class Twisty {
       // as the centre too slides the puzzle off its own frame.
       const C = this._radius;
       const R = typeof options.fitSphere === "number" ? options.fitSphere : C;
-      if (this._viewSpheres && typeof options.fitSphere !== "number") {
-        // The weld in ONE sphere is a small thing in a big square frame;
-        // the union of its body spheres is the same promise - nothing ever
-        // leaves it, mid-turn included - kept much closer to the shape.
-        const proj = this._project();
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-        for (const { c, r } of this._viewSpheres) {
-          const b = sphereViewBox(
-            proj,
-            C + c[0] - this._viewCenter[0],
-            C + c[1] - this._viewCenter[1],
-            C + c[2] - this._viewCenter[2],
-            r,
-            0,
-          );
-          x0 = Math.min(x0, b[0]);
-          y0 = Math.min(y0, b[1]);
-          x1 = Math.max(x1, b[0] + b[2]);
-          y1 = Math.max(y1, b[1] + b[3]);
-        }
-        vb = [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
-      } else vb = sphereViewBox(this._project(), C, C, C, R, pad);
+      vb =
+        typeof options.fitSphere === "number"
+          ? sphereViewBox(this._project(), C, C, C, R, pad)
+          : this._fitBox(pad);
     } else vb = boundsViewBox(faces, pad);
 
     const parts = [openSvgTag(vb)];
