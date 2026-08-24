@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pattern · the chain</title>
+    <meta name="description" content="One fluent value, transformed link by link. The sketchpad for Pattern's chained language." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono&display=swap"
+    />
+    <link rel="stylesheet" href="../../site.css" />
+    <link rel="stylesheet" href="./pattern.css" />
+    <style>
+      /* The sketchpad: two panels, code and consequence. */
+      .sketch {
+        display: grid;
+        grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+        min-height: calc(100vh - 8rem);
+        border-top: var(--rule) solid var(--ink);
+      }
+      .sketch-code {
+        padding: var(--space-3) var(--space-4);
+        border-right: var(--rule) solid var(--ink);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+      }
+      #chain-editor {
+        flex: 1;
+        min-height: 24rem;
+        resize: none;
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        line-height: 1.7;
+        background: var(--code-bg, #ece7dd);
+        color: var(--ink);
+        border: var(--rule) solid var(--ink);
+        padding: var(--space-2);
+      }
+      #chain-editor:focus {
+        outline: 2px solid var(--ink);
+        outline-offset: -2px;
+      }
+      .sketch-run {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+      }
+      .sketch-hint {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        opacity: 0.7;
+      }
+      .sketch-board {
+        padding: var(--space-3) var(--space-4);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+      #slot-table {
+        max-width: 24rem;
+        margin: 0 auto;
+      }
+      #slot-table svg { width: 100%; height: auto; display: block; }
+      .sketch-goal {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        border: var(--rule) solid var(--ink);
+        padding: var(--space-1);
+        min-height: 5rem;
+      }
+      #slot-goal { width: 7rem; flex: 0 0 auto; }
+      #slot-goal svg { width: 100%; height: auto; display: block; }
+      #chain-status {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        min-height: 2.4em;
+        margin: 0;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body class="example">
+    <header class="example-head">
+      <a class="example-back" href="./">erno</a>
+      <span class="example-kind">sketchpad</span>
+      <h1>The chain</h1>
+      <p class="example-lede">
+        One fluent value, transformed link by link. <code>rubik()</code> is
+        the source, the links are the story of what you did to a sound
+        cube, and <code>out()</code> routes a value to a slot. Edit and
+        press <strong>Ctrl+Enter</strong>: the code you watch is the code
+        that runs.
+      </p>
+    </header>
+
+    <main class="sketch">
+      <section class="sketch-code">
+        <label class="example-label" for="chain-editor">the sketch</label>
+        <textarea id="chain-editor" spellcheck="false">
+const base = rubik("3")
+  .paint((x, y, z) => y > 0 ? "B" : "F")
+
+base.out(goal)
+base.scramble(7).out()
+</textarea>
+        <div class="sketch-run">
+          <button id="chain-run">Run</button>
+          <span class="sketch-hint">Ctrl+Enter runs. The chain re-runs whole; seeds keep it honest.</span>
+        </div>
+        <p class="demo-readout" id="chain-status"></p>
+      </section>
+
+      <section class="sketch-board">
+        <span class="example-label">the table</span>
+        <div id="slot-table"></div>
+        <div class="sketch-goal">
+          <div id="slot-goal"></div>
+          <div>
+            <span class="example-label">the goal</span>
+            <p class="demo-readout" id="goal-note">Route a chain here with <code>out(goal)</code>.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module">
+      import { rubik, alg, onOut, resetOutputs, takeOutputs } from "./chain.js";
+
+      const $ = (id) => document.getElementById(id);
+      const slots = { table: $("slot-table"), goal: $("slot-goal") };
+
+      const draw = (host, value) => {
+        host.innerHTML = value.board.toSVG({ fitSphere: true, padding: 8 });
+      };
+
+      onOut((name, value) => {
+        if (slots[name]) draw(slots[name], value);
+        if (name === "goal") $("goal-note").textContent = "The picture to reach.";
+      });
+
+      function run() {
+        const src = $("chain-editor").value;
+        const status = $("chain-status");
+        resetOutputs();
+        slots.table.innerHTML = "";
+        slots.goal.innerHTML = "";
+        $("goal-note").textContent = "Route a chain here with out(goal).";
+        try {
+          const fn = new Function("rubik", "alg", "goal", "table", `"use strict";\n${src}`);
+          fn(rubik, alg, "goal", "table");
+          const outs = takeOutputs();
+          if (!outs.size) {
+            status.textContent = "The chains ran, but none was routed: end one with .out()";
+            return;
+          }
+          const table = outs.get("table");
+          status.textContent = table
+            ? `On the table: ${table.board.pieces.length} pieces, ${table.moves()} moves` +
+              (outs.has("goal") ? `, ${table.off()} stickers off the goal.` : ".")
+            : "Routed, but nothing on the table: end a chain with .out()";
+        } catch (err) {
+          status.textContent = err.message;
+        }
+      }
+
+      $("chain-run").addEventListener("click", run);
+      $("chain-editor").addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          run();
+        }
+      });
+      run();
+    </script>
+  </body>
+</html>
