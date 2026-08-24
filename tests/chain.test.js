@@ -97,5 +97,46 @@ test("out() routes, and the goal is what distance measures against", () => {
   assert(base.off() === 0, "and the goal is zero from itself");
 });
 
+test("the build road: deal opens the bin, the last place lands whole", () => {
+  const dealt = rubik().deal();
+  assert(dealt.bin().length === 20, "a 3×3 deals eight corners and twelve edges");
+  assert(typeof dealt.veil === "function", "in pieces, the value wears the veil");
+  let v = dealt;
+  for (const q of dealt.bin()) v = v.place(q);
+  assert(v.veil === null && v.solved() && v.lawful().lawful, "placed home: whole, solved, lawful");
+});
+
+test("the borrowed cube, as a chain", () => {
+  let v = rubik().deal();
+  for (const q of v.bin()) v = v.place(q, q, q === "URF" ? 1 : 0);
+  const law = v.lawful();
+  assert(!law.lawful && /mod 3/.test(law.breaks[0]), "the judge names the twisted corner");
+});
+
+test("in pieces, the whole-board words wait with the bin count", () => {
+  const dealt = rubik().deal();
+  for (const word of ["turn", "scramble", "solved", "lawful"]) {
+    let said = "";
+    try { dealt[word]("R"); } catch (e) { said = e.message; }
+    assert(/20 still in the bin/.test(said), `${word}() names the bin`);
+  }
+  let said = "";
+  try { rubik().turn("R").deal(); } catch (e) { said = e.message; }
+  assert(/bench/.test(said), "deal after a turn is refused: a fresh cube comes apart");
+  try { rubik("3 - centers").deal(); } catch (e) { said = e.message; }
+  assert(/bin would promise/.test(said), "a carved board refuses the bin");
+});
+
+test("the weld builds body-first on the chain", () => {
+  const dealt = rubik("3 + 3 @ 2,2,0").deal();
+  assert(dealt.bin().every((q) => /^[AB]/.test(q)), "every free piece spells its body");
+  let v = dealt;
+  for (const q of dealt.bin()) v = v.place(q);
+  assert(v.lawful().lawful && v.lawful().complete, "built home, the weld judge crowns it");
+  let said = "";
+  try { rubik("3 + 3 @ 2,2,0").deal().place("DLB"); } catch (e) { said = e.message; }
+  assert(/body-first/.test(said), "a bare name is refused with the lesson");
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

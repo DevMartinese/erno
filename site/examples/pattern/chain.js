@@ -80,6 +80,70 @@ function materialize(ops) {
   for (const op of ops)
     if (op.link === "carve") board = board.carve(...op.names);
   const rest = board.getPattern();
+
+  // The build road. deal() opens the bin on a fresh board: centres ride
+  // the spider, a weld's shared pieces ride the weld, and everything else
+  // is yours to place - body-first on welds, like the moves. The board
+  // stands whole again when the last piece lands.
+  let build = null; // { tray: Set(idx), nameOf(idx), locOf: Map(idx→slotName) }
+  const weld = !!board.bodies;
+  const nameFor = (i) => {
+    if (!weld) return board.nameOf(i);
+    const b = board._bodyOf(i);
+    return b < 0 ? null : String.fromCharCode(65 + b) + board.nameOf(i);
+  };
+  const openBin = () => {
+    const tray = new Set();
+    const names = new Map();
+    const locOf = new Map();
+    board.pieces.forEach((piece, i) => {
+      const stickers = piece.faces.filter((f) => f.letter).length;
+      const name = nameFor(i);
+      if (stickers < 2 || name === null) return; // held by the frame
+      tray.add(i);
+      names.set(i, name);
+      names.set(name, i);
+      locOf.set(i, name);
+    });
+    build = { tray, names, locOf };
+  };
+  const kindLen = (name) => name.length - (weld ? 1 : 0);
+  const placeOne = (op) => {
+    const name = String(op.piece);
+    const idx = build.names.get(name);
+    if (idx === undefined)
+      throw new Error(
+        weld
+          ? `${name} is not a piece here: a welded board spells pieces body-first`
+          : `${name} is not a piece here`,
+      );
+    if (!build.tray.has(idx)) throw new Error(`${name} is not in the bin`);
+    const slot = op.slot === undefined ? name : String(op.slot);
+    if (build.names.get(slot) === undefined)
+      throw new Error(`${slot} is not a slot here`);
+    if (kindLen(slot) !== kindLen(name))
+      throw new Error(`${name} cannot stand in ${slot}: wrong kind of slot`);
+    for (const [i, at] of build.locOf)
+      if (at === slot && !build.tray.has(i))
+        throw new Error(`${slot} is already taken`);
+    const from = build.locOf.get(idx);
+    if (from !== slot) {
+      const other = [...build.locOf].find(([, at]) => at === slot);
+      board.swapPieces(from, slot);
+      build.locOf.set(idx, slot);
+      if (other) build.locOf.set(other[0], from);
+    }
+    const spins = ((Math.round(op.spin || 0) % 3) + 3) % 3;
+    for (let k = 0; k < spins; k++)
+      if (kindLen(name) === 3) board.twistCorner(slot);
+      else board.flipEdge(slot);
+    build.tray.delete(idx);
+    if (!build.tray.size) {
+      build = null; // the last piece lands: whole, and the judge may speak
+      board.history = [];
+    }
+  };
+
   let base = 0;
   for (const op of ops) {
     if (op.link === "scramble") {
@@ -88,22 +152,36 @@ function materialize(ops) {
       base = 0;
     } else if (op.link === "turn") {
       board.move(op.seq);
+    } else if (op.link === "deal") {
+      openBin();
+    } else if (op.link === "place") {
+      placeOne(op);
     }
   }
-  return { board, rest, moves: board.history.length - base };
+  return { board, rest, moves: board.history.length - base, build };
 }
 
 // ── The value ───────────────────────────────────────────────────────────────
 
-const ACTS = new Set(["turn", "scramble"]);
+const ACTS = new Set(["turn", "scramble", "deal", "place"]);
 
 function value(ops) {
   const acted = ops.some((o) => ACTS.has(o.link));
   const made = materialize(ops);
   const grow = (op) => value([...ops, op]);
+  // A board in pieces neither turns nor judges: the nouns that need a
+  // whole cube say so instead of moving ghosts.
+  const whole = (word) => {
+    if (made.build)
+      throw new Error(
+        `the cube is in pieces: ${made.build.tray.size} still in the bin (${word} waits for the last place())`,
+      );
+  };
   const self = {
     // the engine board underneath, for whoever draws it
     board: made.board,
+    // while in pieces, the veil: which pieces stand (the page draws only these)
+    veil: made.build ? (i) => !made.build.tray.has(i) : null,
 
     // ── Shape ───────────────────────────────────────────────────────────
     paint(fn) {
@@ -123,14 +201,34 @@ function value(ops) {
 
     // ── Act ─────────────────────────────────────────────────────────────
     turn(seq) {
+      whole("turn");
       const src = seq && seq.alg !== undefined ? seq.alg : String(seq);
       return grow({ link: "turn", seq: src });
     },
     scramble(seed) {
+      whole("scramble");
       return grow({
         link: "scramble",
         seed: seed === undefined ? undefined : Math.round(Number(seed)) || 0,
       });
+    },
+
+    // ── Build ───────────────────────────────────────────────────────────
+    deal() {
+      if (acted)
+        throw new Error("you deal on the bench: a fresh cube comes apart, not a played one");
+      if (ops.some((o) => o.link === "carve") || made.board._remove)
+        throw new Error("a carved board is missing the pieces a bin would promise");
+      if (made.build) throw new Error("the cube is already in pieces");
+      return grow({ link: "deal" });
+    },
+    place(piece, slot, spin) {
+      if (!made.build) throw new Error("nothing is in pieces: deal() first");
+      return grow({ link: "place", piece: String(piece), slot, spin });
+    },
+    bin() {
+      if (!made.build) return [];
+      return [...made.build.tray].map((i) => made.build.names.get(i));
     },
 
     // ── Route ───────────────────────────────────────────────────────────
@@ -168,14 +266,21 @@ function value(ops) {
         at: made.board.nameOf(pc.index),
       })),
     cycles: (seq) => algOf(made.board, seq).cycleNames,
-    lawful: () => made.board.lawful(),
+    lawful() {
+      whole("the judge");
+      return made.board.lawful();
+    },
     legend: () =>
       made.board.legend
         ? made.board.legend()
         : "one body, at the origin: it needs no introductions",
     moves: () => made.moves,
-    solved: () => made.board.matches(made.rest),
+    solved() {
+      whole("solved");
+      return made.board.matches(made.rest);
+    },
     off() {
+      whole("the count");
       const goal = outputs.get("goal");
       if (!goal)
         throw new Error("route a goal first: out(goal) on the chain to reach");

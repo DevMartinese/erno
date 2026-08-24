@@ -134,7 +134,12 @@ base.scramble(7).out()
       const slots = { table: $("slot-table"), goal: $("slot-goal") };
 
       const draw = (host, value) => {
-        host.innerHTML = value.board.toSVG({ fitSphere: true, padding: 8 });
+        // a value in pieces wears its veil: only what stands is drawn
+        host.innerHTML = value.board.toSVG({
+          fitSphere: true,
+          padding: 8,
+          ...(value.veil ? { pieces: value.veil } : {}),
+        });
       };
 
       onOut((name, value) => {
