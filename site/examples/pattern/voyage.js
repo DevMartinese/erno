@@ -357,9 +357,21 @@ async function morphTo(next, gen) {
     return out;
   };
 
-  // Every visible instant is a COMPLETE board: a cubie drawn alone shows
-  // its dark inner walls, so a wave is the whole board at an
-  // intermediate state, stacked and faded in sequence.
+  // NOTHING IS EVER DRAWN NAKED. A piece rendered without its
+  // neighbours shows the dark plastic of its inner walls, and a body
+  // drawn alone is a black mass with no depth at all. So each half of a
+  // morph is composed rather than isolated:
+  //
+  //   what LEAVES is the outer shell, drawn over the final body already
+  //   in its own colours - the shell's inner walls face inward, away
+  //   from the camera, so peeling it reveals a dressed cube;
+  //
+  //   what ARRIVES is drawn WITH everything already standing, in one
+  //   render, so the engine's own painter decides who hides whom - a
+  //   second body layered over its neighbour would cover it with the
+  //   very wall the neighbour is meant to hide, and layered under it
+  //   would be covered by that wall instead. Only one render can be
+  //   right, and the mechanism is the one that knows.
   const stackFade = async (renders, dir, stagger) => {
     if (reduced) return;
     if (dir === "in") {
@@ -386,61 +398,50 @@ async function morphTo(next, gen) {
     }
   };
 
+  const sharedIdx = new Set([...B].filter(([k]) => A.has(k)).map(([, i]) => i));
+  const arrivingEntries = [...B].filter(([k]) => !A.has(k));
+  const from = spotOfKeys(sharedKeys);
+  const to = spotOfKeys(arrivingEntries.map(([k]) => k));
+  const dx = to[0] + to[1] - (from[0] + from[1]);
+  // a body arriving beside the standing one, rather than around it
+  const beside =
+    arriving.size > 0 &&
+    sharedKeys.length > 0 &&
+    arriving.size < B.size / 1.6 &&
+    Math.abs(dx) > 0.5;
+
   if (leaving.size) {
-    // removal, watched: the board peels from the rim inward, and what is
-    // going stays outlined while it goes
-    const under = arriving.size
-      ? svgOf(next, { pieces: (i) => !arriving.has(i) })
-      : svgOf(next);
-    base.innerHTML = under;
+    // the final body, already wearing the colours it will keep, waits
+    // under the shell that is being taken off it
+    base.innerHTML = svgOf(next, { pieces: (i) => sharedIdx.has(i) });
     showGhost(ghostSvg(prev, (i) => leaving.has(i)));
     const waves = waveify([...A].filter(([k]) => !B.has(k)), false);
-    const cumulative = [];
     const gone = new Set();
-    for (const w of waves) {
-      for (const idx of w) gone.add(idx);
-      cumulative.push(new Set(gone));
-    }
     const renders = [];
-    for (let k = waves.length - 1; k >= 1; k--) {
-      const g = cumulative[k - 1];
-      renders.push(svgOf(prev, { pieces: (i) => !g.has(i) }));
+    for (const w of waves) {
+      const still = new Set(gone);
+      renders.push(svgOf(prev, { pieces: (i) => leaving.has(i) && !still.has(i) }));
+      for (const idx of w) gone.add(idx);
     }
-    renders.push(svgOf(prev));
+    renders.reverse(); // fullest shell on top, peeled away first
     await stackFade(renders, "out", 170);
     await hideGhost();
     if (gen !== state.gen) return;
+    base.innerHTML = svgOf(next, { pieces: (i) => sharedIdx.has(i) });
   }
 
   if (arriving.size) {
-    const arrivingEntries = [...B].filter(([k]) => !A.has(k));
-    const from = spotOfKeys(sharedKeys);
-    const to = spotOfKeys(arrivingEntries.map(([k]) => k));
-    const dx = to[0] + to[1] - (from[0] + from[1]);
-    const slide = arriving.size < B.size / 1.6 && Math.abs(dx) > 0.5 && sharedKeys.length;
     // the shape that is coming, outlined: nothing arrives out of nowhere
     showGhost(ghostSvg(next, (i) => arriving.has(i)));
-    if (slide) {
-      // a second body arrives as one cube, slides in from its side, welds
-      const joining = svgOf(next, { pieces: (i) => arriving.has(i) });
-      const over = overlayWith(joining, dx > 0 ? "is-joining-r" : "is-joining-l");
-      void over.offsetHeight;
-      over.classList.remove("is-joining-r", "is-joining-l");
-      await sleep(reduced ? 0 : 840);
-      over.remove();
-    } else {
-      // growth, watched: intermediate boards stacked fuller and fuller
-      const survivors = new Set([...B.values()].filter((i) => !arriving.has(i)));
-      const waves = waveify(arrivingEntries, true);
-      const standing = new Set(survivors);
-      const renders = [];
-      for (const w of waves) {
-        for (const idx of w) standing.add(idx);
-        const snapshot = new Set(standing);
-        renders.push(svgOf(next, { pieces: (i) => snapshot.has(i) }));
-      }
-      await stackFade(renders, "in", 180);
+    const waves = waveify(arrivingEntries, true);
+    const standing = new Set(sharedIdx);
+    const renders = [];
+    for (const w of waves) {
+      for (const idx of w) standing.add(idx);
+      const snapshot = new Set(standing);
+      renders.push(svgOf(next, { pieces: (i) => snapshot.has(i) }));
     }
+    await stackFade(renders, "in", beside ? 200 : 180);
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next);
     await hideGhost();
