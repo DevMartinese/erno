@@ -14,6 +14,7 @@
    ───────────────────────────────────────────────────────────────────── */
 
 import { rubik, alg, resetOutputs, takeOutputs } from "./chain.js";
+import { storyOf, waves, screenDelta } from "./morph.js";
 
 const $ = (id) => document.getElementById(id);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -341,155 +342,302 @@ async function crossfadeTo(svg, gen) {
 }
 
 // ── The morph: one continuous body in one steady frame ──────────────────────
+//
+// WHAT changed between two boards is one question, and a set difference
+// answers it. What STORY that change is, is another, and morph.js answers
+// that one: a carve is not a growth, a body arriving is not a bloom, and a
+// box squashing is not a death and a birth. Here we only play what it
+// says, in the order it says - what leaves, then what travels, then what
+// arrives - so the stage never carries two stories at once.
 
-const cellKey = (p) => p.slotPoint.map((v) => Math.round(v * 2)).join(",");
+// The span the shared frame was built on: every slide is measured in it.
+const SPAN = FRAME.radius;
 
-async function morphTo(next, gen) {
+// One morph, one budget, however many stories it turns out to tell. A
+// carve is a single act and takes its time; a box becoming a carved weld
+// is four, and each one moves briskly - but the two take the SAME while,
+// so clicking through the voyage has a pulse instead of a stall wherever
+// the shape happens to change the most. Capped, so a lone act does not
+// dawdle to fill a budget it has all to itself.
+const MORPH_MS = 2600;
+const actSlot = (n, budget = MORPH_MS) =>
+  Math.max(420, Math.min(1150, budget / n));
+
+// viewBox units are what the renderer speaks; CSS transforms want pixels.
+// One layer on screen settles the exchange rate, and it is the same for
+// every layer, because every layer is drawn in FRAME.
+function unitPx() {
+  const svg = base.querySelector("svg");
+  if (!svg) return 1;
+  const vb = (svg.getAttribute("viewBox") || "0 0 1 1").split(/\s+/).map(Number);
+  const w = svg.getBoundingClientRect().width;
+  return w && vb[2] ? w / vb[2] : 1;
+}
+
+const slidePx = (board, offset, reach = 1) => {
+  const k = unitPx() * reach;
+  const [dx, dy] = screenDelta(board, offset, SPAN);
+  return [dx * k, dy * k];
+};
+
+// A veiled value draws only the pieces that stand; every filter this file
+// builds has to live inside that, not replace it.
+const only = (value, pred) => ({
+  pieces: value.veil ? (i) => value.veil(i) && pred(i) : pred,
+});
+
+/**
+ * A layer travelling on a real vector, over a real duration.
+ *
+ * Emil's rules: one strong ease-out, a blur that resolves rather than a
+ * pop, transitions over keyframes - and nothing born at scale(0). A body
+ * that docks is full size the whole way in, because it is a body arriving
+ * from somewhere, not an effect being played at us.
+ */
+async function glide(el, [dx, dy], arriving, span) {
+  if (reduced) return;
+  const away = `translate(${dx}px, ${dy}px)`;
+  const home = "translate(0px, 0px)";
+  el.style.transition = "none";
+  el.style.transform = arriving ? away : home;
+  el.style.opacity = arriving ? "0" : "1";
+  el.style.filter = arriving ? "blur(3px)" : "blur(0px)";
+  void el.offsetHeight;
+  const fade = Math.round(span * 0.68);
+  el.style.transition =
+    `transform ${span}ms var(--ease-strong), opacity ${fade}ms ease-out, filter ${fade}ms ease-out`;
+  el.style.transform = arriving ? home : away;
+  el.style.opacity = arriving ? "1" : "0";
+  el.style.filter = arriving ? "blur(0px)" : "blur(3px)";
+  await sleep(span + 20);
+}
+
+// NOTHING IS EVER DRAWN NAKED. A piece rendered without its neighbours
+// shows the dark plastic of its inner walls, and a body drawn alone is a
+// black mass with no depth at all. So each half of a morph is composed
+// rather than isolated:
+//
+//   what LEAVES is the outer shell, drawn over the body that stays,
+//   already in its own colours - the shell's inner walls face inward,
+//   away from the camera, so peeling it reveals a dressed cube;
+//
+//   what ARRIVES is drawn WITH everything already standing, in one
+//   render, so the engine's own painter decides who hides whom - a second
+//   body layered over its neighbour would cover it with the very wall the
+//   neighbour is meant to hide, and layered under it would be covered by
+//   that wall instead. Only one render can be right, and the mechanism is
+//   the one that knows.
+async function stackFade(renders, dir, span, gen) {
+  if (reduced) return;
+  // the tail is the last wave finishing its own fade; the stagger is what
+  // is left, shared out among the waves
+  const tail = Math.min(560, Math.round(span * 0.45));
+  const stagger = Math.max(40, Math.round((span - tail) / Math.max(1, renders.length)));
+  if (dir === "in") {
+    const overs = [];
+    for (const svg of renders) {
+      if (gen !== state.gen) break;
+      const over = overlayWith(svg, "is-arriving");
+      overs.push(over);
+      void over.offsetHeight;
+      over.classList.remove("is-arriving");
+      await sleep(stagger);
+    }
+    await sleep(tail);
+    for (const over of overs) over.remove();
+  } else {
+    const overs = renders.map((svg) => overlayWith(svg, ""));
+    for (let k = overs.length - 1; k >= 0; k--) {
+      if (gen !== state.gen) break;
+      overs[k].classList.add("is-yielding");
+      await sleep(stagger);
+    }
+    await sleep(tail);
+    for (const over of overs) over.remove();
+  }
+}
+
+const heartOf = (points) => {
+  if (!points.length) return [0, 0, 0];
+  return [0, 1, 2].map((k) => points.reduce((s, p) => s + p[k], 0) / points.length);
+};
+
+/**
+ * @param {number} [budget] - the whole morph's ms, shared out among its
+ *   acts. A morph that is the POINT of a step gets the full one; a morph
+ *   that is only setting the shape up for something else - the assembly in
+ *   `reveal`, say - is handed a shorter one, so the step does not spend
+ *   its welcome before its own content starts.
+ */
+async function morphTo(next, gen, budget) {
   const prev = state.shown;
   if (!prev || reduced) {
     await hideGhost();
     drawValue(next);
     return;
   }
-  if (
-    prev.board.getTints().join() === next.board.getTints().join() &&
-    prev.board.getPosition() === next.board.getPosition() &&
-    !prev.veil && !next.veil
-  ) {
-    drawValue(next);
+
+  const story = storyOf(prev.board, next.board);
+  const atFrom = (i) => prev.board.pieces[i].slotPoint;
+  const atTo = (i) => next.board.pieces[i].slotPoint;
+
+  // Nothing came, went or moved. Either the colours changed - and one
+  // aligned crossfade in place is the whole story - or nothing did.
+  if (story.acts[0] === "repaint") {
+    if (
+      prev.board.getTints().join() === next.board.getTints().join() &&
+      prev.board.getPosition() === next.board.getPosition() &&
+      !prev.veil &&
+      !next.veil
+    ) {
+      drawValue(next);
+      return;
+    }
+    await crossfadeTo(svgOf(next), gen);
+    if (gen === state.gen) state.shown = next;
     return;
   }
 
-  const A = new Map(prev.board.pieces.map((pc, i) => [cellKey(pc), i]));
-  const B = new Map(next.board.pieces.map((pc, i) => [cellKey(pc), i]));
-  const leaving = new Set([...A].filter(([k]) => !B.has(k)).map(([, i]) => i));
-  const arriving = new Set([...B].filter(([k]) => !A.has(k)).map(([, i]) => i));
+  const slot = actSlot(story.acts.length, budget);
+  const undocked = new Set(story.undock ? story.undock.pieces : []);
+  const docked = new Set(story.dock ? story.dock.pieces : []);
+  const stayFrom = new Set(story.staying.map((p) => p.from));
+  const stayTo = new Set(story.staying.map((p) => p.to));
+  const shed = new Set(story.leaving.filter((i) => !undocked.has(i)));
+  const grow = new Set(story.arriving.filter((i) => !docked.has(i)));
 
-  // hearts and distances order the waves: growth radiates outward from
-  // what stands, departure peels inward from the rim
-  const spotOfKeys = (keys) => {
-    const heart = [0, 0, 0];
-    for (const k of keys) {
-      const c = k.split(",").map((v) => Number(v) / 2);
-      heart[0] += c[0]; heart[1] += c[1]; heart[2] += c[2];
-    }
-    return keys.length ? heart.map((v) => v / keys.length) : heart;
-  };
-  const sharedKeys = [...B.keys()].filter((k) => A.has(k));
-  const heart = spotOfKeys(sharedKeys.length ? sharedKeys : [...B.keys()]);
-  const farOf = (k) => {
-    const c = k.split(",").map((v) => Number(v) / 2);
-    return (c[0] - heart[0]) ** 2 + (c[1] - heart[1]) ** 2 + (c[2] - heart[2]) ** 2;
-  };
-  const waveify = (entries, outward) => {
-    const sorted = [...entries].sort((a, b) =>
-      outward ? farOf(a[0]) - farOf(b[0]) : farOf(b[0]) - farOf(a[0]),
+  // ── undock ────────────────────────────────────────────────────────────
+  // A body the next board does not have at all does not dissolve in
+  // place: it pulls away along the vector its own place names, and what
+  // it was welded to is already standing behind it before it moves.
+  if (story.undock) {
+    base.innerHTML = svgOf(prev, only(prev, (i) => !undocked.has(i)));
+    const over = overlayWith(svgOf(prev, only(prev, (i) => undocked.has(i))), "");
+    await glide(over, slidePx(prev.board, story.undock.offset, 1.5), false, slot);
+    over.remove();
+    if (gen !== state.gen) return;
+  }
+
+  // ── subtract ──────────────────────────────────────────────────────────
+  // The hollow is not revealed at the end behind a blink. It is already
+  // there, under the piece, dressed as the warm recess it is - so the
+  // piece lifts off it wave by wave and the cavity is simply uncovered,
+  // its own edges lit by the scaffold while it opens.
+  if (shed.size) {
+    base.innerHTML = svgOf(prev, only(prev, (i) => stayFrom.has(i)));
+    // The scaffold stays in its outdoor dialect - ink, under the board -
+    // because the pieces it outlines are still ON SCREEN, fading on the
+    // layers above. The lit dialect belongs to a cavity nothing is drawn
+    // in yet (that is reveal's job); painted over a solid cubie it would
+    // be paper scribbled across the piece.
+    //
+    // The hollow itself needs no help here. It is already in the base:
+    // the survivors' inner walls come back from the mechanism marked
+    // `core`, dressed as a warm recess, so the cavity is under the piece
+    // the whole time and the peel simply uncovers it.
+    showGhost(ghostSvg(prev, (i) => shed.has(i)));
+    const rounds = waves(
+      [...shed].map((i) => ({ at: atFrom(i), idx: i })),
+      { outward: false, heart: heartOf([...stayFrom].map(atFrom)) },
     );
-    const waves = Math.max(4, Math.min(10, Math.ceil(sorted.length / 6)));
-    const per = Math.ceil(sorted.length / waves);
-    const out = [];
-    for (let i = 0; i < sorted.length; i += per)
-      out.push(new Set(sorted.slice(i, i + per).map(([, idx]) => idx)));
-    return out;
-  };
-
-  // NOTHING IS EVER DRAWN NAKED. A piece rendered without its
-  // neighbours shows the dark plastic of its inner walls, and a body
-  // drawn alone is a black mass with no depth at all. So each half of a
-  // morph is composed rather than isolated:
-  //
-  //   what LEAVES is the outer shell, drawn over the final body already
-  //   in its own colours - the shell's inner walls face inward, away
-  //   from the camera, so peeling it reveals a dressed cube;
-  //
-  //   what ARRIVES is drawn WITH everything already standing, in one
-  //   render, so the engine's own painter decides who hides whom - a
-  //   second body layered over its neighbour would cover it with the
-  //   very wall the neighbour is meant to hide, and layered under it
-  //   would be covered by that wall instead. Only one render can be
-  //   right, and the mechanism is the one that knows.
-  const stackFade = async (renders, dir, stagger) => {
-    if (reduced) return;
-    if (dir === "in") {
-      const overs = [];
-      for (const svg of renders) {
-        if (gen !== state.gen) break;
-        const over = overlayWith(svg, "is-arriving");
-        overs.push(over);
-        void over.offsetHeight;
-        over.classList.remove("is-arriving");
-        await sleep(stagger);
-      }
-      await sleep(660);
-      for (const over of overs) over.remove();
-    } else {
-      const overs = renders.map((svg) => overlayWith(svg, ""));
-      for (let k = overs.length - 1; k >= 0; k--) {
-        if (gen !== state.gen) break;
-        overs[k].classList.add("is-yielding");
-        await sleep(stagger);
-      }
-      await sleep(660);
-      for (const over of overs) over.remove();
-    }
-  };
-
-  const sharedIdx = new Set([...B].filter(([k]) => A.has(k)).map(([, i]) => i));
-  const arrivingEntries = [...B].filter(([k]) => !A.has(k));
-  const from = spotOfKeys(sharedKeys);
-  const to = spotOfKeys(arrivingEntries.map(([k]) => k));
-  const dx = to[0] + to[1] - (from[0] + from[1]);
-  // a body arriving beside the standing one, rather than around it
-  const beside =
-    arriving.size > 0 &&
-    sharedKeys.length > 0 &&
-    arriving.size < B.size / 1.6 &&
-    Math.abs(dx) > 0.5;
-
-  if (leaving.size) {
-    // the final body, already wearing the colours it will keep, waits
-    // under the shell that is being taken off it
-    base.innerHTML = svgOf(next, { pieces: (i) => sharedIdx.has(i) });
-    showGhost(ghostSvg(prev, (i) => leaving.has(i)));
-    const waves = waveify([...A].filter(([k]) => !B.has(k)), false);
     const gone = new Set();
     const renders = [];
-    for (const w of waves) {
+    for (const w of rounds) {
       const still = new Set(gone);
-      renders.push(svgOf(prev, { pieces: (i) => leaving.has(i) && !still.has(i) }));
+      renders.push(svgOf(prev, only(prev, (i) => shed.has(i) && !still.has(i))));
       for (const idx of w) gone.add(idx);
     }
     renders.reverse(); // fullest shell on top, peeled away first
-    await stackFade(renders, "out", 170);
+    await stackFade(renders, "out", slot, gen);
     await hideGhost();
     if (gen !== state.gen) return;
-    base.innerHTML = svgOf(next, { pieces: (i) => sharedIdx.has(i) });
   }
 
-  if (arriving.size) {
-    // the shape that is coming, outlined: nothing arrives out of nowhere
-    showGhost(ghostSvg(next, (i) => arriving.has(i)));
-    const waves = waveify(arrivingEntries, true);
-    const standing = new Set(sharedIdx);
-    const renders = [];
-    for (const w of waves) {
-      for (const idx of w) standing.add(idx);
-      const snapshot = new Set(standing);
-      renders.push(svgOf(next, { pieces: (i) => snapshot.has(i) }));
+  // ── stretch ───────────────────────────────────────────────────────────
+  // The survivors travel. Pieces that travel the same way travel together
+  // - one layer, one vector, exactly the displacement the renderer would
+  // have drawn - and they slide out of their old render into the new one
+  // that is already waiting underneath.
+  const moving = story.staying.filter((p) => p.delta.some((v) => v !== 0));
+  if (moving.length) {
+    const groups = new Map();
+    for (const p of moving) {
+      const k = p.delta.join();
+      if (!groups.has(k)) groups.set(k, { delta: p.delta, from: [] });
+      groups.get(k).from.push(p.from);
     }
-    await stackFade(renders, "in", beside ? 200 : 180);
+    base.innerHTML = svgOf(next, only(next, (i) => stayTo.has(i)));
+    // A handful of groups is a squash you can follow. Twenty groups of one
+    // piece each is a swarm, and it is what a cube becoming a BIGGER cube
+    // looks like - every piece of the shell steps its own way. There the
+    // motion worth showing is the bloom that follows, not the step.
+    if (groups.size <= 8) {
+      const overs = [];
+      for (const g of groups.values()) {
+        const set = new Set(g.from);
+        overs.push(overlayWith(svgOf(prev, only(prev, (i) => set.has(i))), ""));
+      }
+      await Promise.all(
+        [...groups.values()].map((g, k) =>
+          glide(overs[k], slidePx(next.board, g.delta), false, slot),
+        ),
+      );
+      for (const over of overs) over.remove();
+    } else {
+      const over = overlayWith(svgOf(prev, only(prev, (i) => stayFrom.has(i))), "");
+      over.classList.add("is-yielding");
+      await sleep(slot);
+      over.remove();
+    }
+    if (gen !== state.gen) return;
+  } else if (shed.size || story.undock) {
+    base.innerHTML = svgOf(next, only(next, (i) => stayTo.has(i)));
+  }
+
+  // ── dock ──────────────────────────────────────────────────────────────
+  // A whole body arrives, full size, on the vector its place names, over
+  // the body it is about to be welded to. It is not a fade: you can see
+  // where it came from.
+  if (story.dock) {
+    base.innerHTML = svgOf(next, only(next, (i) => !docked.has(i) && !grow.has(i)));
+    const over = overlayWith(svgOf(next, only(next, (i) => docked.has(i))), "");
+    await glide(over, slidePx(next.board, story.dock.offset, 1.5), true, slot);
+    if (gen !== state.gen) {
+      over.remove();
+      return;
+    }
+    // land it in the base before letting the traveller go, so the weld
+    // never blinks between the two renders
+    base.innerHTML = svgOf(next, only(next, (i) => !grow.has(i)));
+    void base.offsetHeight;
+    over.remove();
+  }
+
+  // ── subdivide ─────────────────────────────────────────────────────────
+  // New cuts inside a shell that is already standing: growth radiates
+  // outward from what stands, and nothing arrives out of nowhere - the
+  // scaffold shows the shape that is coming before it is filled.
+  if (grow.size) {
+    showGhost(ghostSvg(next, (i) => grow.has(i)));
+    const standing = new Set([...stayTo, ...docked]);
+    const rounds = waves(
+      [...grow].map((i) => ({ at: atTo(i), idx: i })),
+      { outward: true, heart: heartOf([...standing].map(atTo)) },
+    );
+    const renders = [];
+    for (const w of rounds) {
+      for (const idx of w) standing.add(idx);
+      const snap = new Set(standing);
+      renders.push(svgOf(next, only(next, (i) => snap.has(i))));
+    }
+    await stackFade(renders, "in", slot, gen);
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next);
     await hideGhost();
-  } else if (leaving.size) {
-    // the survivors' new stickers surface behind a whisper
-    await veilSwap(() => {
-      base.innerHTML = svgOf(next);
-    }, gen);
-  } else {
-    await crossfadeTo(svgOf(next), gen);
   }
+
   if (gen !== state.gen) return;
+  base.innerHTML = svgOf(next);
   state.shown = next;
 }
 
@@ -830,6 +978,14 @@ async function goTo(step) {
   const fx = s.fx || {};
   try {
     if (fx.reveal) {
+      // The shape settles before the assembly starts. A step that reveals
+      // is still arriving from whatever stood before it - and what stands
+      // before this one is a WELD - so the body that is leaving pulls away
+      // and the rest sheds down to a plain cube first. Without this the
+      // only weld-to-cube crossing in the voyage is a hard cut hidden in a
+      // 240ms veil, and the one story built for it never gets told.
+      await morphTo(tableValue, gen, 1800);
+      if (gen !== state.gen) return;
       await reveal(tableValue, gen);
     } else {
       const stage = fx.rest ? runSketch(fx.rest).get("table") : tableValue;

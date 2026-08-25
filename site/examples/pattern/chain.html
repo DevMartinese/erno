@@ -239,14 +239,6 @@
       .board-layer--ghost.board-layer--lit { z-index: 3; pointer-events: none; }
       .board-layer.is-arriving { opacity: 0; filter: blur(2px); }
       .board-layer.is-yielding { opacity: 0; filter: blur(2px); }
-      .board-layer.is-lifting {
-        transition: opacity 760ms ease, transform 760ms var(--ease-strong), filter 760ms ease;
-        opacity: 0;
-        transform: translateY(-2.5%) scale(1.01);
-        filter: blur(2px);
-      }
-      .board-layer.is-joining-r { opacity: 0; transform: translate(7%, -7%); filter: blur(2px); }
-      .board-layer.is-joining-l { opacity: 0; transform: translate(-7%, 7%); filter: blur(2px); }
       .board-layer.is-veiled {
         transition: opacity 160ms ease, filter 160ms ease;
         opacity: 0.85;
