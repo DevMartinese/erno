@@ -259,8 +259,35 @@ body.example {
 
 /* ── The glass ───────────────────────────────────────────────────────── */
 
+/* The two renderers share ONE plane, so the exchange is a dissolve and not
+   a cut. Hiding one and revealing the other in the same frame is a
+   flicker, and between two pictures as alike as these it is a flicker that
+   reads as nothing having happened at all. Stacked in the same grid cell,
+   crossfaded, with a hair of blur to bridge them: the page's own rule for
+   two things the eye is meant to read as one object. */
+#play-panel .example-demo > .example-canvas {
+  grid-area: 1 / 1;
+}
+#play-canvas,
+#play-canvas-gl {
+  transition: opacity 520ms cubic-bezier(0.23, 1, 0.32, 1),
+    filter 520ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+#play-canvas.is-veiled,
+#play-canvas-gl.is-veiled {
+  opacity: 0;
+  filter: blur(4px);
+  pointer-events: none;
+}
 #play-canvas-gl {
   aspect-ratio: 1 / 1;
+  /* the glass answers the hand, which is the one thing the flat picture
+     cannot do; the drag is an orbit, so it must not also be a scroll */
+  cursor: grab;
+  touch-action: none;
+}
+#play-canvas-gl:active {
+  cursor: grabbing;
 }
 #play-gl[aria-pressed="true"] {
   background: var(--ink);

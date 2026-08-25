@@ -16,15 +16,19 @@
    proportion. And what comes out is not a set difference but a list of
    relatos, in the order they must be played:
 
+     undock     a whole body pulls away, on the vector its place names
      subtract   pieces lift out and leave a hollow behind - the carve
      stretch    survivors travel to a new place - the change of proportion
      dock       a whole body arrives from outside, on a known vector
      subdivide  new cuts appear inside a shell that is already standing
      repaint    nothing came, went or moved; only the colours changed
 
-   They compose: a carved weld is a subtract and a dock, and the order is
-   the point - what leaves goes before what arrives, so the stage is never
-   crowded with two stories at once.
+   That list is in playback order, and `acts` comes back in it. They
+   compose: a box becoming a weld is a subtract, a stretch, a dock and a
+   subdivide, all four, and the order is the point - what leaves goes
+   before what arrives, so the stage is never crowded with two stories at
+   once. `repaint` never appears beside another; it is what is left when
+   none of the others fired.
 
    DOM-free on purpose, like chain.js beside it: this module decides, the
    page draws.
@@ -151,6 +155,13 @@ export function storyOf(prev, next) {
  * The body of `board` - never the first, which is where a bodiless board
  * lands - none of whose pieces found a counterpart. Such a body is not
  * being reshaped; it is coming or going in one piece.
+ *
+ * No test pins the `j === 0` skip, and that is not an oversight: every
+ * shape the board spec can build shares at least the first body's eight
+ * corners once normalized, so the first body is never wholly unpaired and
+ * the branch cannot be reached from this page. It stays because the rule
+ * it states - body zero is where a bodiless board lands - is the same one
+ * `pairKey` spells with the empty tag, and the two should not drift.
  */
 function wholeBody(board, unpaired) {
   if (!board.bodies) return null;
@@ -202,16 +213,28 @@ export function waves(items, { outward = true, heart } = {}) {
  * A body that docks travels on a known vector, and the page has to move a
  * layer by exactly what the renderer would have moved the geometry by -
  * otherwise the slide ends a few pixels off its own destination and the
- * landing blinks. The cameras this page uses are parallel, so the map from
- * world to screen is affine: a difference of points is a difference of
- * projections, and one projection of the offset is the whole answer.
+ * landing blinks.
+ *
+ * This works because a PARALLEL camera projects affinely: a difference of
+ * points is a difference of projections, so one projection of the offset
+ * is the whole answer, and the frame the board happens to be drawn in
+ * cancels out of it. Perspective is not affine and the same subtraction
+ * would quietly land the layer somewhere else, so it is refused rather
+ * than answered wrongly.
  *
  * Model space is y-up and z-toward-the-viewer; render space, which the
  * projector speaks, is y-down and z-away. For a VECTOR that whole
  * conversion is a flip of the last two components.
  */
-export function screenDelta(board, offset, span) {
-  const proj = board._project(span);
+export function screenDelta(board, offset) {
+  const type = board.camera && board.camera.type;
+  if (type === "perspective")
+    throw new Error(
+      "erno: a slide needs a parallel camera, and this board is drawn in " +
+        "perspective - the projection is not affine, so an offset has no " +
+        "one displacement on screen.",
+    );
+  const proj = board._project();
   const o = proj.point(0, 0, 0);
   const q = proj.point(offset[0], -offset[1], -offset[2]);
   // not rounded: this feeds a transform, not a key, and a tween wants the

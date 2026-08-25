@@ -276,7 +276,20 @@ function ghostSvg(value, pieces, lit) {
   return svg;
 }
 
-function showGhost(svg, lit) {
+// THE SCAFFOLD BELONGS TO THE STEP THAT RAISED IT. Every act that raises
+// one - a bloom, a peel, an assembly - can be cut short between the
+// raising and the hiding, because a reader is allowed to click on through
+// it, and the abort paths used to return with the outlines still standing.
+// A stale scaffold is not a small blemish: the lit dialect draws in paper,
+// ABOVE the board, so what stays behind is white scribble across whatever
+// step came next, until some later step happens to hide it.
+//
+// So the generation owns the layer. A superseded step may neither raise
+// nor hide - its hide would blank the scaffold the NEW step had already
+// raised, which is the same bug wearing the other shoe - and a step that
+// begins finds the stage clear, because `dropGhost` runs at every gen++.
+function showGhost(svg, lit, gen) {
+  if (gen !== state.gen) return;
   ghostLayer.classList.toggle("board-layer--lit", !!lit);
   ghostLayer.innerHTML = svg;
   ghostLayer.classList.add("is-arriving");
@@ -284,12 +297,22 @@ function showGhost(svg, lit) {
   ghostLayer.classList.remove("is-arriving");
 }
 
-async function hideGhost() {
+async function hideGhost(gen) {
+  if (gen !== state.gen) return;
   if (!ghostLayer.innerHTML) return;
   ghostLayer.classList.add("is-arriving");
   await sleep(reduced ? 0 : 420);
+  if (gen !== state.gen) return;
   ghostLayer.innerHTML = "";
   ghostLayer.classList.remove("is-arriving");
+}
+
+// A new step starts on a clear stage: whatever the last one had standing
+// went stale the moment its generation ended, and it goes at once rather
+// than fading, because the fade belonged to the step that is already over.
+function dropGhost() {
+  ghostLayer.innerHTML = "";
+  ghostLayer.classList.remove("is-arriving", "board-layer--lit");
 }
 
 function drawValue(value) {
@@ -350,9 +373,6 @@ async function crossfadeTo(svg, gen) {
 // says, in the order it says - what leaves, then what travels, then what
 // arrives - so the stage never carries two stories at once.
 
-// The span the shared frame was built on: every slide is measured in it.
-const SPAN = FRAME.radius;
-
 // One morph, one budget, however many stories it turns out to tell. A
 // carve is a single act and takes its time; a box becoming a carved weld
 // is four, and each one moves briskly - but the two take the SAME while,
@@ -376,7 +396,7 @@ function unitPx() {
 
 const slidePx = (board, offset, reach = 1) => {
   const k = unitPx() * reach;
-  const [dx, dy] = screenDelta(board, offset, SPAN);
+  const [dx, dy] = screenDelta(board, offset);
   return [dx * k, dy * k];
 };
 
@@ -472,7 +492,7 @@ const heartOf = (points) => {
 async function morphTo(next, gen, budget) {
   const prev = state.shown;
   if (!prev || reduced) {
-    await hideGhost();
+    await hideGhost(gen);
     drawValue(next);
     return;
   }
@@ -521,8 +541,7 @@ async function morphTo(next, gen, budget) {
   // ── subtract ──────────────────────────────────────────────────────────
   // The hollow is not revealed at the end behind a blink. It is already
   // there, under the piece, dressed as the warm recess it is - so the
-  // piece lifts off it wave by wave and the cavity is simply uncovered,
-  // its own edges lit by the scaffold while it opens.
+  // piece lifts off it wave by wave and the cavity is simply uncovered.
   if (shed.size) {
     base.innerHTML = svgOf(prev, only(prev, (i) => stayFrom.has(i)));
     // The scaffold stays in its outdoor dialect - ink, under the board -
@@ -535,7 +554,7 @@ async function morphTo(next, gen, budget) {
     // the survivors' inner walls come back from the mechanism marked
     // `core`, dressed as a warm recess, so the cavity is under the piece
     // the whole time and the peel simply uncovers it.
-    showGhost(ghostSvg(prev, (i) => shed.has(i)));
+    showGhost(ghostSvg(prev, (i) => shed.has(i)), false, gen);
     const rounds = waves(
       [...shed].map((i) => ({ at: atFrom(i), idx: i })),
       { outward: false, heart: heartOf([...stayFrom].map(atFrom)) },
@@ -549,7 +568,7 @@ async function morphTo(next, gen, budget) {
     }
     renders.reverse(); // fullest shell on top, peeled away first
     await stackFade(renders, "out", slot, gen);
-    await hideGhost();
+    await hideGhost(gen);
     if (gen !== state.gen) return;
   }
 
@@ -558,6 +577,16 @@ async function morphTo(next, gen, budget) {
   // - one layer, one vector, exactly the displacement the renderer would
   // have drawn - and they slide out of their old render into the new one
   // that is already waiting underneath.
+  //
+  // Waiting underneath, and VISIBLE: for the length of the slide each
+  // traveller overlaps a copy of itself standing at the destination. The
+  // alternative is to keep the movers out of the base until they land,
+  // and that was measured: on a five becoming a box, 36 of the 42
+  // survivors travel and the six that stay draw nothing at all, so the
+  // base is an empty stage; on a box becoming a weld it is three quarters
+  // bare plastic. An overlap the eye reads as motion beats a hole in the
+  // middle of the board, and it is what the blur in `glide` is for -
+  // Emil's bridge across what would otherwise read as two objects.
   const moving = story.staying.filter((p) => p.delta.some((v) => v !== 0));
   if (moving.length) {
     const groups = new Map();
@@ -618,7 +647,7 @@ async function morphTo(next, gen, budget) {
   // outward from what stands, and nothing arrives out of nowhere - the
   // scaffold shows the shape that is coming before it is filled.
   if (grow.size) {
-    showGhost(ghostSvg(next, (i) => grow.has(i)));
+    showGhost(ghostSvg(next, (i) => grow.has(i)), false, gen);
     const standing = new Set([...stayTo, ...docked]);
     const rounds = waves(
       [...grow].map((i) => ({ at: atTo(i), idx: i })),
@@ -633,7 +662,7 @@ async function morphTo(next, gen, budget) {
     await stackFade(renders, "in", slot, gen);
     if (gen !== state.gen) return;
     base.innerHTML = svgOf(next);
-    await hideGhost();
+    await hideGhost(gen);
   }
 
   if (gen !== state.gen) return;
@@ -690,7 +719,7 @@ async function reveal(value, gen) {
     return;
   }
   const standing = new Set(held);
-  showGhost(ghostSvg(value, (idx) => !standing.has(idx)), true);
+  showGhost(ghostSvg(value, (idx) => !standing.has(idx)), true, gen);
   await veilSwap(() => {
     base.innerHTML = svgOf(value, { pieces: (idx) => standing.has(idx) });
   }, gen);
@@ -705,7 +734,7 @@ async function reveal(value, gen) {
     await sleep(Math.max(40, 95 * 0.95 ** i));
     i++;
   }
-  await hideGhost();
+  await hideGhost(gen);
   state.shown = value;
 }
 
@@ -766,7 +795,16 @@ function ink(seg) {
 }
 
 async function renderLines(lines, gen) {
-  const oldLines = [...linesHost.querySelectorAll(".cline")];
+  // A RETIRED NODE IS NOT A CANDIDATE. A line that lost its claim is
+  // pinned out of the flow and removed on a timer, and for those few
+  // hundred ms it is still a child of the host - so a reader who clicks
+  // on before the timer fires used to have the next step's line handed to
+  // a corpse: reconciled onto an element that was already invisible and
+  // already scheduled to go. The line simply vanished, and the panel
+  // stopped being the sketch that ran, on the one page whose whole claim
+  // is that it is. The dying are filtered out of every query that decides
+  // what to keep; they own nothing but their own fade.
+  const oldLines = [...linesHost.querySelectorAll(".cline:not(.is-gone)")];
   const oldTexts = oldLines.map((el) => el.dataset.text);
   const usedOld = new Set();
 
@@ -847,7 +885,7 @@ async function renderLines(lines, gen) {
     plan.el.dataset.text = plan.text;
     // every span re-inked from its raw text: one pass, one dress code,
     // whatever road brought the span here
-    for (const span of plan.el.querySelectorAll(".seg")) {
+    for (const span of plan.el.querySelectorAll(".seg:not(.seg-out)")) {
       const raw = span.dataset.raw ?? span.textContent;
       span.dataset.raw = raw;
       span.innerHTML = ink(raw);
@@ -861,7 +899,11 @@ async function renderLines(lines, gen) {
 }
 
 function reconcileSegments(lineEl, segs) {
-  const olds = [...lineEl.querySelectorAll(".seg")];
+  // Same rule one storey down, and the same bug: a ghosted segment kept
+  // its text, so a prefix that matched it was taken for a survivor and
+  // left in place - `rubik()` held its spot in the sketch while fading to
+  // nothing and then being removed under the reader.
+  const olds = [...lineEl.querySelectorAll(".seg:not(.seg-out)")];
   const oldTexts = olds.map((el) => el.dataset.raw ?? el.textContent);
   const target = segs.filter((sg) => sg !== "");
 
@@ -952,6 +994,7 @@ function runSketch(src) {
 async function goTo(step) {
   if (step < 0 || step >= STEPS.length || step === state.step) return;
   const gen = ++state.gen;
+  dropGhost();
   state.step = step;
   const s = STEPS[step];
 

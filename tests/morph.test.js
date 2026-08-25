@@ -113,7 +113,10 @@ test("a body that leaves undocks, the way it arrived", () => {
 
 test("a lone cube gaining nothing has no body to undock", () => {
   const s = storyOf(boardOf("3"), boardOf("3 - centers"));
-  assert(!s.undock, "a carve is not a departure");
+  // the story has to BE one first, or "no undock" is true of nothing at all
+  assert(s.acts.join() === "subtract", `a carve is a subtract, got ${s.acts}`);
+  assert(s.leaving.length === 6, `with six pieces gone, got ${s.leaving.length}`);
+  assert(!s.undock, "and no departure: a carve is not a body leaving");
   assert(!s.acts.includes("undock"), `acts = ${s.acts}`);
 });
 
@@ -152,7 +155,7 @@ test("the slide vector is the renderer's own, not an approximation of it", () =>
   const seen = [...rows.values()].filter((r) => r["0,0,0"] && r["2,2,0"]);
   assert(seen.length >= 12, `enough congruent stickers to measure, got ${seen.length}`);
 
-  const [px, py] = screenDelta(w, [2, 2, 0], 6);
+  const [px, py] = screenDelta(w, [2, 2, 0]);
   for (const r of seen) {
     const mx = r["2,2,0"][0] - r["0,0,0"][0];
     const my = r["2,2,0"][1] - r["0,0,0"][1];
@@ -161,15 +164,45 @@ test("the slide vector is the renderer's own, not an approximation of it", () =>
   }
 });
 
-test("the slide is linear, so a layer can be tweened to zero", () => {
+test("the slide is exact under every parallel camera the page can hold", () => {
+  // The projector's own extent is an additive offset, so it cancels in a
+  // difference: the frame a board is drawn in cannot change how far an
+  // offset travels. Pinned here so nobody reintroduces it as a parameter.
+  for (const camera of [
+    { type: "isometric", angle: 30 },
+    { type: "isometric", angle: -12 },
+    { type: "orthographic", angle: 20, pitch: 40 },
+    { type: "oblique", angle: 45, depth: 0.5 },
+  ]) {
+    const w = boardOf("3 + 3 @ 2,2,0");
+    w.camera = camera;
+    const one = screenDelta(w, [2, 2, 0]);
+    const two = screenDelta(w, [4, 4, 0]);
+    // a module that answered [0,0] to everything would satisfy linearity
+    assert(Math.hypot(...one) > 1, `${camera.type}: the offset really travels, got ${one}`);
+    assert(
+      Math.abs(two[0] - 2 * one[0]) < 1e-9 && Math.abs(two[1] - 2 * one[1]) < 1e-9,
+      `${camera.type}: twice the offset must be twice the travel`,
+    );
+    assert(screenDelta(w, [0, 0, 0]).join() === "0,0", `${camera.type}: no offset, no travel`);
+  }
+});
+
+test("a camera that is not parallel is refused, not silently mis-slid", () => {
+  // Perspective is not affine: a difference of points is NOT a difference
+  // of projections, so a layer slid by this vector would land wrong. The
+  // page has no perspective camera today; the refusal is what keeps a
+  // future one from failing quietly.
   const w = boardOf("3 + 3 @ 2,2,0");
-  const one = screenDelta(w, [2, 2, 0], 6);
-  const two = screenDelta(w, [4, 4, 0], 6);
-  assert(screenDelta(w, [0, 0, 0], 6).join() === "0,0", "no offset, no travel");
-  assert(
-    Math.abs(two[0] - 2 * one[0]) < 1e-6 && Math.abs(two[1] - 2 * one[1]) < 1e-6,
-    "twice the offset is twice the travel",
-  );
+  w.camera = { type: "perspective", distance: 40 };
+  let said = "";
+  try {
+    screenDelta(w, [2, 2, 0]);
+  } catch (err) {
+    said = err.message;
+  }
+  assert(said, "it refuses");
+  assert(/perspective/.test(said), `and names the camera: ${said}`);
 });
 
 // ── The waves ───────────────────────────────────────────────────────────────

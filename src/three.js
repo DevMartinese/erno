@@ -253,7 +253,10 @@ function sharedRenderer() {
   return shared;
 }
 
-export async function createThreeView(container, { background = "#f4efe7" } = {}) {
+export async function createThreeView(
+  container,
+  { background = "#f4efe7", frame = {} } = {},
+) {
   await load();
 
   const gl = sharedRenderer();
@@ -303,7 +306,13 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
     group.clear();
     radius = puzzle.getRadius();
     if (typeof puzzle.getFrame === "function") {
-      const f = puzzle.getFrame();
+      // THE SAME FRAME THE CALLER'S SVG ASKS FOR, or this view is not the
+      // same picture after all. `getFrame` defaults to a padding of 20 and
+      // `toSVG` to the same, so a caller who leaves both alone gets two
+      // renderers that agree; a caller who tightens the SVG's padding and
+      // cannot say so here gets a puzzle drawn correctly and sized wrong,
+      // which is invisible until the two are laid over each other.
+      const f = puzzle.getFrame(frame);
       frameW = f.halfWidth;
       frameH = f.halfHeight;
     } else {
@@ -369,7 +378,15 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
    * and the page says so rather than quietly showing something else.
    */
   function aim(puzzle) {
-    const spec = puzzle.camera || { type: "isometric", angle: 30 };
+    // `view.camera` is the view's OWN spec, and it wins when it is set.
+    //
+    // Without it the only way to look at a board from somewhere else is to
+    // move the board's camera, and a puzzle is commonly drawn in more than
+    // one place at once: a page that let the reader swing this view around
+    // would have tilted every other picture of the same object with it.
+    // Left null - which is the default - the view is what it always was,
+    // the same picture the SVG draws.
+    const spec = view.camera || puzzle.camera || { type: "isometric", angle: 30 };
     const type = spec.type || "isometric";
     const angle = ((spec.angle ?? 30) * Math.PI) / 180;
     const pitch =
@@ -466,12 +483,34 @@ export async function createThreeView(container, { background = "#f4efe7" } = {}
   // after a resize, and after the shared context comes back from a loss.
   let showing = null;
 
+  // Which `show` is the live one.
+  //
+  // A rebuild AWAITS the decal atlas, and the meshes it installs are the
+  // new puzzle's while the caller that is suspended over that await still
+  // holds the old one. Two shows crossing there - a page switching puzzle
+  // draws twice in quick succession, and anything animating draws every
+  // frame - left one of them reading its own puzzle's pieces out of the
+  // other's meshes, which is an undefined at the first index past the
+  // shorter of the two. A superseded show simply stops: a newer one is
+  // already on its way and will paint.
+  let asked = 0;
+
   const view = {
+    /**
+     * This view's own camera spec, or null to follow the puzzle's. Same
+     * types and fields as `setCamera`; assign and call `show` to look at
+     * the same board from somewhere else without moving the board.
+     * @type {Object|null}
+     */
+    camera: null,
     /** Draw `puzzle`, optionally mid-turn. Rebuilds only on a new puzzle. */
     async show(puzzle, turn) {
+      const mine = ++asked;
       showing = { puzzle, turn };
-      if (puzzle !== builtFor) await rebuild(puzzle);
-      else {
+      if (puzzle !== builtFor) {
+        await rebuild(puzzle);
+        if (mine !== asked) return; // another show took the scene meanwhile
+      } else {
         aim(puzzle); // the camera panel moves without touching the geometry
         resize();
       }

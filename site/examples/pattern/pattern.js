@@ -271,14 +271,150 @@ import("https://esm.sh/sugar-high")
 // truth (every canvas below still renders it), the glass is a second pair
 // of eyes on the same board. Replays and builds speak SVG (the veil and
 // the shadow are the SVG's own tricks), so the glass steps aside for them.
-const glass = { on: false, view: null, module: null };
+//
+// THE SWAP IS A MOMENT, NOT A FLAG. The adapter is built to be the same
+// picture as the SVG - same frame, same camera, no lights, so the colours
+// come back exactly - and that is the right doctrine and also the reason
+// the toggle used to do nothing you could see: two near-identical stills,
+// exchanged in one frame by `hidden`. What the glass has that a flat
+// picture cannot is DEPTH, so it says so, once, on arrival: the two
+// canvases share a plane and dissolve into each other, and the camera
+// swings wide and eases home to the very isometric the SVG was standing
+// on. The doctrine survives - at rest the two are still one picture - and
+// the reader has seen the cube turn in space, which is the whole claim.
+// After that the glass stays live under the hand: drag and it orbits.
+const glass = { on: false, view: null, module: null, showing: null, drag: null };
+
+// Where the glass rests: the isometric spelled out, because an orbit needs
+// a pitch it can tween and `isometric` keeps its own. Same numbers, so a
+// board that lands here lands exactly on the picture the SVG draws.
+const ISO_PITCH = (Math.atan(1 / Math.SQRT2) * 180) / Math.PI;
+const GLASS_HOME = { type: "orthographic", angle: 30, pitch: ISO_PITCH };
 
 function syncGlass() {
   const el = $("play-canvas-gl");
   if (!el) return;
   const showing = glass.on && !!glass.view && !game.build && !game.busy;
-  el.hidden = !showing;
-  $("play-canvas").hidden = showing;
+  // renderGame runs after every turn and this answers the same each time.
+  // Only a real change may start a dissolve; re-veiling a veiled canvas
+  // restarts the transition and the board flickers on every move.
+  if (showing === glass.showing) return;
+  glass.showing = showing;
+  el.classList.toggle("is-veiled", !showing);
+  $("play-canvas").classList.toggle("is-veiled", showing);
+}
+
+/** Point the glass, and only the glass: the SVG twin keeps its own camera. */
+function aimGlass(angle, pitch) {
+  if (!glass.view) return;
+  glass.view.camera = { type: "orthographic", angle, pitch };
+  glass.view.show(game.puzzle);
+}
+
+/**
+ * The arrival: one orbit, out and home.
+ *
+ * Emil's rules, the same ones the voyage runs on - a single strong
+ * ease-out, and a motion that ARRIVES rather than stops. It starts wide of
+ * home and eases in, so what the eye reads is a cube settling into the
+ * picture it already knew, not a cube being spun at it.
+ */
+function glassArrival() {
+  if (!glass.view) return;
+  if (still.matches) {
+    aimGlass(GLASS_HOME.angle, GLASS_HOME.pitch);
+    return;
+  }
+  const ms = 1150;
+  const from = { angle: GLASS_HOME.angle + 52, pitch: ISO_PITCH - 16 };
+  // Standing wide BEFORE the dissolve starts, so the two canvases do not
+  // cross over as the same picture and then move: the glass is already a
+  // different view of the cube as it fades up, and it settles from there.
+  aimGlass(from.angle, from.pitch);
+  let start = 0;
+  const step = (now) => {
+    // a reader who grabs it mid-arrival owns it from that moment
+    if (!glass.on || glass.drag) return;
+    if (!start) start = now;
+    const t = Math.min(1, (now - start) / ms);
+    const e = 1 - (1 - t) ** 3;
+    aimGlass(
+      from.angle + (GLASS_HOME.angle - from.angle) * e,
+      from.pitch + (GLASS_HOME.pitch - from.pitch) * e,
+    );
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/** The departure: come home before the SVG is shown from a camera it lacks. */
+function glassHome() {
+  return new Promise((done) => {
+    if (!glass.view) return done();
+    if (still.matches) {
+      aimGlass(GLASS_HOME.angle, GLASS_HOME.pitch);
+      return done();
+    }
+    const spec = glass.view.camera || GLASS_HOME;
+    const from = { angle: spec.angle, pitch: spec.pitch ?? ISO_PITCH };
+    const d = Math.abs(from.angle - GLASS_HOME.angle) + Math.abs(from.pitch - GLASS_HOME.pitch);
+    if (d < 0.5) return done();
+    const ms = Math.min(520, 60 + d * 6);
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / ms);
+      const e = 1 - (1 - t) ** 3;
+      aimGlass(
+        from.angle + (GLASS_HOME.angle - from.angle) * e,
+        from.pitch + (GLASS_HOME.pitch - from.pitch) * e,
+      );
+      if (t < 1) requestAnimationFrame(step);
+      else done();
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/**
+ * Drag to orbit.
+ *
+ * The one thing a flat picture cannot answer back. Pitch is clamped short
+ * of the poles, where a cube seen exactly edge-on stops reading as a solid
+ * and the whole illusion the glass is here for goes flat.
+ */
+function wireGlassDrag() {
+  const el = $("play-canvas-gl");
+  if (!el) return;
+  el.addEventListener("pointerdown", (e) => {
+    if (!glass.on || !glass.view || !glass.showing) return;
+    const spec = glass.view.camera || GLASS_HOME;
+    glass.drag = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      angle: spec.angle,
+      pitch: spec.pitch ?? ISO_PITCH,
+    };
+    el.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  el.addEventListener("pointermove", (e) => {
+    const d = glass.drag;
+    if (!d || d.id !== e.pointerId) return;
+    aimGlass(
+      d.angle + (e.clientX - d.x) * 0.45,
+      Math.max(-72, Math.min(72, d.pitch + (e.clientY - d.y) * 0.35)),
+    );
+  });
+  const release = (e) => {
+    if (!glass.drag || glass.drag.id !== e.pointerId) return;
+    glass.drag = null;
+  };
+  el.addEventListener("pointerup", release);
+  el.addEventListener("pointercancel", release);
+  el.addEventListener("dblclick", () => {
+    if (glass.on && glass.view) glassHome();
+  });
 }
 
 let refWorldWidth = null;
@@ -291,14 +427,42 @@ const draw = (host, puzzle, turn) => {
   if (!svg || !puzzle.getFrame) return;
   if (refWorldWidth === null)
     refWorldWidth = new Cube({ size: 3 }).getFrame({ padding: 8 }).halfWidth;
-  const pct = Math.min(
-    100,
-    (100 * puzzle.getFrame({ padding: 8 }).halfWidth) / refWorldWidth,
-  );
+  const frame = puzzle.getFrame({ padding: 8 });
+  const pct = Math.min(100, (100 * frame.halfWidth) / refWorldWidth);
   svg.style.width = pct.toFixed(1) + "%";
   svg.style.display = "block";
   svg.style.margin = "0 auto";
+  if (host === $("play-canvas")) sizeGlassLike(svg, frame);
 };
+
+/**
+ * Give the glass the footprint that draws the cubie at the SVG's scale.
+ *
+ * Two things pull them apart, and neither is visible until the two share a
+ * plane and dissolve into each other. The SVG is SHRUNK by `pct` for a
+ * puzzle smaller than a 3x3, so a Floppy arrives small because it IS
+ * small, and the glass, filling its box, knew nothing about that. And the
+ * glass letterboxes: a square canvas fits the LARGER half extent, so a
+ * frame that is taller than it is wide draws narrower than the SVG, which
+ * fits each axis on its own.
+ *
+ * Both are one number. The SVG puts `2 * halfWidth` of world across its
+ * element; a square canvas puts `2 * max(halfWidth, halfHeight)` across
+ * its own, so the canvas has to be wider by exactly that ratio for one
+ * world unit to measure the same on both.
+ */
+function sizeGlassLike(svg, frame) {
+  const host = $("play-canvas-gl");
+  if (!host) return;
+  const w = svg.getBoundingClientRect().width;
+  if (!w || !frame.halfWidth) return;
+  const k = Math.max(frame.halfWidth, frame.halfHeight) / frame.halfWidth;
+  // its size is measured now, not capped: the shared 24rem ceiling is what
+  // the SVG was already clamped by, and applying it twice would shrink the
+  // twin a second time
+  host.style.maxWidth = "none";
+  host.style.width = `${(w * k).toFixed(1)}px`;
+}
 
 // One turn, animated. The whole reason a turning layer has to be drawn in the
 // right order lives in these few frames.
@@ -3319,20 +3483,40 @@ function init() {
       game.puzzle.swapPieces(a, b);
     }));
 
+  wireGlassDrag();
   $("play-gl").addEventListener("click", async () => {
-    glass.on = !glass.on;
+    const wanted = !glass.on;
     let refused = "";
-    if (glass.on && !glass.view) {
+    if (wanted && !glass.view) {
       try {
         if (!glass.module) glass.module = await import("../../three-view.js");
-        glass.view = await glass.module.createThreeView($("play-canvas-gl"));
+        glass.view = await glass.module.createThreeView($("play-canvas-gl"), {
+          // the very options `draw` hands toSVG, so the twin is the same
+          // size as well as the same picture: with the frame left to its
+          // own default the glass drew this cube some eight percent small,
+          // which nobody could see while the two never shared a plane
+          frame: { fitSphere: true, padding: 8 },
+        });
       } catch (err) {
         // No WebGL here; the SVG was never going anywhere.
-        glass.on = false;
+        glass.view = null;
         refused = `SVG only: ${err.message}`;
       }
     }
+    // Leaving: come home first. The reader may have dragged the glass
+    // anywhere, and the SVG has one camera - showing it mid-orbit would
+    // make the departure a jump cut on the way out.
+    if (!wanted) await glassHome();
+    glass.on = wanted && !!glass.view;
     $("play-gl").setAttribute("aria-pressed", String(glass.on));
+    if (glass.on) {
+      // built and standing before anything animates: the first show of a
+      // puzzle rebuilds the geometry, and an arrival racing that rebuild
+      // draws its opening frame out of a scene being torn down
+      glass.view.camera = { ...GLASS_HOME };
+      await glass.view.show(game.puzzle);
+      glassArrival();
+    }
     renderGame();
     if (refused) $("play-status").textContent = refused;
   });
