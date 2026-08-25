@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Reachable by URL, linked from nowhere, and asked to stay
+         out of the indexes while the game is still being shaped. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Pattern · the chain</title>
+    <meta name="description" content="One fluent value, transformed link by link. The journey through Pattern's chained language, in one screen." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Space+Mono&display=swap"
+    />
+    <link rel="stylesheet" href="../../site.css" />
+    <link rel="stylesheet" href="./pattern.css" />
+    <style>
+      /* ─────────────────────────────────────────────────────────────────
+         One typeface family, one grid, two accents. The code is set on
+         the page rather than boxed into a widget, the eye enters at the
+         step's numeral and leaves at the board, and the progress is a
+         rule rather than a row of dots.
+         ───────────────────────────────────────────────────────────── */
+      :root {
+        --ease-strong: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
+      }
+      html, body.example { height: 100%; }
+      body.example {
+        display: flex;
+        flex-direction: column;
+        overflow: clip;
+        max-width: 100rem;
+        margin-inline: auto;
+        border-inline: var(--rule) solid var(--ink);
+      }
+
+      /* ── The masthead: a quiet line, and a rule that fills ─────────── */
+      .voyage-head {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-4);
+        flex: 0 0 auto;
+      }
+      .voyage-mark {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .voyage-count {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        color: color-mix(in oklab, var(--ink) 55%, var(--paper));
+      }
+      .voyage-ticks {
+        display: flex;
+        gap: 2px;
+        padding: 0 var(--space-4) var(--space-2);
+        flex: 0 0 auto;
+      }
+      .voyage-ticks button {
+        flex: 1;
+        height: 3px;
+        padding: 0;
+        border: 0;
+        background: color-mix(in oklab, var(--ink) 16%, var(--paper));
+        cursor: pointer;
+        transition: background 240ms ease, transform 160ms var(--ease-strong);
+      }
+      .voyage-ticks button[aria-current="true"] { background: var(--red); }
+      .voyage-ticks button:hover { background: color-mix(in oklab, var(--ink) 45%, var(--paper)); }
+      .voyage-ticks button:active { transform: scaleY(2); }
+
+      /* ── The stage ─────────────────────────────────────────────────── */
+      .voyage {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+        min-height: 0;
+        border-top: var(--rule) solid var(--ink);
+      }
+      .voyage-code {
+        border-right: var(--rule) solid var(--ink);
+        padding: var(--space-5) var(--space-4);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: var(--space-3);
+        min-height: 0;
+      }
+
+      /* the entry point: a numeral, then the name, then the sentence */
+      .voyage-lede {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: var(--space-3);
+        align-items: start;
+      }
+      .voyage-num {
+        font-size: var(--size-3xl);
+        font-weight: 900;
+        font-stretch: 125%;
+        line-height: 0.85;
+        letter-spacing: -0.02em;
+        min-width: 2.6ch;
+      }
+      .voyage-name {
+        display: block;
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: color-mix(in oklab, var(--ink) 60%, var(--paper));
+        margin-bottom: var(--space-1);
+      }
+      .voyage-caption {
+        min-height: 4.6em;
+        margin: 0;
+        max-width: 46ch;
+      }
+      .voyage-caption p {
+        margin: 0;
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 420ms var(--ease-strong), transform 420ms var(--ease-strong);
+      }
+      .voyage-caption p.is-leaving { opacity: 0; transform: translateY(-6px); }
+      .voyage-caption p.is-entering { opacity: 0; transform: translateY(8px); }
+
+      /* ── The sketch: set on the page, not boxed ────────────────────── */
+      #voyage-lines {
+        position: relative;
+        overflow: visible;
+        font-family: var(--mono);
+        font-size: 1.05rem;
+        line-height: 1.95;
+        min-height: 10.4em;
+        padding-left: var(--space-3);
+        border-left: 3px solid var(--red);
+        white-space: pre;
+      }
+      .cline {
+        position: relative;
+        min-height: 1.95em;
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 420ms var(--ease-strong), transform 420ms var(--ease-strong);
+      }
+      .cline[data-text=""] { min-height: 0.9em; }
+      .cline.is-new { opacity: 0; transform: translateY(10px); }
+      .cline.is-gone {
+        position: absolute;
+        opacity: 0;
+        transform: translateY(-8px);
+        filter: blur(3px);
+        transition: opacity 300ms var(--ease-strong), transform 300ms var(--ease-strong),
+          filter 300ms var(--ease-strong);
+      }
+      .seg {
+        display: inline-block;
+        white-space: pre;
+        transition: opacity 560ms var(--ease-strong), transform 560ms var(--ease-strong),
+          filter 560ms var(--ease-strong);
+      }
+      .seg-in { opacity: 0; transform: translateY(8px); filter: blur(3px); }
+      .seg-out { opacity: 0; transform: translateY(-5px); filter: blur(3px); }
+      /* two accents and the neutrals between them */
+      .tk-str { color: var(--blue); }
+      .tk-num { color: var(--blue); }
+      .tk-kw { color: color-mix(in oklab, var(--ink) 45%, var(--paper)); }
+      .tk-fn { font-weight: 700; }
+      .tk-src { font-weight: 700; color: var(--red); }
+
+      /* ── What the engine answers ───────────────────────────────────── */
+      .voyage-verdict {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        line-height: 1.6;
+        min-height: 5.7em;
+        max-width: 62ch;
+        margin: 0;
+        padding-left: var(--space-3);
+        border-left: var(--rule) solid color-mix(in oklab, var(--ink) 18%, var(--paper));
+        color: color-mix(in oklab, var(--ink) 78%, var(--paper));
+        white-space: pre-wrap;
+        transition: opacity 260ms var(--ease-strong);
+      }
+
+      .voyage-nav {
+        display: flex;
+        gap: var(--space-1);
+        align-items: baseline;
+      }
+      .voyage-nav button { transition: transform 140ms var(--ease-strong); }
+      .voyage-nav button:active { transform: scale(0.97); }
+      .voyage-nav button[disabled] { opacity: 0.35; }
+      .voyage-hint {
+        font-family: var(--mono);
+        font-size: var(--size-sm);
+        color: color-mix(in oklab, var(--ink) 45%, var(--paper));
+        margin-left: auto;
+      }
+
+      /* ── The board side ────────────────────────────────────────────── */
+      .voyage-board {
+        display: grid;
+        place-items: center;
+        padding: var(--space-4);
+        min-height: 0;
+        position: relative;
+      }
+      #voyage-table {
+        width: min(96%, 44rem, 68vh);
+        position: relative;
+      }
+      #voyage-table svg { width: 100%; height: auto; display: block; }
+      .board-layer {
+        position: relative;
+        z-index: 1;
+        transition: opacity 640ms ease, filter 640ms ease;
+      }
+      .board-layer--over {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        transition: opacity 820ms var(--ease-strong), transform 820ms var(--ease-strong),
+          filter 820ms var(--ease-strong);
+      }
+      .board-layer--ghost {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        transition: opacity 420ms ease;
+      }
+      .board-layer--ghost.board-layer--lit { z-index: 3; pointer-events: none; }
+      .board-layer.is-arriving { opacity: 0; filter: blur(2px); }
+      .board-layer.is-yielding { opacity: 0; filter: blur(2px); }
+      .board-layer.is-lifting {
+        transition: opacity 760ms ease, transform 760ms var(--ease-strong), filter 760ms ease;
+        opacity: 0;
+        transform: translateY(-2.5%) scale(1.01);
+        filter: blur(2px);
+      }
+      .board-layer.is-joining-r { opacity: 0; transform: translate(7%, -7%); filter: blur(2px); }
+      .board-layer.is-joining-l { opacity: 0; transform: translate(-7%, 7%); filter: blur(2px); }
+      .board-layer.is-veiled {
+        transition: opacity 160ms ease, filter 160ms ease;
+        opacity: 0.85;
+        filter: blur(2px);
+      }
+
+      #voyage-goal {
+        z-index: 4;
+        position: absolute;
+        right: var(--space-4);
+        bottom: var(--space-4);
+        width: 8rem;
+        border: var(--rule) solid var(--ink);
+        padding: var(--space-1);
+        background: var(--paper);
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 420ms var(--ease-strong), transform 420ms var(--ease-strong);
+      }
+      #voyage-goal[hidden] { display: none; }
+      #voyage-goal.is-entering { opacity: 0; transform: translateY(8px); }
+      #voyage-goal svg { width: 100%; height: auto; display: block; }
+      #voyage-goal .example-label { display: block; margin-bottom: 0.3rem; }
+
+      @media (max-width: 62rem) {
+        .voyage { grid-template-columns: minmax(0, 1fr); }
+        .voyage-code { border-right: none; border-top: var(--rule) solid var(--ink); order: 1; }
+        .voyage-board { order: 0; min-height: 40vh; }
+        body.example { overflow: auto; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .cline, .seg, .voyage-caption p, .board-layer {
+          transition-property: opacity;
+          transition-duration: 150ms;
+        }
+      }
+    </style>
+  </head>
+  <body class="example">
+    <header class="voyage-head">
+      <a class="example-back" href="./">erno</a>
+      <span class="voyage-mark">the chain</span>
+      <span class="voyage-count" id="voyage-count"></span>
+    </header>
+    <nav class="voyage-ticks" id="voyage-dots" aria-label="Steps"></nav>
+
+    <main class="voyage">
+      <section class="voyage-code">
+        <div class="voyage-lede">
+          <span class="voyage-num" id="voyage-num"></span>
+          <div>
+            <span class="voyage-name" id="voyage-title"></span>
+            <div class="voyage-caption"><p id="voyage-caption"></p></div>
+          </div>
+        </div>
+        <div id="voyage-lines" aria-live="off"></div>
+        <p class="voyage-verdict" id="voyage-verdict"></p>
+        <div class="voyage-nav">
+          <button id="voyage-prev">Back</button>
+          <button id="voyage-next">Next</button>
+          <span class="voyage-hint">arrow keys walk · the code is really running</span>
+        </div>
+      </section>
+
+      <section class="voyage-board">
+        <div id="voyage-table"></div>
+        <div id="voyage-goal" hidden>
+          <span class="example-label">the goal</span>
+          <div id="voyage-goal-art"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./voyage.js"></script>
+  </body>
+</html>
