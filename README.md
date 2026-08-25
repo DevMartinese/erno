@@ -195,7 +195,7 @@ reports the one it is in rather than guessing.
 Not every pattern you can imagine is one a puzzle can reach. A turn permutes
 pieces but never changes what *kind* of piece one is, so a pattern that only
 asks about the kind is the same however you turn it, and there is nothing to
-solve. See `site/examples/pattern` for a game built on all of this.
+solve.
 
 ### The laws of the possible
 
