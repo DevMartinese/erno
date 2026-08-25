@@ -194,20 +194,56 @@ const FRAME = (() => {
   return { center: [0, 0, 0], radius: Math.ceil(radius * 20) / 20 };
 })();
 
+const tokenColour = (name, fallback) =>
+  getComputedStyle(document.body).getPropertyValue(name).trim() || fallback;
+
+// ── The hollows ─────────────────────────────────────────────────────────────
+//
+// A cube's grid is black because the plastic between its stickers is
+// black, and that is the puzzle's face. But the SAME colour also paints
+// the walls a missing cubie leaves behind, and there it reads as a pit:
+// a carved board, a cube mid-assembly or a shell mid-growth turns into a
+// dark mass and the voxels lose their depth. The engine tells the two
+// apart - a wall with no sticker is marked `core` - so the page dresses
+// only those: a warm recess, edged in ink so every absent cubie still
+// shows its own shape. The grid never changes.
+const mixHex = (a, b, t) => {
+  const hex = (c) => {
+    const v = c.replace("#", "");
+    const n = v.length === 3 ? v.split("").map((x) => x + x).join("") : v;
+    return [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16));
+  };
+  const [x, y] = [hex(a), hex(b)];
+  return (
+    "#" +
+    x
+      .map((v, i) => Math.round(v * (1 - t) + y[i] * t).toString(16).padStart(2, "0"))
+      .join("")
+  );
+};
+const HOLLOW_FILL = mixHex(tokenColour("--paper", "#f4efe7"), tokenColour("--ink", "#17110c"), 0.2);
+const HOLLOW_EDGE = mixHex(tokenColour("--paper", "#f4efe7"), tokenColour("--ink", "#17110c"), 0.5);
+
+const dressHollows = (svg) =>
+  svg.replace(
+    /(<polygon points="[^"]*" )fill="[^"]*" stroke="[^"]*"( stroke-width="0\.5" data-part="core")/g,
+    (m, head, tail) => `${head}fill="${HOLLOW_FILL}" stroke="${HOLLOW_EDGE}"${tail}`,
+  );
+
 const svgOf = (value, extra = {}) =>
-  value.board.toSVG({
-    frame: FRAME,
-    padding: 8,
-    ...(value.veil ? { pieces: value.veil } : {}),
-    ...extra,
-  });
+  dressHollows(
+    value.board.toSVG({
+      frame: FRAME,
+      padding: 8,
+      ...(value.veil ? { pieces: value.veil } : {}),
+      ...extra,
+    }),
+  );
 
 // The scaffold: the same board drawn as bare outlines - no body, no
 // fills - so the cubies that have not arrived yet read as cubes instead
 // of as a black absence. The board lends itself for one render and is
 // handed back exactly as it was.
-const tokenColour = (name, fallback) =>
-  getComputedStyle(document.body).getPropertyValue(name).trim() || fallback;
 const GHOST_INK = tokenColour("--ink", "#17110c");
 const GHOST_PAPER = tokenColour("--paper", "#f4efe7");
 
@@ -812,7 +848,9 @@ async function goTo(step) {
   drawValue(tableValue);
   const goalBox = $("voyage-goal");
   if (goalValue) {
-    $("voyage-goal-art").innerHTML = goalValue.board.toSVG({ fitSphere: true, padding: 8 });
+    $("voyage-goal-art").innerHTML = dressHollows(
+      goalValue.board.toSVG({ fitSphere: true, padding: 8 }),
+    );
     if (goalBox.hidden) {
       goalBox.classList.add("is-entering");
       goalBox.hidden = false;
