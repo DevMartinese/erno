@@ -2,7 +2,7 @@
 
 ## 0.3.0 (2026-08-26)
 
-The chain's glass route (`chain3d`, issue #4) asked the adapter for six
+A page driving boards through the three.js adapter asked it for six
 things, and per the house rule every one became library rather than page.
 All of it is additive; nothing a 0.2 consumer calls has changed.
 
@@ -35,7 +35,8 @@ All of it is additive; nothing a 0.2 consumer calls has changed.
   two agree as before.
 - **A fader writes no depth**: a half-faded piece still occluded what stood
   behind it, and on a real GPU whole runs of colour vanished for the length
-  of the fade. Seen on the chain's morphs; fixed where opacity is set.
+  of the fade. Seen while morphing one board into another; fixed where
+  opacity is set.
 - **Two shows may not cross a rebuild**: `show()` awaits the decal atlas,
   and a second call arriving over that await read its own puzzle's pieces
   out of the other's meshes. A superseded show now stops; the newer one
