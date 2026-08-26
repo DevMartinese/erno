@@ -245,8 +245,23 @@ async function morphTo(next, gen, budget) {
   // wave it rides. The curves are Emil's, by rule: EASE_ENTER for what
   // appears or leaves, EASE_TRAVEL for what crosses the stage, EASE_SETTLE
   // (a spring) for what lands.
-  const DUR = { leave: 300, travel: 460, cross: 240 };
-  const SPREAD = { leave: 480, grow: 640 }; // how long a wave takes to ripple
+  const DUR = { leave: 340, travel: 460, cross: 240 };
+  // The ripple scales with the act. A carve of six centres reads at half a
+  // second; a five shedding sixty pieces at that speed is a blizzard - the
+  // waves all fire inside one blink and the story turns to white noise.
+  // Each wave needs its own beat on stage, so the spread grows with the
+  // wave count and the overlap SHRINKS as the act grows: small acts flow
+  // into each other, big acts get read before the next one speaks.
+  const SPREAD = {
+    leave: shed.size ? Math.min(1400, Math.max(420, 340 * Math.sqrt(shed.size / 9))) : 0,
+    grow: grow.size ? Math.min(1600, Math.max(640, 280 * Math.sqrt(grow.size))) : 0,
+  };
+  // Overlap stays HIGH even on huge morphs - the phases touch DISJOINT
+  // pieces moving in complementary directions (walls sliding out while the
+  // core condenses), and motion beside motion reads as one event where a
+  // held pose reads as a stall. The blizzard this used to cause came from
+  // per-voxel crumbling, and died with the wall grouping below.
+  const OVERLAP = 0.45;
 
   // the next board arrives fully prepared and fully hidden
   const b = addBoard(next);
@@ -288,13 +303,41 @@ async function morphTo(next, gen, budget) {
       v[axis >> 1] = (axis % 2 === 0 ? 1 : -1) * AWAY * 1.6;
       return v;
     };
+    // A WALL LEAVES AS A WALL. Radial waves made a five's four walls
+    // crumble piece by piece - sixty voxels each on their own beat is a
+    // blizzard. Pieces that share an exit axis share a beat: the whole +x
+    // wall slides off as one drawer, then the next wall, and only the
+    // interior pieces (a carve's centres) ride radial waves.
+    const dir = new Map([...shed].map((i) => [i, wayOut(atFrom(i))]));
+    const wallOrder = [];
+    for (const i of shed) {
+      const d = dir.get(i);
+      if (!d) continue;
+      const key = d.findIndex((v) => v !== 0) * 2 + (d.find((v) => v !== 0) > 0 ? 0 : 1);
+      if (!wallOrder.includes(key)) wallOrder.push(key);
+    }
+    const interior = [...shed].filter((i) => !dir.get(i));
     const rounds = waves(
-      [...shed].map((i) => ({ at: atFrom(i), idx: i })),
+      interior.map((i) => ({ at: atFrom(i), idx: i })),
       { outward: false, heart },
     );
+    const radialDelays = delaysOf(rounds, 1);
+    const delay = new Map();
+    const beats = wallOrder.length + (interior.length ? 1 : 0);
+    for (const i of shed) {
+      const d = dir.get(i);
+      if (d) {
+        const key = d.findIndex((v) => v !== 0) * 2 + (d.find((v) => v !== 0) > 0 ? 0 : 1);
+        delay.set(i, wallOrder.indexOf(key) / Math.max(1, beats));
+      } else {
+        // interior rides the tail, in its own radial waves
+        const base = wallOrder.length / Math.max(1, beats);
+        delay.set(i, base + (radialDelays.delay.get(i) || 0) * (1 - base));
+      }
+    }
     shedField = {
-      ...delaysOf(rounds, 1),
-      dir: new Map([...shed].map((i) => [i, wayOut(atFrom(i)) || radial(atFrom(i), heart)])),
+      delay,
+      dir: new Map([...shed].map((i) => [i, dir.get(i) || radial(atFrom(i), heart)])),
     };
   }
 
@@ -336,7 +379,6 @@ async function morphTo(next, gen, budget) {
     },
   });
   let cursor = 0;
-  const OVERLAP = 0.45;
   const phaseLen = { undock: ms(DUR.travel), subtract: ms(SPREAD.leave + DUR.leave), stretch: ms(DUR.travel + DUR.cross), dock: ms(DUR.travel), subdivide: ms(SPREAD.grow + DUR.leave) };
   const startOf = new Map();
   for (const ph of phases) {
@@ -363,13 +405,17 @@ async function morphTo(next, gen, budget) {
     for (const i of shed) {
       const o = { e: 0 };
       const d = shedField.dir.get(i);
+      // A slab comes off like a drawer: it TRAVELS at full opacity for the
+      // first half of its exit - you see it leave - and only then melts.
+      // Fading from the first millisecond made sixty leaving pieces read as
+      // evaporation, not as a mechanism coming apart.
       tl.add(o, {
         e: 1,
         duration: ms(DUR.leave),
         ease: EASE_ENTER,
         onUpdate: () => {
           a.offset(i, [d[0] * o.e, d[1] * o.e, d[2] * o.e]);
-          a.opacity(i, 1 - o.e);
+          a.opacity(i, 1 - Math.max(0, (o.e - 0.45) / 0.55));
         },
       }, startOf.get("subtract") + shedField.delay.get(i) * ms(SPREAD.leave));
     }
