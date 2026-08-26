@@ -23,6 +23,13 @@
    lost context is asked back and every live view rebuilds and redraws.
    ───────────────────────────────────────────────────────────────────── */
 
+import { bodyOf, roundingOf, shrinkSticker } from "./three-geometry.js";
+
+import { createStage } from "./three-stage.js";
+
+export { createStage };
+export { bodyOf } from "./three-geometry.js";
+
 let THREE = null;
 
 /** Load three the first time anyone asks, and only then. */
@@ -44,7 +51,7 @@ const hex = (c) => new THREE.Color().setStyle(c, THREE.SRGBColorSpace);
  * face lifted a hair along the normal. Without the lift the two are coplanar
  * and the depth buffer picks a winner per pixel, which reads as noise.
  */
-function buildGeometry(piece, lift) {
+function buildGeometry(piece, lift, shape = {}) {
   const positions = [];
   const colors = [];
   const index = [];
@@ -89,10 +96,25 @@ function buildGeometry(piece, lift) {
     for (let i = 1; i + 1 < points.length; i++) index.push(base, base + i, base + i + 1);
   };
 
+  // The body, always: it is what shows through the gaps. Its SHAPE is
+  // three-geometry.js' answer rather than this file's, so the cubie forms
+  // can be proven in node, where there is no context to draw into.
+  const body = bodyOf(piece, shape);
+  const base0 = positions.length / 3;
+  for (let i = 0; i < body.positions.length; i += 3) {
+    positions.push(body.positions[i], body.positions[i + 1], body.positions[i + 2]);
+    const col = hex(body.colors[i / 3]);
+    colors.push(col.r, col.g, col.b);
+  }
+  for (const i of body.index) index.push(base0 + i);
+
+  // The stickers stay where the mechanism put them - they are the puzzle's
+  // state made visible - except that on a rounded body each retreats from
+  // the shoulder by the same radius the body did, or it pokes past the
+  // silhouette as a sliver of its own colour.
+  const retreat = roundingOf(piece, shape);
   for (const f of piece.faces) {
-    // the body, always: it is what shows through the gaps
-    emit(f.points, f.plastic, f.normal, 0);
-    if (f.sticker) emit(f.sticker, f.color, f.normal, LIFT);
+    if (f.sticker) emit(shrinkSticker(f.sticker, retreat), f.color, f.normal, LIFT);
   }
 
   const g = new THREE.BufferGeometry();
@@ -255,7 +277,7 @@ function sharedRenderer() {
 
 export async function createThreeView(
   container,
-  { background = "#f4efe7", frame = {} } = {},
+  { background = "#f4efe7", frame = {}, cubie = "box", core = null } = {},
 ) {
   await load();
 
@@ -291,6 +313,10 @@ export async function createThreeView(
   let frameW = 3;
   let frameH = 3;
 
+  // How a cubie is shaped and how its inner walls are dressed. Read on every
+  // rebuild, so a page may change either and ask for the board again.
+  const shape = { cubie, core };
+
   const material = new THREE.MeshBasicMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
@@ -321,7 +347,7 @@ export async function createThreeView(
     }
     const pieces = puzzle.getPieces();
     meshes = pieces.map((piece) => {
-      const mesh = new THREE.Mesh(buildGeometry(piece, radius * 0.008), material);
+      const mesh = new THREE.Mesh(buildGeometry(piece, radius * 0.008, shape), material);
       mesh.matrixAutoUpdate = false; // the whole point: we assign it ourselves
       group.add(mesh);
       return mesh;
@@ -523,7 +549,7 @@ export async function createThreeView(
       if (pieces[0] && pieces[0].warped) {
         for (let i = 0; i < meshes.length; i++) {
           meshes[i].geometry.dispose();
-          meshes[i].geometry = buildGeometry(pieces[i], radius * 0.008);
+          meshes[i].geometry = buildGeometry(pieces[i], radius * 0.008, shape);
           if (decalMeshes[i]) {
             decalMeshes[i].geometry.dispose();
             decalMeshes[i].geometry = buildDecalGeometry(pieces[i], atlas, radius * 0.016);
@@ -562,5 +588,113 @@ export async function createThreeView(
     view.show(showing.puzzle, showing.turn);
   };
   views.add(view);
+  return view;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   A stage with a window: renderer, orthographic camera and ONE WORLD FRAME.
+
+   createThreeView frames each puzzle by its own getFrame, which is right
+   for a single board and exactly wrong for a voyage: two boards framed
+   each to fit are two boards silently rescaled, and the page's doctrine
+   is that nothing is ever rescaled - a five is bigger than a three
+   because it IS. So this view takes the frame ONCE, in world units, and
+   every board ever added is seen through it.
+
+   One renderer of its own, no sharing: a stage page has one continuously
+   animating view, not twenty-one stills.
+   ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * @param {HTMLElement} container
+ * @param {Object} options
+ * @param {{radius: number, padding?: number}} options.frame - the fixed
+ *   world frame: half extent `radius`, plus `padding` in projector units
+ *   (tile-relative, default 8) so the same numbers frame the SVG twin.
+ * @param {string} [options.background]
+ * @param {"box"|"rounded"} [options.cubie]
+ * @param {string} [options.core]
+ */
+export async function createStageView(container, options) {
+  await load();
+  const stage = await createStage(options);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, globalThis.devicePixelRatio || 1));
+  renderer.setClearColor(hex(options.background || "#f4efe7"), 1);
+  container.innerHTML = "";
+  container.appendChild(renderer.domElement);
+  renderer.domElement.style.cssText = "width:100%;height:100%;display:block";
+
+  // world half extent: the shared radius plus the same padding the SVG
+  // carries, converted at the default tile of 20 projector units per world
+  const halfW = options.frame.radius + (options.frame.padding ?? 8) / 20;
+
+  // The frustum hugs the scene. A lazy far plane is not free under an
+  // orthographic camera: depth precision is spread over the whole range,
+  // and the stickers float 0.008 radii above the body - with far at 4000
+  // the two landed in the same depth bucket and the faces came out
+  // speckled. Near and far bracket the distance the camera actually
+  // stands at, plus the frame it can see.
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 10);
+  const spec = { angle: 30, pitch: (Math.atan(1 / Math.SQRT2) * 180) / Math.PI };
+
+  function aim() {
+    const a = (spec.angle * Math.PI) / 180;
+    const p = (spec.pitch * Math.PI) / 180;
+    const dist = Math.max(40, options.frame.radius * 8);
+    camera.near = dist - options.frame.radius * 3;
+    camera.far = dist + options.frame.radius * 3;
+    camera.position.set(
+      Math.sin(a) * Math.cos(p) * dist,
+      Math.sin(p) * dist,
+      Math.cos(a) * Math.cos(p) * dist,
+    );
+    camera.lookAt(0, 0, 0);
+  }
+
+  function resize() {
+    const w = container.clientWidth || 1;
+    const h = container.clientHeight || w;
+    renderer.setSize(w, h, false);
+    const aspect = w / h;
+    // xMidYMid meet, as the <svg> does: fit the frame, letterbox the rest
+    const HW = Math.max(halfW, halfW * aspect);
+    camera.left = -HW;
+    camera.right = HW;
+    camera.top = HW / aspect;
+    camera.bottom = -HW / aspect;
+    camera.updateProjectionMatrix();
+  }
+
+  const observer = new ResizeObserver(() => {
+    resize();
+    view.render();
+  });
+  observer.observe(container);
+
+  const view = {
+    stage,
+    render() {
+      renderer.render(stage.scene, camera);
+    },
+    /** Where the reader left the camera; assign and render to orbit. */
+    get angle() {
+      return { ...spec };
+    },
+    aim(angle, pitch) {
+      spec.angle = angle;
+      if (pitch !== undefined) spec.pitch = pitch;
+      aim();
+    },
+    dispose() {
+      observer.disconnect();
+      renderer.dispose();
+      container.innerHTML = "";
+    },
+  };
+  aim();
+  resize();
   return view;
 }

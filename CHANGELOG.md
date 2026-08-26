@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.3.0 (2026-08-26)
+
+The chain's glass route (`chain3d`, issue #4) asked the adapter for six
+things, and per the house rule every one became library rather than page.
+All of it is additive; nothing a 0.2 consumer calls has changed.
+
+- **The stage** (`createStage`, new module `three-stage.js`): boards in one
+  scene, each piece answerable on its own - `visible(pred)`, `opacity(i, a)`,
+  `offset(i, v)` in world units on top of the piece's own matrix, `turn(spec)`
+  that offsets survive, `wireframe()` as real edges, several boards at once,
+  `remove()` that leaves nothing behind. Provable in node against the real
+  three scene graph - only the renderer needs a browser - and proven there.
+- **The stage's window** (`createStageView`): renderer, orthographic camera
+  and ONE world frame, taken once and never re-derived - so a five is bigger
+  than a three because it IS, whatever boards come and go. The frustum hugs
+  the scene: a lazy far plane spends ortho depth precision exactly where the
+  stickers float above the body.
+- **Cubie shapes** (`bodyOf`, new module `three-geometry.js`): `box` is the
+  engine's polygons untouched; `rounded` is the Minkowski sum of a shrunk box
+  and a sphere, so a rounded voxel can never grow past the box it replaces
+  and never pokes into a neighbour - tested as an invariant, not remarked.
+  A piece that is not a box is left exactly as it came (a mid-turn Twist
+  renders identically under both shapes). Stickers retreat from a rounded
+  shoulder by the same radius the body took, or they overhang as slivers.
+- **The hollows, dressed at build time**: `core` colours the walls that
+  carry no sticker, which read as pits the moment a neighbour is missing.
+  The SVG rewrites those polygons after the fact; geometry has to decide
+  while it is built.
+- **A view's own camera** (`view.camera` on `createThreeView`): orbit one
+  picture of a board without tilting every other picture of the same board.
+  `createThreeView` also forwards frame options to `getFrame`, so a page
+  that tightens the SVG's padding can say so to its twin - left alone, the
+  two agree as before.
+- **A fader writes no depth**: a half-faded piece still occluded what stood
+  behind it, and on a real GPU whole runs of colour vanished for the length
+  of the fade. Seen on the chain's morphs; fixed where opacity is set.
+- **Two shows may not cross a rebuild**: `show()` awaits the decal atlas,
+  and a second call arriving over that await read its own puzzle's pieces
+  out of the other's meshes. A superseded show now stops; the newer one
+  paints.
+
+
 ## 0.2.14 (2026-08-24)
 
 - The weld's frame hugs its bodies. `fitSphere` was framing a weld
