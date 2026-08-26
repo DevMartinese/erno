@@ -16,6 +16,7 @@ import { rubik, alg, resetOutputs, takeOutputs } from "./chain.js";
 import { storyOf, waves } from "./morph.js";
 import { STEPS, sourceOf } from "./steps.js";
 import { createSketch, swapText } from "./sketch.js";
+import { createTimeline, spring } from "animejs";
 
 const $ = (id) => document.getElementById(id);
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -143,8 +144,18 @@ const radial = (at, heart) => {
 
 // ── The morph, per act ──────────────────────────────────────────────────────
 
-const MORPH_MS = 2600;
-const actSlot = (n, budget = MORPH_MS) => Math.max(420, Math.min(1150, budget / n));
+const MORPH_MS = 2600; // ceiling for the one shared clock
+
+// Emil's assignment, by rule rather than by taste-of-the-day:
+//   what ENTERS or LEAVES gets the strong ease-out - the eye is watching
+//   the first millisecond hardest, so the motion must be there already;
+//   what TRAVELS across the screen gets the strong ease-in-out - a thing
+//   already on stage accelerates and brakes like a thing with mass;
+//   what SETTLES gets a spring - a landing has no fixed duration, it has
+//   physics, and a spring keeps its velocity if the reader interrupts it.
+const EASE_ENTER = [0.23, 1, 0.32, 1];
+const EASE_TRAVEL = [0.77, 0, 0.175, 1];
+const EASE_SETTLE = spring({ mass: 1, stiffness: 130, damping: 15 });
 
 async function morphTo(next, gen, budget) {
   const prev = state.shown;
@@ -203,7 +214,6 @@ async function morphTo(next, gen, budget) {
     return;
   }
 
-  const slot = actSlot(story.acts.length, budget);
   const undocked = new Set(story.undock ? story.undock.pieces : []);
   const docked = new Set(story.dock ? story.dock.pieces : []);
   const stayFrom = new Set(story.staying.map((p) => p.from));
@@ -211,29 +221,44 @@ async function morphTo(next, gen, budget) {
   const shed = new Set(story.leaving.filter((i) => !undocked.has(i)));
   const grow = new Set(story.arriving.filter((i) => !docked.has(i)));
 
+  // ── ONE TIMELINE, PHASES OVERLAPPED ─────────────────────────────────────
+  //
+  // The acts used to run in series with hard borders - leave, THEN travel,
+  // THEN cross, THEN dock, THEN sprout - and every border was a dead beat
+  // the eye read as a stutter. A mutation is one event: so it plays as one
+  // tween, each phase owning a window that starts while the previous one
+  // is still landing. The stories and their order are morph.js' word,
+  // unchanged; only the clock is shared now.
   const a = state.board;
 
-  // ── undock: a whole body pulls away on the vector its place names ──────
-  if (story.undock && a) {
-    const off = story.undock.offset.map((v) => v * 1.5);
-    await tween(slot, gen, (t) => {
-      const e = easeOut(t);
-      for (const i of undocked) {
-        a.offset(i, [off[0] * e, off[1] * e, off[2] * e]);
-        a.opacity(i, 1 - e);
-      }
-    });
-    if (gen !== state.gen) return;
-    a.visible((i) => !undocked.has(i) && (!prev.veil || prev.veil(i)));
-  }
-
-  // ── subtract: voxels leave the way they would really come off ──────────
+  const phases = [];
+  if (story.undock && a) phases.push("undock");
+  if (shed.size && a) phases.push("subtract");
+  phases.push("stretch"); // even with no movers: the cross-over lives here
+  if (story.dock) phases.push("dock");
+  if (grow.size) phases.push("subdivide");
+  // ── the clock is anime's now ────────────────────────────────────────────
   //
-  // A piece that stands OUTSIDE the survivors' box is a slab being taken
-  // off the end, and it slides off along that axis - all of one mind, the
-  // way a lid comes off - because a radial scatter there reads as an
-  // explosion, not a cut. A piece INSIDE the survivors (a carved centre)
-  // keeps the radial lift: there is no lid axis to speak of.
+  // One timeline per morph. Every phase is added at an absolute time and
+  // OVERLAPS the one before it, so a mutation reads as one continuous
+  // event; every voxel is its own tween inside the phase, delayed by the
+  // wave it rides. The curves are Emil's, by rule: EASE_ENTER for what
+  // appears or leaves, EASE_TRAVEL for what crosses the stage, EASE_SETTLE
+  // (a spring) for what lands.
+  const DUR = { leave: 300, travel: 460, cross: 240 };
+  const SPREAD = { leave: 480, grow: 640 }; // how long a wave takes to ripple
+
+  // the next board arrives fully prepared and fully hidden
+  const b = addBoard(next);
+  const bVis = new Set();
+  b.visible((i) => bVis.has(i));
+  const offDock = story.dock ? story.dock.offset.map((v) => v * 1.5) : null;
+  if (story.dock) for (const i of docked) b.offset(i, offDock);
+  const offU = story.undock ? story.undock.offset.map((v) => v * 1.5) : null;
+  state.board = b;
+
+  // ── per-phase preparation, all before the clock starts ─────────────────
+  let shedField = null;
   if (shed.size && a) {
     const heart = heartOf([...stayFrom].map(atFrom));
     const lo = [Infinity, Infinity, Infinity];
@@ -245,9 +270,12 @@ async function morphTo(next, gen, budget) {
         hi[k] = Math.max(hi[k], q[k]);
       }
     }
+    // a piece OUTSIDE the survivors' box is a slab coming off the end: it
+    // slides off along that axis, all of one mind; a piece inside (a carved
+    // centre) lifts on its own radial vector
     const wayOut = (q) => {
       let axis = -1;
-      let most = 0.5; // half a slot of overflow before it counts as a lid
+      let most = 0.5;
       for (const k of [0, 1, 2]) {
         const over = q[k] > hi[k] ? q[k] - hi[k] : q[k] < lo[k] ? q[k] - lo[k] : 0;
         if (Math.abs(over) > most) {
@@ -264,81 +292,15 @@ async function morphTo(next, gen, budget) {
       [...shed].map((i) => ({ at: atFrom(i), idx: i })),
       { outward: false, heart },
     );
-    const { delay, dur } = delaysOf(rounds, slot);
-    const dir = new Map(
-      [...shed].map((i) => [i, wayOut(atFrom(i)) || radial(atFrom(i), heart)]),
-    );
-    await tween(slot, gen, (t) => {
-      for (const i of shed) {
-        const local = Math.max(0, Math.min(1, (t - delay.get(i)) / dur));
-        const e = easeOut(local);
-        const d = dir.get(i);
-        a.offset(i, [d[0] * e, d[1] * e, d[2] * e]);
-        a.opacity(i, 1 - e);
-      }
-    });
-    if (gen !== state.gen) return;
+    shedField = {
+      ...delaysOf(rounds, 1),
+      dir: new Map([...shed].map((i) => [i, wayOut(atFrom(i)) || radial(atFrom(i), heart)])),
+    };
   }
 
-  // ── stretch: the survivors travel their real vectors ───────────────────
-  //
-  // ONE BODY, MUTATING. The travellers are the OLD board's meshes, wearing
-  // the colours they stood in, walking their own vectors to where the new
-  // board wants them - and only once they stand still does the new board
-  // cross over them, in place. The other order (new board first, then the
-  // travel) put next step's colours on pieces still mid-flight, and the
-  // voyage read as a parade of different cubes instead of one cube living
-  // through its own story.
-  const moving = story.staying.filter((p) => p.delta.some((v) => v !== 0));
-  const b = addBoard(next);
-  // The new board arrives INVISIBLE: the dock body parked at its full
-  // arrival offset, everything else waiting for the cross-over.
-  if (story.dock) {
-    const off = story.dock.offset.map((v) => v * 1.5);
-    for (const i of docked) {
-      b.offset(i, off);
-      b.opacity(i, 0);
-    }
-  }
-  b.visible(() => false);
-  state.board = b;
-  if (moving.length && a) {
-    await tween(slot, gen, (t) => {
-      const e = easeOut(t);
-      for (const p of moving)
-        a.offset(p.from, [p.delta[0] * e, p.delta[1] * e, p.delta[2] * e]);
-    });
-    if (gen !== state.gen) return;
-  }
-  // the cross-over: the settled travellers and the new board share every
-  // point, so the exchange is invisible when nothing repainted and a quick
-  // fade where something did
-  b.visible((i) => stayTo.has(i) || docked.has(i));
-  if (a) {
-    for (const i of stayTo) b.opacity(i, 0);
-    await tween(reduced ? 0 : 240, gen, (t) => {
-      for (const i of stayTo) b.opacity(i, t);
-    });
-    if (gen !== state.gen) return;
-    for (const i of stayTo) b.opacity(i, 1);
-    dropBoard(a);
-  }
+  const movers = story.staying.filter((p) => p.delta.some((v) => v !== 0));
 
-  // ── dock: a whole body arrives, full size, on its own vector ───────────
-  if (story.dock) {
-    const off = story.dock.offset.map((v) => v * 1.5);
-    await tween(slot, gen, (t) => {
-      const e = easeOut(t);
-      for (const i of docked) {
-        b.offset(i, [off[0] * (1 - e), off[1] * (1 - e), off[2] * (1 - e)]);
-        b.opacity(i, Math.min(1, e * 1.6));
-      }
-    });
-    if (gen !== state.gen) return;
-    for (const i of docked) b.offset(i, null);
-  }
-
-  // ── subdivide: the scaffold shows what is coming, then voxels settle ───
+  let growField = null;
   if (grow.size) {
     const standingSet = new Set([...stayTo, ...docked]);
     const heart = heartOf([...standingSet].map(atTo));
@@ -346,31 +308,187 @@ async function morphTo(next, gen, budget) {
       [...grow].map((i) => ({ at: atTo(i), idx: i })),
       { outward: true, heart },
     );
-    const wire = b.wireframe({ color: INK, opacity: 0.3 });
-    wire.visible((i) => grow.has(i));
-    const { delay, dur } = delaysOf(rounds, slot);
-    const dir = new Map([...grow].map((i) => [i, radial(atTo(i), heart)]));
-    const landed = new Set();
-    b.visible((i) => standingSet.has(i) || grow.has(i));
+    growField = {
+      ...delaysOf(rounds, 1),
+      dir: new Map([...grow].map((i) => [i, radial(atTo(i), heart)])),
+    };
     for (const i of grow) b.opacity(i, 0);
-    await tween(slot * 1.25, gen, (t) => {
-      for (const i of grow) {
-        const local = Math.max(0, Math.min(1, (t - delay.get(i)) / dur));
-        const e = easeOut(local);
-        const d = dir.get(i);
-        b.offset(i, [d[0] * (1 - e), d[1] * (1 - e), d[2] * (1 - e)]);
-        b.opacity(i, Math.min(1, local * 1.8));
-        if (local >= 1) landed.add(i);
-        wire.visible((k) => grow.has(k) && !landed.has(k));
-      }
-    });
-    wire.dispose();
-    if (gen !== state.gen) return;
-    for (const i of grow) b.offset(i, null);
   }
 
-  if (gen !== state.gen) return;
+  // ── the timeline ────────────────────────────────────────────────────────
+  const scale = budget !== undefined ? Math.max(0.5, budget / MORPH_MS) : 1;
+  const ms = (v) => v * scale;
+  let finish = null;
+  const tl = createTimeline({
+    autoplay: false,
+    onUpdate: () => {
+      // a superseded generation cancels its own clock and still resolves,
+      // so the cleanup below always runs and no board outlives its story
+      if (gen !== state.gen) {
+        tl.cancel();
+        if (finish) finish();
+        return;
+      }
+      view.render();
+    },
+    onComplete: () => {
+      if (finish) finish();
+    },
+  });
+  let cursor = 0;
+  const OVERLAP = 0.45;
+  const phaseLen = { undock: ms(DUR.travel), subtract: ms(SPREAD.leave + DUR.leave), stretch: ms(DUR.travel + DUR.cross), dock: ms(DUR.travel), subdivide: ms(SPREAD.grow + DUR.leave) };
+  const startOf = new Map();
+  for (const ph of phases) {
+    startOf.set(ph, cursor);
+    cursor += phaseLen[ph] * (1 - OVERLAP);
+  }
+
+  if (story.undock && a) {
+    const o = { e: 0 };
+    tl.add(o, {
+      e: 1,
+      duration: ms(DUR.travel),
+      ease: EASE_TRAVEL,
+      onUpdate: () => {
+        for (const i of undocked) {
+          a.offset(i, [offU[0] * o.e, offU[1] * o.e, offU[2] * o.e]);
+          a.opacity(i, 1 - o.e);
+        }
+      },
+    }, startOf.get("undock"));
+  }
+
+  if (shedField && a) {
+    for (const i of shed) {
+      const o = { e: 0 };
+      const d = shedField.dir.get(i);
+      tl.add(o, {
+        e: 1,
+        duration: ms(DUR.leave),
+        ease: EASE_ENTER,
+        onUpdate: () => {
+          a.offset(i, [d[0] * o.e, d[1] * o.e, d[2] * o.e]);
+          a.opacity(i, 1 - o.e);
+        },
+      }, startOf.get("subtract") + shedField.delay.get(i) * ms(SPREAD.leave));
+    }
+  }
+
+  {
+    const t0 = startOf.get("stretch");
+    if (a && movers.length) {
+      const o = { e: 0 };
+      tl.add(o, {
+        e: 1,
+        duration: ms(DUR.travel),
+        ease: EASE_TRAVEL,
+        onUpdate: () => {
+          for (const p of movers)
+            a.offset(p.from, [p.delta[0] * o.e, p.delta[1] * o.e, p.delta[2] * o.e]);
+        },
+      }, t0);
+    }
+    // the cross-over rides the tail of the travel: the new board fades up
+    // through the settling travellers, piece for piece in place
+    const c = { e: 0 };
+    tl.add(c, {
+      e: 1,
+      duration: ms(DUR.cross),
+      ease: EASE_ENTER,
+      onBegin: () => {
+        for (const i of stayTo) {
+          bVis.add(i);
+          b.opacity(i, 0);
+        }
+        b.visible((i) => bVis.has(i));
+      },
+      onUpdate: () => {
+        for (const i of stayTo) b.opacity(i, c.e);
+        if (a) for (const p of story.staying) a.opacity(p.from, 1 - c.e);
+      },
+    }, t0 + (a && movers.length ? ms(DUR.travel) * 0.6 : 0));
+  }
+
+  if (story.dock) {
+    const o = { e: 0 };
+    tl.add(o, {
+      e: 1,
+      duration: ms(DUR.travel),
+      ease: EASE_TRAVEL,
+      onBegin: () => {
+        for (const i of docked) bVis.add(i);
+        b.visible((i) => bVis.has(i));
+      },
+      onUpdate: () => {
+        for (const i of docked) {
+          b.offset(i, [offDock[0] * (1 - o.e), offDock[1] * (1 - o.e), offDock[2] * (1 - o.e)]);
+          b.opacity(i, Math.min(1, o.e * 1.6));
+        }
+      },
+    }, startOf.get("dock"));
+  }
+
+  let wire = null;
+  const landedSet = new Set();
+  if (growField) {
+    const t0 = startOf.get("subdivide");
+    const raise = { e: 0 };
+    tl.add(raise, {
+      e: 1,
+      duration: 1,
+      onBegin: () => {
+        wire = b.wireframe({ color: INK, opacity: 0.3 });
+        wire.visible((i) => grow.has(i));
+        for (const i of grow) {
+          bVis.add(i);
+          b.opacity(i, 0);
+        }
+        b.visible((i) => bVis.has(i));
+      },
+    }, t0);
+    for (const i of grow) {
+      const o = { e: 0 };
+      const d = growField.dir.get(i);
+      tl.add(o, {
+        e: 1,
+        ease: EASE_SETTLE,
+        onUpdate: () => {
+          b.offset(i, [d[0] * (1 - o.e), d[1] * (1 - o.e), d[2] * (1 - o.e)]);
+          b.opacity(i, Math.min(1, o.e * 1.8));
+        },
+        // the scaffold gives up each voxel the moment it lands
+        onComplete: () => {
+          landedSet.add(i);
+          if (wire) wire.visible((k) => grow.has(k) && !landedSet.has(k));
+        },
+      }, t0 + growField.delay.get(i) * ms(SPREAD.grow));
+    }
+  }
+
+  if (reduced) {
+    tl.seek(tl.duration);
+    view.render();
+  } else {
+    await new Promise((done) => {
+      finish = done;
+      tl.play();
+    });
+  }
+
+  // The board is normalized BEFORE the generation check: a cancelled morph
+  // must not leave b half-hidden and half-transparent, because the very
+  // next morph inherits b as its starting board and trusts it to be whole.
+  // Every line here is idempotent and local, so running it for a
+  // superseded story costs nothing.
+  if (wire) wire.dispose();
+  if (a) dropBoard(a);
+  for (const i of docked) b.offset(i, null);
+  for (const i of grow) b.offset(i, null);
+  for (const p of movers) if (stayTo.has(p.to)) b.offset(p.to, null);
+  b.meshes.forEach((_, i) => b.opacity(i, 1));
   b.visible(next.veil ? (i) => next.veil(i) : null);
+  if (gen !== state.gen) return;
   state.shown = next;
   view.render();
 }
