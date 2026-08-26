@@ -375,6 +375,28 @@ async function morphTo(next, gen, budget) {
       drawValue(next);
       return;
     }
+    // THE PAINT SWEEPS. Same structure, same places - only the colours -
+    // and a repaint is drawn the way the paint function ran: piece by
+    // piece, a wave from the heart outward. A repainted piece drawn alone
+    // covers its own footprint exactly (the geometry did not move), so
+    // the composition rule costs nothing here.
+    if (!reduced && !prev.veil && !next.veil) {
+      const rounds = waves(
+        next.board.pieces.map((p, i) => ({ at: p.slotPoint, idx: i })),
+        { outward: true, heart: [0, 0, 0] },
+      );
+      const done = new Set();
+      const renders = [];
+      for (const w of rounds) {
+        for (const idx of w) done.add(idx);
+        const snap = new Set(done);
+        renders.push(svgOf(next, { pieces: (i) => snap.has(i) }));
+      }
+      await stackFade(renders, "in", 900, gen);
+      if (gen !== state.gen) return;
+      drawValue(next);
+      return;
+    }
     await crossfadeTo(svgOf(next), gen);
     if (gen === state.gen) state.shown = next;
     return;
@@ -603,6 +625,25 @@ async function reveal(value, gen) {
 
 const sketch = createSketch($("voyage-lines"), reduced);
 
+
+// What the fx stage last played, so the next step can CONTINUE the cube
+// instead of resetting it: same rest and a sequence that extends what has
+// already been played means the board on screen is this story a few turns
+// behind, and only the remainder is owed. rubik().turn("R") into
+// .turn("R U R' U'") mutates on from the R; nothing rewinds to solved.
+const played = { rest: null, seq: "" };
+
+const tokensOf = (s) => String(s || "").split(/\s+/).filter(Boolean);
+
+function continuation(rest, seq) {
+  if (!rest || played.rest !== rest) return null;
+  const done = tokensOf(played.seq);
+  const want = tokensOf(seq);
+  if (!done.length || want.length <= done.length) return null;
+  if (want.slice(0, done.length).join(" ") !== done.join(" ")) return null;
+  return { prefix: done, suffix: want.slice(done.length).join(" ") };
+}
+
 // ── The step engine ─────────────────────────────────────────────────────────
 
 function runSketch(src) {
@@ -641,6 +682,11 @@ async function goTo(step) {
 
   const fx = s.fx || {};
   try {
+    if (!fx.rest) {
+      // a step with no fx stage tells some other story: the trail ends here
+      played.rest = null;
+      played.seq = "";
+    }
     if (fx.reveal) {
       // The shape settles before the assembly starts. A step that reveals
       // is still arriving from whatever stood before it - and what stands
@@ -653,12 +699,25 @@ async function goTo(step) {
       await reveal(tableValue, gen);
     } else {
       const stage = fx.rest ? runSketch(fx.rest).get("table") : tableValue;
-      await morphTo(stage, gen);
-      if (gen !== state.gen) return;
       let seq = fx.seq;
       if (fx.seed !== undefined)
         seq = runSketch(fx.rest).get("table").board.scramble(18, fx.seed);
-      if (seq) await playTurns(stage, seq, gen);
+      const cont = continuation(fx.rest, seq);
+      if (cont) {
+        // the standing board already shows the prefix played: bring the
+        // stage silently to that same position and keep going from there
+        for (const t of cont.prefix) stage.board.move(t);
+        drawValue(stage);
+        await playTurns(stage, cont.suffix, gen);
+      } else {
+        await morphTo(stage, gen);
+        if (gen !== state.gen) return;
+        if (seq) await playTurns(stage, seq, gen);
+      }
+      if (gen === state.gen) {
+        played.rest = fx.rest || null;
+        played.seq = seq || "";
+      }
     }
   } catch (err) {
     console.error(err);

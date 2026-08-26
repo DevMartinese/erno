@@ -12,8 +12,8 @@ function test(name, fn) {
 }
 const assert = (c, m) => { if (!c) throw new Error(m || "assertion failed"); };
 
-test("there are thirteen steps and every sketch still runs", () => {
-  assert(STEPS.length === 15, `${STEPS.length} steps`);
+test("every step sketch still runs, and the count is pinned", () => {
+  assert(STEPS.length === 17, `${STEPS.length} steps`);
   for (const s of STEPS) {
     resetOutputs();
     const fn = new Function("rubik", "alg", "goal", "table", `"use strict";\n${sourceOf(s)}`);
@@ -30,7 +30,10 @@ test("a verdict that catches must catch the MECHANISM's refusal, not its own", (
   // prints a plausible-looking lie. Found live: the extraction forgot
   // `rubik`, and "box.can(\"R\") → false. rubik is not defined" shipped to
   // the screen while every "does it run" test stayed green.
-  const s = STEPS[7];
+  // found by title, not by index: the voyage grows, and an index that
+  // silently started pointing at some other step is how this guard was
+  // once green while testing nothing
+  const s = STEPS.find((st) => st.title.includes("a box has laws"));
   const said = s.read();
   assert(said.includes("misshapen"), `the cuboid's own words, got: ${said}`);
   for (const step of STEPS) {
@@ -50,8 +53,8 @@ test("the sketches are byte for byte what both stages agreed to teach", () => {
   const joined = STEPS.map(sourceOf).join("\n<<>>\n");
   let h = 0;
   for (let i = 0; i < joined.length; i++) h = (h * 31 + joined.charCodeAt(i)) >>> 0;
-  assert(joined.length === 1340, `total source length changed: ${joined.length}`);
-  assert(h === 54384460, `fingerprint changed: ${h}`);
+  assert(joined.length === 1544, `total source length changed: ${joined.length}`);
+  assert(h === 743487012, `fingerprint changed: ${h}`);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

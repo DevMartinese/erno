@@ -173,14 +173,27 @@ async function morphTo(next, gen, budget) {
       view.render();
       return;
     }
-    // two boards, opacity crossed: the same object in both hands
+    // THE PAINT SWEEPS. Nothing came, went or moved - only the colours -
+    // so a whole-board dissolve reads as a new cube arriving, which is
+    // exactly the story this is not. Instead each voxel flips in its own
+    // quick crossfade, staggered outward from the heart: the repaint runs
+    // over the cube the way the paint function ran over its cubies.
     const a = state.board;
     const b = addBoard(next);
     b.meshes.forEach((_, i) => b.opacity(i, 0));
-    await tween(660, gen, (t) => {
-      const e = easeOut(t);
-      b.meshes.forEach((_, i) => b.opacity(i, e));
-      if (a) a.meshes.forEach((_, i) => a.opacity(i, 1 - e));
+    const all = next.board.pieces.map((_, i) => i);
+    const rounds = waves(
+      all.map((i) => ({ at: atTo(i), idx: i })),
+      { outward: true, heart: [0, 0, 0] },
+    );
+    const { delay, dur } = delaysOf(rounds, 900);
+    await tween(900, gen, (t) => {
+      for (const i of all) {
+        const local = Math.max(0, Math.min(1, (t - delay.get(i)) / dur));
+        const e = easeOut(local);
+        b.opacity(i, e);
+        if (a && a.meshes[i]) a.opacity(i, 1 - e);
+      }
     });
     dropBoard(a);
     if (gen !== state.gen) return;
@@ -456,6 +469,25 @@ const dressHollows = (svg) =>
       `${head}fill="${HOLLOW}" stroke="${mixHex(tokenColour("--paper", "#f4efe7"), INK, 0.5)}"${tail}`,
   );
 
+
+// What the fx stage last played, so the next step can CONTINUE the cube
+// instead of resetting it: same rest and a sequence that extends what has
+// already been played means the board on screen is this story a few turns
+// behind, and only the remainder is owed. rubik().turn("R") into
+// .turn("R U R' U'") mutates on from the R; nothing rewinds to solved.
+const played = { rest: null, seq: "" };
+
+const tokensOf = (s) => String(s || "").split(/\s+/).filter(Boolean);
+
+function continuation(rest, seq) {
+  if (!rest || played.rest !== rest) return null;
+  const done = tokensOf(played.seq);
+  const want = tokensOf(seq);
+  if (!done.length || want.length <= done.length) return null;
+  if (want.slice(0, done.length).join(" ") !== done.join(" ")) return null;
+  return { prefix: done, suffix: want.slice(done.length).join(" ") };
+}
+
 // ── The step engine ─────────────────────────────────────────────────────────
 
 const sketch = createSketch($("voyage-lines"), reduced);
@@ -494,18 +526,40 @@ async function goTo(step) {
 
   const fx = s.fx || {};
   try {
+    if (!fx.rest) {
+      // a step with no fx stage tells some other story: the trail ends here
+      played.rest = null;
+      played.seq = "";
+    }
     if (fx.reveal) {
       await morphTo(tableValue, gen, 1800);
       if (gen !== state.gen) return;
       await reveal(tableValue, gen);
     } else {
       const stage = fx.rest ? runSketch(fx.rest).get("table") : tableValue;
-      await morphTo(stage, gen);
-      if (gen !== state.gen) return;
       let seq = fx.seq;
       if (fx.seed !== undefined)
         seq = runSketch(fx.rest).get("table").board.scramble(18, fx.seed);
-      if (seq) await playTurns(stage, seq, gen);
+      const cont = continuation(fx.rest, seq);
+      if (cont) {
+        // the standing board already shows the prefix played: plant the
+        // stage at that same position - an invisible exchange, the two
+        // draw the same picture - and keep mutating from there
+        for (const t of cont.prefix) stage.board.move(t);
+        clearStage();
+        state.board = addBoard(stage);
+        state.shown = stage;
+        view.render();
+        await playTurns(stage, cont.suffix, gen);
+      } else {
+        await morphTo(stage, gen);
+        if (gen !== state.gen) return;
+        if (seq) await playTurns(stage, seq, gen);
+      }
+      if (gen === state.gen) {
+        played.rest = fx.rest || null;
+        played.seq = seq || "";
+      }
     }
   } catch (err) {
     console.error(err);

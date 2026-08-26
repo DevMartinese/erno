@@ -64,13 +64,50 @@ const STEPS = [
     },
   },
   {
-    title: "vi · carve",
+    title: "vi · the brush reads finer",
+    caption: "The same paint, four more arguments: face, row and col say WHICH sticker is asking. Answer them and one cubie wears more than one colour.",
+    lines: [
+      ["const checker = (x, y, z, n, face, row, col) =>"],
+      ['  (row + col) % 2 ? "U" : "D"'],
+      [],
+      ["rubik()", ".paint(checker)", ".out()"],
+    ],
+    read: (t) => {
+      const stickers = t.board.getTints().length;
+      return (
+        `paint ran ${stickers} times: once per STICKER, never per cubie. ` +
+        `halves ignored face, row and col, so its cubies came back whole; ` +
+        `checker reads them, and now a corner answers three times.`
+      );
+    },
+  },
+  {
+    title: "vii · paint by number",
+    caption: "The third vocabulary: a number indexes the page's eight-colour palette. kind counts a cubie's stickers, so the piece TYPES paint themselves.",
+    lines: [
+      ["const kinds = (x, y, z, n, face, row, col, kind) => kind"],
+      [],
+      ["rubik()", ".paint(kinds)", ".out()"],
+    ],
+    read: (t) => {
+      const per = { 1: 0, 2: 0, 3: 0 };
+      t.board.pieces.forEach((p) => per[p.faces.filter((f) => f.letter).length]++);
+      return (
+        `kind is 1, 2 or 3 - ${per[1]} centres, ${per[2]} edges, ${per[3]} corners - ` +
+        `and each number picks a palette colour. Three vocabularies, one link: a ` +
+        `FACE letter through the scheme, a NUMBER through the palette, or any ` +
+        `colour string, raw.`
+      );
+    },
+  },
+  {
+    title: "viii · carve",
     caption: "Holes are real: the absences are piece-shaped and they travel under turns.",
     lines: [[HALVES], [], ["rubik()", ".paint(halves)", '.carve("centers")', ".out()"]],
     read: (t) => `${t.board.pieces.length} pieces stand; the centres are gone.`,
   },
   {
-    title: "vii · one character",
+    title: "ix · one character",
     caption: "The source string is the mini-notation of shapes. Edit one character, meet another beast.",
     lines: [[HALVES], [], ['rubik("5")', ".paint(halves)", '.carve("centers")', ".out()"]],
     // One line of code, re-answering. On a three "above y = 0" was a single
@@ -87,7 +124,7 @@ const STEPS = [
     },
   },
   {
-    title: "viii · a box has laws",
+    title: "x · a box has laws",
     caption: "The mechanism refuses what would misshape it, and the refusal is the lesson.",
     lines: [
       [HALVES],
@@ -105,7 +142,7 @@ const STEPS = [
     },
   },
   {
-    title: "ix · a second cube joins",
+    title: "xi · a second cube joins",
     caption: "Weld another body on and it is one mechanism: the moves spell the body first, and most turns stopped existing.",
     lines: [
       [HALVES],
@@ -130,42 +167,47 @@ const STEPS = [
     },
   },
   {
-    title: "x · displace it",
-    caption: "Three numbers place the second body. Slide one and B rides half over A - and the mechanism recomputes which turns exist there.",
+    title: "xii · displace it",
+    caption: "Three numbers place the second body. Stagger it half a height and push it a full column off in BOTH directions: barely joined, and still one mechanism.",
     lines: [
       [HALVES],
       [],
-      ["const weld = ", 'rubik("3 + 3 @ 1,2,0")', ".paint(halves)"],
+      ["const weld = ", 'rubik("3 + 3 @ 2,1,-2")', ".paint(halves)"],
       ["weld", ".out()"],
     ],
-    // No fx: the displacement IS the morph. One number changes and body B
-    // steps sideways to ride half over A - unmistakably two cubes, glued at
-    // their middles. NOT 2,0,0: two threes flush make a 5-wide slab, and a
-    // slab is a cuboid to the eye - the one shape the step before already
-    // taught. A displaced weld must LOOK displaced.
+    // No fx: the displacement IS the morph. B steps to half height and a
+    // single shared column - staggered vertically AND perpendicular, the
+    // two bodies reading as two cubes that barely touch. The z runs
+    // NEGATIVE so B lands toward the viewer: pushed the other way it
+    // eclipses behind A at the default camera, and the flat route has no
+    // orbit to rescue it. A displaced weld must LOOK displaced.
     read: (t) => {
-      const was = rubik("3 + 3 @ 2,2,0").legal().length;
+      const flat = rubik("3 + 3 @ 1,2,0").legal().length;
       const corner = rubik("3 + 3 @ 2,2,2").legal().length;
       return (
-        `${t.legend()} · ${t.legal().length} of 54 turns exist here - at the ` +
-        `Siamese's 2,2,0 it was ${was}, and corner to corner at 2,2,2 it would ` +
-        `be ${corner}. Where you weld decides how much of the language survives.`
+        `${t.legend()} · ${t.legal().length} of 54 turns exist here - staggered ` +
+        `flat at 1,2,0 it would be ${flat}, and corner to corner at 2,2,2, ` +
+        `${corner}. Where you weld decides how much of the language survives.`
       );
     },
   },
   {
-    title: "xi · the bodies need not match",
-    caption: "A two rides the same lattice on half steps. Smaller body, same law: one mechanism, and the judge still counts to the facelet.",
+    title: "xiii · the bodies need not match",
+    caption: "A two FUSES into the three - one corner cubie belongs to both bodies. Half-step address, smaller body, same law: one mechanism.",
     lines: [
       [HALVES],
       [],
-      ["const weld = ", 'rubik("3 + 2 @ 1.5,2.5,-0.5")', ".paint(halves)"],
+      ["const weld = ", 'rubik("3 + 2 @ 1.5,1.5,-1.5")', ".paint(halves)"],
       ["weld", ".out()"],
     ],
     // The half-step offsets are not decoration: a 2x2's cubies live on the
     // half-integers of a 3x3's lattice, and the spec refuses any address
     // that puts a body off the shared grid - the refusal names the axis
-    // and the distance, which is how this address was found.
+    // and the distance, which is how this address was found. At 1.5 on
+    // every axis the overlap is exactly one cubie: the corner belongs to
+    // BOTH bodies, the way the shelf puzzles fuse - not resting on top,
+    // welded through. The z runs negative so the two lands toward the
+    // viewer instead of eclipsing behind the three.
     read: (t) => {
       const both = rubik("3 + 3 @ 2,2,0");
       return (
@@ -176,7 +218,7 @@ const STEPS = [
     },
   },
   {
-    title: "xii · the seed",
+    title: "xiv · the seed",
     caption: "scramble() walks the board's own legal moves. A seed makes it the same walk on every machine.",
     lines: [
       [HALVES],
@@ -188,7 +230,7 @@ const STEPS = [
     read: () => "Seed 7: everyone faces this exact position.",
   },
   {
-    title: "xiii · it comes apart",
+    title: "xv · it comes apart",
     caption: "deal() opens the bin; place() sets from it. The centres ride the spider, and the last piece lands whole.",
     lines: [
       ["let v = ", "rubik()", ".deal()"],
@@ -199,7 +241,7 @@ const STEPS = [
     read: (t) => `Whole again, and ${t.lawful().lawful ? "lawful" : "unlawful"}.`,
   },
   {
-    title: "xiv · the borrowed cube",
+    title: "xvi · the borrowed cube",
     caption: "One corner placed with a spin: the picture of a cube, and the judge knows it is a lie.",
     lines: [
       ["let v = ", "rubik()", ".deal()"],
@@ -213,7 +255,7 @@ const STEPS = [
     },
   },
   {
-    title: "xv · the goal",
+    title: "xvii · the goal",
     caption: "One base chain branches: the picture to reach, and the board that must reach it. That is the whole game.",
     lines: [
       [HALVES],

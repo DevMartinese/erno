@@ -79,7 +79,11 @@
       .voyage {
         flex: 1;
         display: grid;
-        grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+        /* the glass route leans the other way from the flat one: the board
+           is the show here, so it gets the wider half. The sketch's lines
+           are short and its captions cap at 46ch - the words never needed
+           the room they were holding. */
+        grid-template-columns: minmax(0, 6fr) minmax(0, 7fr);
         min-height: 0;
         border-top: var(--rule) solid var(--ink);
       }
@@ -195,12 +199,16 @@
       .voyage-board {
         display: grid;
         place-items: center;
-        padding: var(--space-4);
+        padding: var(--space-2);
         min-height: 0;
         position: relative;
       }
       #voyage-stage {
-        width: min(96%, 44rem, 68vh);
+        /* The board is the right half's whole reason to exist: it takes
+           the room it can get. Height is the true ceiling on a wide
+           screen, so the cap is vh-first; the old 44rem cap left a field
+           of empty paper around a small cube. */
+        width: min(100%, 80vh);
         aspect-ratio: 1 / 1;
         cursor: grab;
         touch-action: none;
@@ -214,9 +222,35 @@
         bottom: var(--space-4);
         display: flex;
         gap: var(--space-1);
-        align-items: baseline;
+        align-items: center;
         font-family: var(--mono);
         font-size: var(--size-sm);
+      }
+      /* the select wears the house button: same rule, same paper, same
+         inversion on hover - a native dropdown in the page's own clothes */
+      #voyage-cubie {
+        appearance: none;
+        -webkit-appearance: none;
+        font-family: var(--sans);
+        font-weight: 900;
+        font-stretch: 118%;
+        letter-spacing: -0.02em;
+        font-size: var(--size-sm);
+        line-height: var(--lh-tight);
+        padding: 0.52em 2.2em 0.52em 1.2em;
+        background-color: var(--paper);
+        color: var(--ink);
+        border: var(--rule) solid var(--ink);
+        border-radius: 0;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2317110c'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.7em center;
+      }
+      #voyage-cubie:hover {
+        background-color: var(--ink);
+        color: var(--paper);
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23f4efe7'/%3E%3C/svg%3E");
       }
       #voyage-refuse {
         max-width: 34ch;
